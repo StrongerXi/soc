@@ -1,5 +1,5 @@
 (tests
-  (names list_test)
+  (names list_test option_test)
   (libraries ounit2 soc)
 )
 
