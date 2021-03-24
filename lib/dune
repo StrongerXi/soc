@@ -1,0 +1,6 @@
+(library
+  (name soc)
+  (wrapped false) ; makes self-compilation easier
+  )
+
+(include_subdirs unqualified)
