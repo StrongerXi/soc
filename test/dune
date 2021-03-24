@@ -1,0 +1,6 @@
+(tests
+  (names list_test)
+  (libraries ounit2 soc)
+)
+
+(include_subdirs unqualified)
