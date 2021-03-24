@@ -1,5 +1,5 @@
 (tests
-  (names list_test option_test set_test map_test int_test char_test)
+  (names list_test option_test set_test map_test int_test char_test string_test)
   (libraries ounit2 soc)
 )
 
