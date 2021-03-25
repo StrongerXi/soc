@@ -33,3 +33,6 @@ let compare ch1 ch2 =
   let code2 = Externals.char_code ch2 in
   code1 - code2 (* these can't overflow *)
 ;;
+
+let to_string = Externals.char_to_string
+;;

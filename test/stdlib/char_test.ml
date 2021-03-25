@@ -58,6 +58,13 @@ let tests = OUnit2.(>:::) "char_test" [
         OUnit2.assert_equal true ((Char.compare '$' '$') = 0);
         OUnit2.assert_equal true ((Char.compare '5' '2') > 0);
       );
+
+    OUnit2.(>::) "test_to_string" (fun _ ->
+        OUnit2.assert_equal "a" (Char.to_string 'a');
+        OUnit2.assert_equal " " (Char.to_string ' ');
+        OUnit2.assert_equal "$" (Char.to_string '$');
+        OUnit2.assert_equal "7" (Char.to_string '7');
+      );
   ]
 
 let _ =
