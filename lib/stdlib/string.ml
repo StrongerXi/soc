@@ -5,6 +5,9 @@ let length = Externals.string_length
 let get = Externals.string_get
 ;;
 
+let sub = Externals.string_sub
+;;
+
 let append = Externals.string_append
 ;;
 

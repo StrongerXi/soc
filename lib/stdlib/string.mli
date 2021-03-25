@@ -7,6 +7,9 @@ val length : string -> int
     Errors if [i] is out of bounds *)
 val get : string -> int -> char
 
+(** [sub s start end] returns the substring from [start] to _before_ [end] *)
+val sub : string -> int -> int -> string
+
 (** [append s1 s2] returns a new string with [s1] and [s2] appended together *)
 val append : string -> string -> string
 

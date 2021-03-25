@@ -12,6 +12,14 @@ let tests = OUnit2.(>:::) "string_test" [
         OUnit2.assert_equal '$' (String.get "x2$k" 2);
       );
 
+    OUnit2.(>::) "test_sub" (fun _ ->
+        OUnit2.assert_equal "a" (String.sub "ax$" 0 1);
+        OUnit2.assert_equal "ax" (String.sub "ax$" 0 2);
+        OUnit2.assert_equal "ax$" (String.sub "ax$" 0 3);
+        OUnit2.assert_equal "x$" (String.sub "ax$" 1 2);
+        OUnit2.assert_equal "$" (String.sub "ax$" 2 1);
+      );
+
     OUnit2.(>::) "test_append" (fun _ ->
         OUnit2.assert_equal "" (String.append "" "");
         OUnit2.assert_equal "123" (String.append "" "123");
