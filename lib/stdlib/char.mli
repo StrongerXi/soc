@@ -20,3 +20,6 @@ val is_alphanum : char -> bool
     - negative otherwise (ch1 < ch2)
     where comparison is based on their ascii code. *)
 val compare : char -> char -> int
+
+(** [to_string ch] returns a string representation of [ch] *)
+val to_string : char -> string
