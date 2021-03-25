@@ -48,7 +48,7 @@ and expr_desc =
         (* fun (x0:int) x1 ... xn -> e, n >= 1*)
   | Exp_apply of expression * expression list
         (* (e0 e1 e2 ... en), n >= 1 *)
-  | Pexp_ifthenelse of expression * expression * expression
+  | Exp_if of expression * expression * expression
         (* if e1 then e2 else e3 *)
 
 type struct_item_desc =
