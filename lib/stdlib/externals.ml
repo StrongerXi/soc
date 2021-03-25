@@ -16,7 +16,17 @@
     easily swap it out.
     *)
 
+let read_entire_file (filename : string) : string =
+  let ch = open_in filename in
+  let s = really_input_string ch (in_channel_length ch) in
+  close_in ch;
+  s
+;;
+
 let char_code = Stdlib.Char.code
+;;
+
+let char_to_string = Stdlib.Char.escaped
 ;;
 
 let int_to_string = Stdlib.string_of_int
@@ -26,6 +36,9 @@ let string_length = Stdlib.String.length
 ;;
 
 let string_get = Stdlib.String.get
+;;
+
+let string_sub = Stdlib.String.sub
 ;;
 
 let string_append = (^)
