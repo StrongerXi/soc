@@ -7,6 +7,15 @@ let tests = OUnit2.(>:::) "location_test" [
         OUnit2.assert_equal "(0, 0)" (Location.to_string (Location.create 0 0));
       );
 
+    OUnit2.(>::) "test_advance" (fun _ ->
+        OUnit2.assert_equal
+          (Location.create 0 1)
+          (Location.advance (Location.create 0 0));
+        OUnit2.assert_equal
+          (Location.create 3 3)
+          (Location.advance (Location.create 3 2));
+      );
+
     OUnit2.(>::) "test_skip_line" (fun _ ->
         OUnit2.assert_equal
           (Location.create 1 0)

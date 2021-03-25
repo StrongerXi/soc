@@ -18,6 +18,10 @@ let to_string t =
   str
 ;;
 
+let advance t =
+  { t with col = t.col + 1 }
+;;
+
 let skip_line t =
   { row = t.row + 1; col = 0 }
 ;;
