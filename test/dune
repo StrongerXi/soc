@@ -5,7 +5,7 @@
    result_test
 
    ; frontend
-   location_test
+   location_test span_test
   )
   (libraries ounit2 soc)
 )
