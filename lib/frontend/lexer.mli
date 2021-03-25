@@ -7,6 +7,6 @@ type t
     Error on invalid file. *)
 val create : string -> t
 
-(** [next t] returns the next token and a new lexer for the rest of the input.
+(** [next t] returns the next token and update [t] accordingly.
     Error on invalid input. *)
 val next : t -> Parser.token option
