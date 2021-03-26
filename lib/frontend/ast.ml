@@ -1,20 +1,25 @@
 open Pervasives
 
 type constant =
-  | Int of int
+  | Const_Int of int
+  | Const_Bool of bool
 
 type binary_op =
-  | Add
-  | Sub
-  | Mul
+  | Binop_add
+  | Binop_sub
+  | Binop_mul
+  | Binop_and
+  | Binop_or
+  | Binop_eq
+  | Binop_less
 
 type typ =
-  { desc : typ_desc
-  ; span : Span.t
+  { typ_desc : typ_desc
+  ; typ_span : Span.t
   }
 
 and typ_desc =
-  | Typ_constant of string
+  | Typ_const of string
       (* int, foobar, ... *)
   | Typ_arrow of typ * typ
       (* int -> (int -> int) ... *)
@@ -29,17 +34,17 @@ type opt_typed_var =
   } (* x : int *)
 
 type expression =
-  { desc : expr_desc
-  ; span : Span.t
+  { expr_desc : expr_desc
+  ; expr_span : Span.t
   }
 
 and binding =
-  { lhs : opt_typed_var
-  ; rhs : expression
+  { binding_lhs : opt_typed_var
+  ; binding_rhs : expression
   } (* (x:int) = e *)
 
 and expr_desc =
-  | Exp_constant of constant
+  | Exp_const of constant
   | Exp_ident of string
   | Exp_binop of binary_op * expression * expression
   | Exp_let of rec_flag * binding list * expression
@@ -60,8 +65,8 @@ type struct_item_desc =
 
 (** A [structure_item] is one integral item within a [structure] *)
 type struct_item =
-  { desc : struct_item_desc;
-    span : Span.t;
+  { struct_item_desc : struct_item_desc;
+    struct_item_span : Span.t;
   }
 
 (** A [structure] represents the definition of a module. *)
