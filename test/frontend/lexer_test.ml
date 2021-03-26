@@ -73,9 +73,11 @@ let tests = OUnit2.(>:::) "lexer_test" [
               _create_tok (Parser.Rec) path 6 0 6 2;
               _create_tok (Parser.Less) path 6 5 6 5;
               _create_tok (Parser.Less) path 6 6 6 6;
+              _create_tok (Parser.True) path 8 1 8 4;
+              _create_tok (Parser.False) path 8 6 8 10;
             ]
         in
-        OUnit2.assert_equal (Location.create 7 0) (Lexer.next_loc lexer);
+        OUnit2.assert_equal (Location.create 9 0) (Lexer.next_loc lexer);
       );
   ]
 

@@ -28,6 +28,8 @@ let _keyword_map : (string, Parser.token_desc) Map.t =
       ("and",  Parser.And);
       ("in",   Parser.In);
       ("fun",  Parser.Fun);
+      ("true",  Parser.True);
+      ("false",  Parser.False);
     ]
     (Map.empty String.compare)
 ;;

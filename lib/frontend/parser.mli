@@ -21,6 +21,8 @@ type token_desc =
   | Rarrow
   | Fun
   | Less
+  | True
+  | False
   | Int of string        (* ASSUME it's a valid integer string *)
   | DecapIdent of string
   | SemiSemiColon

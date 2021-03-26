@@ -20,6 +20,8 @@ let pp_token_desc desc =
   | Parser.Rarrow -> "<Rarrow>"
   | Parser.Fun -> "<Fun>"
   | Parser.Less -> "<Less>"
+  | Parser.True -> "<True>"
+  | Parser.False -> "<False>"
   | Parser.Int s -> String.append (String.append "<Int (" s) ")>"
   | Parser.DecapIdent s -> String.append (String.append "<DecapIdent (" s) ")>"
   | Parser.SemiSemiColon -> "<SemiSemiColon>"
