@@ -1,33 +1,33 @@
 
 let pp_token_desc desc =
   match desc with
-  | Parser.Plus -> "<Plus>"
-  | Parser.Minus -> "<Minus>"
-  | Parser.Asterisk -> "<Asterisk>"
-  | Parser.AmperAmper -> "<AmperAmper>"
-  | Parser.BarBar -> "<BarBar>"
-  | Parser.If -> "<If>"
-  | Parser.Then -> "<Then>"
-  | Parser.Else -> "<Else>"
-  | Parser.Let -> "<Let>"
-  | Parser.Rec -> "<Rec>"
-  | Parser.Colon -> "<Colon>"
-  | Parser.Equal -> "<Equal>"
-  | Parser.And -> "<And>"
-  | Parser.In -> "<In>"
-  | Parser.Lparen -> "<Lparen>"
-  | Parser.Rparen -> "<Rparen>"
-  | Parser.Rarrow -> "<Rarrow>"
-  | Parser.Fun -> "<Fun>"
-  | Parser.Less -> "<Less>"
-  | Parser.True -> "<True>"
-  | Parser.False -> "<False>"
-  | Parser.Int s -> String.append (String.append "<Int (" s) ")>"
-  | Parser.DecapIdent s -> String.append (String.append "<DecapIdent (" s) ")>"
-  | Parser.SemiSemiColon -> "<SemiSemiColon>"
+  | Token.Plus -> "<Plus>"
+  | Token.Minus -> "<Minus>"
+  | Token.Asterisk -> "<Asterisk>"
+  | Token.AmperAmper -> "<AmperAmper>"
+  | Token.BarBar -> "<BarBar>"
+  | Token.If -> "<If>"
+  | Token.Then -> "<Then>"
+  | Token.Else -> "<Else>"
+  | Token.Let -> "<Let>"
+  | Token.Rec -> "<Rec>"
+  | Token.Colon -> "<Colon>"
+  | Token.Equal -> "<Equal>"
+  | Token.And -> "<And>"
+  | Token.In -> "<In>"
+  | Token.Lparen -> "<Lparen>"
+  | Token.Rparen -> "<Rparen>"
+  | Token.Rarrow -> "<Rarrow>"
+  | Token.Fun -> "<Fun>"
+  | Token.Less -> "<Less>"
+  | Token.True -> "<True>"
+  | Token.False -> "<False>"
+  | Token.Int s -> String.append (String.append "<Int (" s) ")>"
+  | Token.DecapIdent s -> String.append (String.append "<DecapIdent (" s) ")>"
+  | Token.SemiSemiColon -> "<SemiSemiColon>"
 ;;
 
-let pp_token (tok : Parser.token) =
+let pp_token (tok : Token.t) =
   let str = String.append "{ " (pp_token_desc tok.token_desc) in
   let str = String.append str " in <" in
   let str = String.append str tok.token_span.filename in

@@ -16,28 +16,28 @@ type t =
 
 
 (* These keywords are subset of identifier with more than 1 character. *)
-let _keyword_map : (string, Parser.token_desc) Map.t =
+let _keyword_map : (string, Token.desc) Map.t =
   List.fold_right
     (fun (k, v) -> Map.add k v)
     [
-      ("if",   Parser.If);
-      ("then", Parser.Then);
-      ("else", Parser.Else);
-      ("let",  Parser.Let);
-      ("rec",  Parser.Rec);
-      ("and",  Parser.And);
-      ("in",   Parser.In);
-      ("fun",  Parser.Fun);
-      ("true",  Parser.True);
-      ("false",  Parser.False);
+      ("if",   Token.If);
+      ("then", Token.Then);
+      ("else", Token.Else);
+      ("let",  Token.Let);
+      ("rec",  Token.Rec);
+      ("and",  Token.And);
+      ("in",   Token.In);
+      ("fun",  Token.Fun);
+      ("true",  Token.True);
+      ("false",  Token.False);
     ]
     (Map.empty String.compare)
 ;;
 
 
-let _get_keywd_or_iden_token_desc (str : string) : Parser.token_desc =
+let _get_keywd_or_iden_token_desc (str : string) : Token.desc =
   match Map.get str _keyword_map with
-  | None     -> Parser.DecapIdent str
+  | None     -> Token.DecapIdent str
   | Some tok -> tok
 ;;
 
@@ -96,29 +96,29 @@ let _next_ch t : char option =
 (* NOTE [_cont_X t] assumes the last character(s) examined by [t] determine a
  * unique start of [X] so we "continue" to lex [X] *)
 
-let rec _cont_num t : Parser.token_desc =
+let rec _cont_num t : Token.desc =
   match _peek_ch t with
   | Some ch when (Char.is_num ch) -> _increment_cur_pos t; _cont_num t
-  | Some ch -> Parser.Int (_get_token_str t)
+  | Some ch -> Token.Int (_get_token_str t)
   | None -> _lexer_error_general "Unexpected EOF while lexing a number" t
 ;;
 
-let rec _cont_ident_or_keywd t : Parser.token_desc =
+let rec _cont_ident_or_keywd t : Token.desc =
   match _peek_ch t with
   | Some ch when _can_be_ident ch -> _increment_cur_pos t; _cont_ident_or_keywd t
   | Some ch -> _get_keywd_or_iden_token_desc (_get_token_str t)
   | None -> _lexer_error_general "Unexpected EOF while lexing an identifier" t
 ;;
 
-let _cont_minus_or_arrow t : Parser.token_desc =
+let _cont_minus_or_arrow t : Token.desc =
   match _peek_ch t with
-  | Some '>' -> _increment_cur_pos t; Parser.Rarrow
-  | _ -> Parser.Minus
+  | Some '>' -> _increment_cur_pos t; Token.Rarrow
+  | _ -> Token.Minus
 ;;
 
 (* The next char in [t] should be [expect], and it'll be lexed as [tok]. *)
-let _cont_expect_ch t (expect : char) (tok : Parser.token_desc)
-  : Parser.token_desc =
+let _cont_expect_ch t (expect : char) (tok : Token.desc)
+  : Token.desc =
   match _next_ch t with (* No need to peek if we error on mismatch *)
   | Some ch ->
     if ch = expect then tok
@@ -133,21 +133,21 @@ let _cont_expect_ch t (expect : char) (tok : Parser.token_desc)
 (* ASSUME 
  * 1. space has been skipped.
  * 2. [cur_ch] is the [t.cur_idx]th char in [t.contents] *)
-let _lex_with_cur_ch t (cur_ch : char) : Parser.token_desc =
+let _lex_with_cur_ch t (cur_ch : char) : Token.desc =
   match cur_ch with
   | _ when (Char.is_num cur_ch) -> _cont_num t
   | _ when _can_be_ident cur_ch -> _cont_ident_or_keywd t
   | '-' -> _cont_minus_or_arrow t
-  | ';' -> _cont_expect_ch t cur_ch Parser.SemiSemiColon
-  | '&' -> _cont_expect_ch t cur_ch Parser.AmperAmper
-  | '|' -> _cont_expect_ch t cur_ch Parser.BarBar
-  | '+' -> Parser.Plus
-  | '*' -> Parser.Asterisk
-  | ':' -> Parser.Colon
-  | '=' -> Parser.Equal
-  | '(' -> Parser.Lparen
-  | ')' -> Parser.Rparen
-  | '<' -> Parser.Less
+  | ';' -> _cont_expect_ch t cur_ch Token.SemiSemiColon
+  | '&' -> _cont_expect_ch t cur_ch Token.AmperAmper
+  | '|' -> _cont_expect_ch t cur_ch Token.BarBar
+  | '+' -> Token.Plus
+  | '*' -> Token.Asterisk
+  | ':' -> Token.Colon
+  | '=' -> Token.Equal
+  | '(' -> Token.Lparen
+  | ')' -> Token.Rparen
+  | '<' -> Token.Less
   | _ -> 
     let reason =
       String.append "Unknown start of token" (Char.to_string cur_ch) in
@@ -181,7 +181,7 @@ let next t =
     let token_desc = _lex_with_cur_ch t ch in
     let token_span = Span.create t.filename start_loc t.cur_loc in
     t.bgn_idx <- t.cur_idx + 1;
-    Some { Parser.token_desc; token_span }
+    Some { Token.token_desc; token_span }
 ;;
 
 let next_loc t = _get_next_cur_loc t
