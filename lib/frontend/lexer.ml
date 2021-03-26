@@ -66,14 +66,18 @@ let _lexer_error_expect_ch (expected : char) t : 'a =
 ;;
 
 (* skip to a newline if [t.cur_idx] points to '\n' *)
-let _increment_cur_pos t : unit =
+let _get_next_cur_loc t : Location.t =
   if t.cur_idx <> -1 && (String.get t.content t.cur_idx) = '\n'
-  then t.cur_loc <- Location.skip_line t.cur_loc
-  else t.cur_loc <- Location.advance t.cur_loc;
+  then Location.skip_line t.cur_loc
+  else Location.advance t.cur_loc;
+;;
+
+let _increment_cur_pos t : unit =
+  t.cur_loc <- _get_next_cur_loc t;
   t.cur_idx <- t.cur_idx + 1;
 ;;
 
-(* Return [None] on EOF *)
+(* Return [None] on EOF, no side effect. *)
 let _peek_ch t : char option =
   if (t.cur_idx + 1 == String.length t.content) then None
   else Some (String.get t.content (t.cur_idx + 1))
@@ -175,4 +179,7 @@ let next t =
     let token_span = Span.create t.filename start_loc t.cur_loc in
     t.bgn_idx <- t.cur_idx + 1;
     Some { Parser.token_desc; token_span }
+;;
+
+let next_loc t = _get_next_cur_loc t
 ;;
