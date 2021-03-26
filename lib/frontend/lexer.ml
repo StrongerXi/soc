@@ -145,6 +145,7 @@ let _lex_with_cur_ch t (cur_ch : char) : Parser.token_desc =
   | '=' -> Parser.Equal
   | '(' -> Parser.Lparen
   | ')' -> Parser.Rparen
+  | '<' -> Parser.Less
   | _ -> 
     let reason =
       String.append "Unknown start of token" (Char.to_string cur_ch) in

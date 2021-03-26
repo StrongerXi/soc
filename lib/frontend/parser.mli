@@ -1,3 +1,4 @@
+open Pervasives
 
 (** A [token_desc] represents a token unit for parser input *)
 type token_desc =
@@ -19,6 +20,7 @@ type token_desc =
   | Rparen
   | Rarrow
   | Fun
+  | Less
   | Int of string        (* ASSUME it's a valid integer string *)
   | DecapIdent of string
   | SemiSemiColon
@@ -28,6 +30,11 @@ type token =
   ; token_span : Span.t     (* Where the token was *)
   }
 
-(** [parse next tok_stream] returns a parsed abstract syntax tree,
-    or errors on invalid input. [next tok_stream] returns [None] on EOF. *)
-val parse : ('a -> token option) -> 'a -> Ast.structure
+type token_stream =
+  { next  : unit -> token option (* [None] on EOF *)
+  ; where : unit -> Location.t   (* last examined location *)
+  }
+
+(** [parse stream] returns a parsed abstract syntax tree,
+    or errors on invalid input. *)
+val parse : token_stream -> Ast.structure
