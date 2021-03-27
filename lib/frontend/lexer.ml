@@ -99,14 +99,14 @@ let _next_ch t : char option =
 let rec _cont_num t : Token.desc =
   match _peek_ch t with
   | Some ch when (Char.is_num ch) -> _increment_cur_pos t; _cont_num t
-  | Some ch -> Token.Int (_get_token_str t)
+  | Some _ -> Token.Int (_get_token_str t)
   | None -> _lexer_error_general "Unexpected EOF while lexing a number" t
 ;;
 
 let rec _cont_ident_or_keywd t : Token.desc =
   match _peek_ch t with
   | Some ch when _can_be_ident ch -> _increment_cur_pos t; _cont_ident_or_keywd t
-  | Some ch -> _get_keywd_or_iden_token_desc (_get_token_str t)
+  | Some _ -> _get_keywd_or_iden_token_desc (_get_token_str t)
   | None -> _lexer_error_general "Unexpected EOF while lexing an identifier" t
 ;;
 

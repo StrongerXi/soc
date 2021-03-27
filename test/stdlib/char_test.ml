@@ -1,4 +1,3 @@
-open Pervasives
 
 let tests = OUnit2.(>:::) "char_test" [
     OUnit2.(>::) "test_is_uppercase" (fun _ ->

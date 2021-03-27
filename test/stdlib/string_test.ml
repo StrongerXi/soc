@@ -1,4 +1,3 @@
-open Pervasives
 
 let tests = OUnit2.(>:::) "string_test" [
     OUnit2.(>::) "test_length" (fun _ ->

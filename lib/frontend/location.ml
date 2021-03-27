@@ -1,4 +1,3 @@
-open Pervasives
 
 type t =
   { row : int
