@@ -6,19 +6,17 @@ type token_stream =
   }
 
 (* Internal wrapper around token_stream to support peeking.
- * [peek ()] returns the same token until [next ()]. *)
+ * [peek ()] returns the same token until [skip ()]. *)
 type _tok_stream =
-  { next  : unit -> Token.t option (* NOTE skips peeked token *)
+  { skip  : unit -> unit         (* skips peeked token *)
   ; peek  : unit -> Token.t option 
   ; where : unit -> Location.t   (* same as [token_stream.where] *)
   }
 
 let _create_tok_stream (s : token_stream) : _tok_stream =
   let peeked = ref None in (* None already stands for EOF *)
-  let next () =
-    match !peeked with
-    | None -> s.next ()
-    | Some opt_tok -> peeked := None; opt_tok (* clears [peeked] *)
+  let skip () =
+    peeked := None
   in
   let peek () =
     match !peeked with
@@ -27,7 +25,7 @@ let _create_tok_stream (s : token_stream) : _tok_stream =
       peeked := Some opt_tok; opt_tok
     | Some opt_tok -> opt_tok
   in
-  { next; peek; where = s.where }
+  { skip; peek; where = s.where }
 ;;
 (* Ideally _tok_stream should go in a module, but I want to make self-compilation
  * easier; I'll refactor later when soc supports nested module *)
@@ -54,14 +52,15 @@ let _error_unexpected_token (actual : Token.t) (expect : Token.desc list) : 'a =
 
 (* Only compare token based on category, not internal fields *)
 let _get_next_token_expect (s : _tok_stream) (expect : Token.desc) : Token.t =
-  match s.next () with
+  match s.peek () with
   | None -> _error_on_eof (s.where ()) [expect]
   | Some actual ->
+    s.skip ();
     if expect = actual.token_desc then actual
     else _error_unexpected_token actual [expect]
 ;;
 
-(* If EOF is encountered, error with location info *)
+(* Error on EOF. NOTE only use if a token is absolutely expected  *)
 let _peek_token_exn (s : _tok_stream) (expected : Token.desc list) : Token.t =
   match s.peek () with
   | None -> _error_on_eof (s.where ()) expected
@@ -73,9 +72,11 @@ let _skip_next_token_expect (s : _tok_stream) (expect : Token.desc) : unit =
   let _ = _get_next_token_expect s expect in ()
 ;;
 
-(* ignores EOF *)
-let _skip_next_token (s : _tok_stream) : unit =
-  let _ = s.next () in ()
+let rec _skip_zero_or_more (s : _tok_stream) (to_skip : Token.desc) : unit = 
+  match s.peek () with
+  | Some { token_desc; _ } when token_desc = to_skip ->
+    s.skip(); _skip_zero_or_more s to_skip
+  | _ -> ()
 ;;
 
 
@@ -99,12 +100,12 @@ let _skip_next_token (s : _tok_stream) : unit =
 let rec _parse_typ (s : _tok_stream) : Ast.typ =
   _parse_arrow_typ s (* nice forward compatibility :) *)
 
-and _parse_arrow_typ (s : _tok_stream) : Ast.typ =
+and _parse_arrow_typ (s : _tok_stream) : Ast.typ = (* right associative *)
   let in_typ = _parse_primary_typ s in
   match s.peek () with 
   | Some tok when tok.token_desc = Rarrow -> 
-    _skip_next_token s;
-    let out_typ = _parse_primary_typ s in
+    s.skip ();
+    let out_typ = _parse_arrow_typ s in
     { Ast.typ_desc = Typ_arrow (in_typ, out_typ);
       typ_span = Span.merge in_typ.typ_span out_typ.typ_span }
   | _ -> in_typ (* no arrow *)
@@ -112,7 +113,7 @@ and _parse_arrow_typ (s : _tok_stream) : Ast.typ =
 and _parse_primary_typ (s : _tok_stream) : Ast.typ = (* int, (a -> b), etc. *)
   let expected = Token.[DecapIdent ""; Lparen] in (* NOTE stay synched! *)
   let tok = _peek_token_exn s expected in
-  _skip_next_token s;
+  s.skip ();
   match tok.token_desc with
   | DecapIdent name ->
     { Ast.typ_desc = Typ_const name; typ_span = tok.token_span }
@@ -126,7 +127,7 @@ and _parse_primary_typ (s : _tok_stream) : Ast.typ = (* int, (a -> b), etc. *)
 and _parse_opt_typed_var (s : _tok_stream) : Ast.opt_typed_var =
   let expected = Token.[DecapIdent ""; Lparen] in (* NOTE stay synched! *)
   let tok = _peek_token_exn s expected in
-  _skip_next_token s;
+  s.skip ();
   match tok.token_desc with
   | Lparen ->
     let inner = _parse_opt_typed_var s in
@@ -137,7 +138,7 @@ and _parse_opt_typed_var (s : _tok_stream) : Ast.opt_typed_var =
       let var = { Ast.stuff = name; span = tok.token_span } in
       match s.peek () with
       | Some { token_desc = Colon; _ } ->
-        _skip_next_token s;
+        s.skip ();
         let typ = _parse_typ s in
         { Ast.var ; typ = Some typ }
       | _ -> { Ast.var ; typ = None }
@@ -171,14 +172,15 @@ and _parse_fun_expr (s : _tok_stream) : Ast.expression =
 
 and _parse_let_expr (s : _tok_stream) : Ast.expression =
   let let_tok = _peek_token_exn s [Let] in (* if it's not Let, it'll error later *)
-  let bindings, rec_flag = _parse_let_bindings s in
+  let bindings, rec_flag, _ = _parse_let_bindings s in
   _skip_next_token_expect s In;
   let body_expr = _parse_expr s in
   { Ast.expr_desc = Exp_let (rec_flag, bindings, body_expr);
     expr_span = (Span.merge let_tok.token_span body_expr.expr_span) }
 
-and _parse_let_bindings (s : _tok_stream) : (Ast.binding list * Ast.rec_flag) =
-  let parse_binding () =
+and _parse_let_bindings (* returns the span of rhs in last binding (at least 1) *)
+    (s : _tok_stream) : (Ast.binding list * Ast.rec_flag * Span.t) =
+  let parse_one_binding () =
     let binding_lhs = _parse_opt_typed_var s in
     _skip_next_token_expect s Equal;
     let binding_rhs = _parse_expr s in
@@ -186,18 +188,20 @@ and _parse_let_bindings (s : _tok_stream) : (Ast.binding list * Ast.rec_flag) =
   in
   let parse_rec_flag () : Ast.rec_flag =
     match (_peek_token_exn s []).token_desc with
-    | Rec -> _skip_next_token s; Ast.Recursive
+    | Rec -> s.skip (); Ast.Recursive
     | _ -> Ast.Nonrecursive
   in
-  let rec go rev_bindings =  (* at least 1 binding *)
-    let rev_bindings = (parse_binding ())::rev_bindings in
-    match (_peek_token_exn s []).token_desc with
-    | And -> _skip_next_token s; go rev_bindings
-    | _ -> List.rev rev_bindings
+  let rec parse_bindings rev_bindings =  (* assume there's 1 more binding *)
+    let last_binding = parse_one_binding () in
+    let rev_bindings = last_binding::rev_bindings in
+    match s.peek () with
+    | Some { token_desc = And; _ } -> s.skip (); parse_bindings rev_bindings
+    | _ -> (List.rev rev_bindings, last_binding.binding_rhs.expr_span)
   in
   _skip_next_token_expect s Let;
   let rec_flag = parse_rec_flag () in
-  (go [], rec_flag)
+  let bindings, last_rhs_span = parse_bindings [] in
+  (bindings, rec_flag, last_rhs_span)
 
 and _parse_if_expr (s : _tok_stream) : Ast.expression =
   let if_tok = _get_next_token_expect s If in
@@ -214,7 +218,7 @@ and _parse_logical_or_expr (* right-associative to speed up short-circuit *)
   let lhs_expr = _parse_logical_and_expr s in
   match s.peek () with 
   | Some tok when tok.token_desc = BarBar -> 
-    _skip_next_token s;
+    s.skip ();
     let rhs_expr = _parse_logical_or_expr s in (* right-assoc *)
     { Ast.expr_desc = Exp_binop (Binop_or, lhs_expr, rhs_expr);
       expr_span = (Span.merge lhs_expr.expr_span rhs_expr.expr_span) }
@@ -222,10 +226,10 @@ and _parse_logical_or_expr (* right-associative to speed up short-circuit *)
 
 and _parse_logical_and_expr (* right-associative to speed up short-circuit *)
     (s : _tok_stream) : Ast.expression =
-  let lhs_expr = _parse_add_sub_expr s in
+  let lhs_expr = _parse_relational_expr s in
   match s.peek () with 
   | Some tok when tok.token_desc = AmperAmper -> 
-    _skip_next_token s;
+    s.skip ();
     let rhs_expr = _parse_logical_and_expr s in (* right-assoc *)
     { Ast.expr_desc = Exp_binop (Binop_and, lhs_expr, rhs_expr);
       expr_span = (Span.merge lhs_expr.expr_span rhs_expr.expr_span) }
@@ -239,7 +243,7 @@ and _parse_relational_expr (* left-associative *)
       let binop =
         if tok.token_desc = Equal
         then Ast.Binop_eq else Ast.Binop_less in
-      _skip_next_token s;
+      s.skip ();
       let rhs_expr = _parse_add_sub_expr s in
       let lhs_expr = (* left-assoc *)
       { Ast.expr_desc = Exp_binop (binop, lhs_expr, rhs_expr);
@@ -258,7 +262,7 @@ and _parse_add_sub_expr (* left-associative *)
       let binop =
         if tok.token_desc = Plus
         then Ast.Binop_add else Ast.Binop_sub in
-      _skip_next_token s;
+      s.skip ();
       let rhs_expr = _parse_mul_expr s in
       let lhs_expr = (* left-assoc *)
       { Ast.expr_desc = Exp_binop (binop, lhs_expr, rhs_expr);
@@ -274,7 +278,7 @@ and _parse_mul_expr (* left-associative *)
   let rec go lhs_expr =
     match s.peek () with 
     | Some tok when tok.token_desc = Asterisk ->
-      _skip_next_token s;
+      s.skip ();
       let rhs_expr = _parse_apply_expr s in
       let lhs_expr = (* left-assoc *)
       { Ast.expr_desc = Exp_binop (Binop_mul, lhs_expr, rhs_expr);
@@ -315,7 +319,7 @@ and _parse_primary_expr (* e.g., constant, var, parenthesized expr *)
    * FIRST set of primary_expr *)
   match tok.token_desc with
   | Lparen -> 
-    _skip_next_token s;
+    s.skip ();
     let expr = _parse_expr s in
     let last = _get_next_token_expect s Rparen in
     { Ast.expr_desc = expr.expr_desc
@@ -332,7 +336,7 @@ and _parse_constant_or_var
   (* NOTE stay synched! *)
   let expected = Token.[True; False; Int ""; DecapIdent "";] in 
   let tok = _peek_token_exn s expected in
-  _skip_next_token s;
+  s.skip ();
   (* NOTE when modifying this, check functions that rely on the
    * FIRST set of this rule *)
   match tok.token_desc with
@@ -350,22 +354,23 @@ and _parse_constant_or_var
 (* Either a top-level let-expression or binding (let without body) *)
 let _parse_let_or_bind (s : _tok_stream) : Ast.struct_item =
   let let_tok = _peek_token_exn s [Let] in
-  let bindings, rec_flag = _parse_let_bindings s in
-  let expected = Token.[SemiSemiColon; In] in (* NOTE stay synched! *)
-  let tok = _peek_token_exn s expected in
-  _skip_next_token s;
-  match tok.token_desc with
-  | SemiSemiColon ->
-    { Ast.struct_item_desc = Struct_bind (rec_flag, bindings);
-      struct_item_span = Span.merge let_tok.token_span tok.token_span }
-  | In -> (* NOTE needs to agree with _parse_let_expr *)
+  let bindings, rec_flag, last_rhs_span = _parse_let_bindings s in
+  match s.peek () with
+  | Some { token_desc = In; _ } -> (* NOTE needs to agree with _parse_let_expr *)
+    s.skip ();
     let body_expr = _parse_expr s in
     let let_expr =
       { Ast.expr_desc = Exp_let (rec_flag, bindings, body_expr);
         expr_span = (Span.merge let_tok.token_span body_expr.expr_span) } in
     { Ast.struct_item_desc = Struct_eval let_expr
     ; struct_item_span = let_expr.expr_span }
-  | _ -> _error_unexpected_token tok expected
+  | Some { token_desc = SemiSemiColon; token_span } -> (* NOTE needs to agree with _parse_let_expr *)
+    s.skip ();
+    { Ast.struct_item_desc = Struct_bind (rec_flag, bindings);
+      struct_item_span = Span.merge let_tok.token_span token_span }
+  | _ ->
+    { Ast.struct_item_desc = Struct_bind (rec_flag, bindings);
+      struct_item_span = Span.merge let_tok.token_span last_rhs_span }
 ;;
 
 let _parse_struct_item (s : _tok_stream) : Ast.struct_item =
@@ -379,9 +384,10 @@ let _parse_struct_item (s : _tok_stream) : Ast.struct_item =
 ;;
 
 let rec _parse_structure (s : _tok_stream) : Ast.structure =
+  _skip_zero_or_more s SemiSemiColon;
   match s.peek () with
   | None -> []
-  | Some tok ->
+  | Some _ ->
     let item = _parse_struct_item s in
     item::(_parse_structure s)
 ;;
