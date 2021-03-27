@@ -123,8 +123,10 @@ and _parse_primary_typ (s : _tok_stream) : Ast.typ = (* int, (a -> b), etc. *)
     { Ast.typ_desc = typ.typ_desc;
       typ_span = (Span.merge tok.token_span last.token_span) }
   | _ -> _error_unexpected_token tok expected
+;;
 
-and _parse_opt_typed_var (s : _tok_stream) : Ast.opt_typed_var =
+
+let rec _parse_opt_typed_var (s : _tok_stream) : Ast.opt_typed_var =
   let expected = Token.[DecapIdent ""; Lparen] in (* NOTE stay synched! *)
   let tok = _peek_token_exn s expected in
   s.skip ();
