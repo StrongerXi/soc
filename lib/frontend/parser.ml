@@ -103,8 +103,7 @@ let rec _parse_typ (s : _tok_stream) : Ast.typ =
 and _parse_arrow_typ (s : _tok_stream) : Ast.typ = (* right associative *)
   let in_typ = _parse_primary_typ s in
   match s.peek () with 
-  | Some tok when tok.token_desc = Rarrow -> 
-    s.skip ();
+  | Some tok when tok.token_desc = Rarrow -> s.skip ();
     let out_typ = _parse_arrow_typ s in
     { Ast.typ_desc = Typ_arrow (in_typ, out_typ);
       typ_span = Span.merge in_typ.typ_span out_typ.typ_span }
@@ -132,17 +131,14 @@ let rec _parse_opt_typed_var (s : _tok_stream) : Ast.opt_typed_var =
   s.skip ();
   match tok.token_desc with
   | Lparen ->
-    let inner = _parse_opt_typed_var s in
-    _skip_next_token_expect s Rparen;
+    let inner = _parse_opt_typed_var s in _skip_next_token_expect s Rparen;
     inner
   | DecapIdent name -> 
     begin
       let var = { Ast.stuff = name; span = tok.token_span } in
       match s.peek () with
-      | Some { token_desc = Colon; _ } ->
-        s.skip ();
-        let typ = _parse_typ s in
-        { Ast.var ; typ = Some typ }
+      | Some { token_desc = Colon; _ } -> s.skip ();
+        { Ast.var ; typ = Some (_parse_typ s) }
       | _ -> { Ast.var ; typ = None }
     end
   | _ -> _error_unexpected_token tok expected
@@ -162,12 +158,11 @@ and _parse_fun_expr (s : _tok_stream) : Ast.expression =
     match (_peek_token_exn s []).token_desc with
     | Rarrow -> List.rev rev_vars
     | _ ->
-      let acc = (_parse_opt_typed_var s)::rev_vars in
-      _parse_opt_typed_vars acc
+      let var = _parse_opt_typed_var s in
+      _parse_opt_typed_vars (var::rev_vars)
   in
   let fun_tok = _get_next_token_expect s Fun in
-  let vars = _parse_opt_typed_vars [] in
-  _skip_next_token_expect s Rarrow;
+  let vars = _parse_opt_typed_vars [] in _skip_next_token_expect s Rarrow;
   let body_expr = _parse_expr s in
   { Ast.expr_desc = Exp_fun (vars, body_expr);
     expr_span = (Span.merge fun_tok.token_span body_expr.expr_span) }
@@ -188,8 +183,7 @@ and _parse_let_cont_on_body (s : _tok_stream) (* starting from [In] token *)
 and _parse_let_bindings (* returns the span of rhs in last binding (at least 1) *)
     (s : _tok_stream) : (Ast.binding list * Ast.rec_flag * Span.t) =
   let parse_one_binding () =
-    let binding_lhs = _parse_opt_typed_var s in
-    _skip_next_token_expect s Equal;
+    let binding_lhs = _parse_opt_typed_var s in _skip_next_token_expect s Equal;
     let binding_rhs = _parse_expr s in
     { Ast.binding_lhs; binding_rhs }
   in
@@ -212,10 +206,8 @@ and _parse_let_bindings (* returns the span of rhs in last binding (at least 1) 
 
 and _parse_if_expr (s : _tok_stream) : Ast.expression =
   let if_tok = _get_next_token_expect s If in
-  let cond_expr = _parse_expr s in
-  _skip_next_token_expect s Then;
-  let then_expr = _parse_expr s in
-  _skip_next_token_expect s Else;
+  let cond_expr = _parse_expr s in _skip_next_token_expect s Then;
+  let then_expr = _parse_expr s in _skip_next_token_expect s Else;
   let else_expr = _parse_expr s in
   { Ast.expr_desc = Exp_if (cond_expr, then_expr, else_expr);
     expr_span = (Span.merge if_tok.token_span else_expr.expr_span) }
@@ -232,10 +224,10 @@ and _parse_logical_and_expr (s : _tok_stream) : Ast.expression =
 
 and _parse_binary_expr_right_assoc
     (s : _tok_stream)
-    (subexpr_parser : _tok_stream -> Ast.expression)
+    (parse_subexpr : _tok_stream -> Ast.expression)
     (ops : (Token.desc * Ast.binary_op) list)
   : Ast.expression =
-  let lhs_expr = subexpr_parser s in
+  let lhs_expr = parse_subexpr s in
   match s.peek () with 
   | None -> lhs_expr
   | Some tok ->
@@ -243,7 +235,7 @@ and _parse_binary_expr_right_assoc
     | None -> lhs_expr
     | Some binop -> s.skip ();
       (* this recursive call makes it right-assoc *)
-      let rhs_expr = _parse_binary_expr_right_assoc s subexpr_parser ops in
+      let rhs_expr = _parse_binary_expr_right_assoc s parse_subexpr ops in
       { Ast.expr_desc = Exp_binop (binop, lhs_expr, rhs_expr);
         expr_span = (Span.merge lhs_expr.expr_span rhs_expr.expr_span) }
 
@@ -295,8 +287,9 @@ and _parse_apply_expr (* > 1 consecutive primary expr *)
   let rec collect_args (rev_args : Ast.expression list) =
     match s.peek () with
     | Some ( (* NOTE this case must agree with _parse_primary_expr *)
-        { Token.token_desc = (True | False | Int _ | DecapIdent _ | Lparen); _})
-      -> collect_args ((_parse_primary_expr s)::rev_args)
+        { token_desc = (True | False | Int _ | DecapIdent _ | Lparen); _}) ->
+      let arg = _parse_primary_expr s in
+      collect_args (arg::rev_args)
     | _ -> finalize rev_args
   in
   collect_args []
@@ -374,11 +367,14 @@ let rec _parse_structure (s : _tok_stream) : Ast.structure =
   | None -> []
   | Some _ ->
     let item = _parse_struct_item s in
-    item::(_parse_structure s)
+    let rest = _parse_structure s in
+    item::rest
 ;;
 
 let parse (s : token_stream) =
   try 
-    Ok(_parse_structure (_create_tok_stream s))
+    let internal_tok_stream = _create_tok_stream s in
+    let structure = _parse_structure internal_tok_stream in
+    Ok structure
   with Parser_error(err) -> Error err
 ;;
