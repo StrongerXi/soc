@@ -309,12 +309,9 @@ and _parse_apply_expr (* > 1 consecutive primary expr *)
   in
   let rec collect_args (rev_args : Ast.expression list) =
     match s.peek () with
-    | Some (
-        { Token.token_desc =
-            (* NOTE this case must agree with _parse_primary_expr *)
-            (True | False | Int _ | DecapIdent _ | Lparen); _ })
-      ->
-      collect_args ((_parse_primary_expr s)::rev_args)
+    | Some ( (* NOTE this case must agree with _parse_primary_expr *)
+        { Token.token_desc = (True | False | Int _ | DecapIdent _ | Lparen); _})
+      -> collect_args ((_parse_primary_expr s)::rev_args)
     | _ -> finalize rev_args
   in
   collect_args []
@@ -363,7 +360,7 @@ let _parse_let_or_bind (s : _tok_stream) : Ast.struct_item =
   let let_tok = _peek_token_exn s [Let] in
   let bindings, rec_flag, last_rhs_span = _parse_let_bindings s in
   match s.peek () with
-  | Some { token_desc = In; _ } -> (* NOTE needs to agree with _parse_let_expr *)
+  | Some { token_desc = In; _ } -> (* NOTE must agree with _parse_let_expr *)
     s.skip ();
     let body_expr = _parse_expr s in
     let let_expr =
@@ -371,7 +368,7 @@ let _parse_let_or_bind (s : _tok_stream) : Ast.struct_item =
         expr_span = (Span.merge let_tok.token_span body_expr.expr_span) } in
     { Ast.struct_item_desc = Struct_eval let_expr
     ; struct_item_span = let_expr.expr_span }
-  | Some { token_desc = SemiSemiColon; token_span } -> (* NOTE needs to agree with _parse_let_expr *)
+  | Some { token_desc = SemiSemiColon; token_span } ->
     s.skip ();
     { Ast.struct_item_desc = Struct_bind (rec_flag, bindings);
       struct_item_span = Span.merge let_tok.token_span token_span }
