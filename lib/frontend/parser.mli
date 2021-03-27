@@ -7,4 +7,4 @@ type token_stream =
 
 (** [parse stream] returns a parsed abstract syntax tree,
     or errors on invalid input. *)
-val parse : token_stream -> Ast.structure
+val parse : token_stream -> (Ast.structure, Errors.parser_error) result
