@@ -1,5 +1,12 @@
 open Pervasives
 
+(* Used for attaching span to any type *)
+type 'a span =
+  { stuff : 'a
+  ; span : Span.t
+  }
+
+
 type constant =
   | Const_Int of int
   | Const_Bool of bool
@@ -29,7 +36,7 @@ type rec_flag =
   | Recursive
 
 type opt_typed_var =
-  { var : string
+  { var : string span
   ; typ : typ option
   } (* x : int *)
 
@@ -48,7 +55,7 @@ and expr_desc =
   | Exp_ident of string
   | Exp_binop of binary_op * expression * expression
   | Exp_let of rec_flag * binding list * expression
-        (* let (rec)? x1 = e1 and ... and xn = en in ebody *)
+        (* let (rec)? x1 = e1 and ... and xn = en in ebody, n > = 1 *)
   | Exp_fun of opt_typed_var list * expression
         (* fun (x0:int) x1 ... xn -> e, n >= 1*)
   | Exp_apply of expression * expression list

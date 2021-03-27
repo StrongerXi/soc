@@ -1,0 +1,18 @@
+
+let x : bool = 42 + 42 * 55 || true && false - f a b c in xx;;
+
+let (y : bool) = (fun x (y : bool -> int -> int) z -> 42);;
+
+let print_str = (fun (p : printer) (s : string) (endline : bool) ->
+  let rec print_space = fun n_more ->
+    if n_more = 2 then 42
+    else __print_str_only p
+  and
+    foo = fun x -> x
+  and bar = 42 42
+  in
+
+  42)
+;;;;;;
+
+

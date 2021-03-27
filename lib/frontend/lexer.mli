@@ -9,7 +9,7 @@ val create : string -> t
 
 (** [next t] returns the next token and update [t] accordingly.
     Error on invalid input. *)
-val next : t -> Parser.token option
+val next : t -> Token.t option
 
 (** [next_loc t] returns the location of the next character [t] would examine *)
 val next_loc : t -> Location.t

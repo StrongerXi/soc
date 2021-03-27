@@ -15,3 +15,6 @@ let compare n1 n2 =
 
 let to_string = Externals.int_to_string
 ;;
+
+let of_string_opt = Externals.int_of_string_opt
+;;

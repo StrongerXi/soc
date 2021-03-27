@@ -1,4 +1,3 @@
-open Pervasives
 
 let tests = OUnit2.(>:::) "location_test" [
 

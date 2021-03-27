@@ -1,3 +1,4 @@
+open Pervasives
 
 let length = Externals.string_length
 ;;
@@ -23,4 +24,14 @@ let compare s1 s2 =
       else cmp
   in
   go 0
+;;
+
+let join_with ss sep =
+  match ss with
+  | [] -> ""
+  | s::ss ->
+  List.fold_left
+    (fun acc s -> append (append acc sep) s)
+    s
+    ss
 ;;
