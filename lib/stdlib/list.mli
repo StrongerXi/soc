@@ -21,6 +21,9 @@ val flatten : 'a list list -> 'a list
 (** [map f [a1; ...; an]] is [f a1; ...; f an] *)
 val map : ('a -> 'b) -> 'a list -> 'b list
 
+(** [iter f [a1; ...; an]] is [map f xs] with result ignored *)
+val iter : ('a -> unit) -> 'a list -> unit
+
 (** [fold_left f a [b1; ...; bn]] is f (... (f (f a b1) b2) ...) bn]. *)
 val fold_left : ('a -> 'b -> 'a) -> 'a -> 'b list -> 'a
 

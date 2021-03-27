@@ -37,7 +37,11 @@ let flatten = concat
 let rec map f xs =
   match xs with
   | []    -> []
-  | x::xs -> (f x)::(map f xs)
+  | x::xs -> let y = f x in y::(map f xs)
+;;
+
+let iter f xs =
+  let _ = map f xs in ()
 ;;
 
 let rec for_all pred xs =
