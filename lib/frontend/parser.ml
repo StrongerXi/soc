@@ -175,6 +175,11 @@ and _parse_fun_expr (s : _tok_stream) : Ast.expression =
 and _parse_let_expr (s : _tok_stream) : Ast.expression =
   let let_tok = _peek_token_exn s [Let] in (* if it's not Let, it'll error later *)
   let bindings, rec_flag, _ = _parse_let_bindings s in
+  _parse_let_cont_on_body s let_tok bindings rec_flag
+
+and _parse_let_cont_on_body (s : _tok_stream) (* starting from [In] token *)
+    (let_tok : Token.t) (bindings : Ast.binding list) (rec_flag : Ast.rec_flag)
+    : Ast.expression =
   _skip_next_token_expect s In;
   let body_expr = _parse_expr s in
   { Ast.expr_desc = Exp_let (rec_flag, bindings, body_expr);
@@ -360,12 +365,8 @@ let _parse_let_or_bind (s : _tok_stream) : Ast.struct_item =
   let let_tok = _peek_token_exn s [Let] in
   let bindings, rec_flag, last_rhs_span = _parse_let_bindings s in
   match s.peek () with
-  | Some { token_desc = In; _ } -> (* NOTE must agree with _parse_let_expr *)
-    s.skip ();
-    let body_expr = _parse_expr s in
-    let let_expr =
-      { Ast.expr_desc = Exp_let (rec_flag, bindings, body_expr);
-        expr_span = (Span.merge let_tok.token_span body_expr.expr_span) } in
+  | Some { token_desc = In; _ } ->
+    let let_expr = _parse_let_cont_on_body s let_tok bindings rec_flag in
     { Ast.struct_item_desc = Struct_eval let_expr
     ; struct_item_span = let_expr.expr_span }
   | Some { token_desc = SemiSemiColon; token_span } ->
