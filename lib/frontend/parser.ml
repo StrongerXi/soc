@@ -215,25 +215,30 @@ and _parse_if_expr (s : _tok_stream) : Ast.expression =
 
 and _parse_logical_or_expr (* right-associative to speed up short-circuit *)
     (s : _tok_stream) : Ast.expression =
-  let lhs_expr = _parse_logical_and_expr s in
-  match s.peek () with 
-  | Some tok when tok.token_desc = BarBar -> 
-    s.skip ();
-    let rhs_expr = _parse_logical_or_expr s in (* right-assoc *)
-    { Ast.expr_desc = Exp_binop (Binop_or, lhs_expr, rhs_expr);
-      expr_span = (Span.merge lhs_expr.expr_span rhs_expr.expr_span) }
-  | _ -> lhs_expr
+  _parse_binary_expr_right_assoc
+    s [ (Token.BarBar, Ast.Binop_or) ] _parse_logical_and_expr
 
 and _parse_logical_and_expr (* right-associative to speed up short-circuit *)
     (s : _tok_stream) : Ast.expression =
-  let lhs_expr = _parse_relational_expr s in
+  _parse_binary_expr_right_assoc
+    s [ (Token.AmperAmper, Ast.Binop_and) ] _parse_relational_expr
+
+and _parse_binary_expr_right_assoc
+    (s : _tok_stream)
+    (ops : (Token.desc * Ast.binary_op) list)
+    (subexpr_parser : _tok_stream -> Ast.expression)
+    : Ast.expression =
+  let lhs_expr = subexpr_parser s in
   match s.peek () with 
-  | Some tok when tok.token_desc = AmperAmper -> 
-    s.skip ();
-    let rhs_expr = _parse_logical_and_expr s in (* right-assoc *)
-    { Ast.expr_desc = Exp_binop (Binop_and, lhs_expr, rhs_expr);
-      expr_span = (Span.merge lhs_expr.expr_span rhs_expr.expr_span) }
-  | _ -> lhs_expr
+  | None -> lhs_expr
+  | Some tok ->
+      match List.assoc_opt tok.token_desc ops with
+      | None -> lhs_expr
+      | Some binop -> s.skip ();
+        (* this recursive call makes it right-assoc *)
+        let rhs_expr = _parse_binary_expr_right_assoc s ops subexpr_parser in
+        { Ast.expr_desc = Exp_binop (binop, lhs_expr, rhs_expr);
+          expr_span = (Span.merge lhs_expr.expr_span rhs_expr.expr_span) }
 
 and _parse_relational_expr (* left-associative *)
     (s : _tok_stream) : Ast.expression =
