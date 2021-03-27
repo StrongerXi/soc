@@ -225,7 +225,7 @@ and _parse_logical_or_expr (* right-associative to speed up short-circuit *)
   _parse_binary_expr_right_assoc
     s [ (Token.BarBar, Ast.Binop_or) ] _parse_logical_and_expr
 
-and _parse_logical_and_expr (* right-associative to speed up short-circuit *)
+and _parse_logical_and_expr
     (s : _tok_stream) : Ast.expression =
   _parse_binary_expr_right_assoc
     s [ (Token.AmperAmper, Ast.Binop_and) ] _parse_relational_expr
@@ -247,59 +247,39 @@ and _parse_binary_expr_right_assoc
         { Ast.expr_desc = Exp_binop (binop, lhs_expr, rhs_expr);
           expr_span = (Span.merge lhs_expr.expr_span rhs_expr.expr_span) }
 
-and _parse_relational_expr (* left-associative *)
-    (s : _tok_stream) : Ast.expression =
-  let rec go lhs_expr =
-    match s.peek () with 
-    | Some tok when tok.token_desc = Equal || tok.token_desc = Less ->
-      let binop =
-        if tok.token_desc = Equal
-        then Ast.Binop_eq else Ast.Binop_less in
-      s.skip ();
-      let rhs_expr = _parse_add_sub_expr s in
-      let lhs_expr = (* left-assoc *)
-      { Ast.expr_desc = Exp_binop (binop, lhs_expr, rhs_expr);
-        expr_span = (Span.merge lhs_expr.expr_span rhs_expr.expr_span) }
-      in
-      go lhs_expr
-    | _ -> lhs_expr
-  in
-  go (_parse_add_sub_expr s)
+and _parse_relational_expr (s : _tok_stream) : Ast.expression =
+  _parse_binary_expr_left_assoc
+    s [ (Token.Equal, Ast.Binop_eq)
+      ; (Token.Less, Ast.Binop_less) ] _parse_add_sub_expr
 
-and _parse_add_sub_expr (* left-associative *)
-    (s : _tok_stream) : Ast.expression =
-  let rec go lhs_expr =
-    match s.peek () with 
-    | Some tok when tok.token_desc = Plus || tok.token_desc = Minus ->
-      let binop =
-        if tok.token_desc = Plus
-        then Ast.Binop_add else Ast.Binop_sub in
-      s.skip ();
-      let rhs_expr = _parse_mul_expr s in
-      let lhs_expr = (* left-assoc *)
-      { Ast.expr_desc = Exp_binop (binop, lhs_expr, rhs_expr);
-        expr_span = (Span.merge lhs_expr.expr_span rhs_expr.expr_span) }
-      in
-      go lhs_expr
-    | _ -> lhs_expr
-  in
-  go (_parse_mul_expr s)
+and _parse_add_sub_expr (s : _tok_stream) : Ast.expression =
+  _parse_binary_expr_left_assoc
+    s [ (Token.Plus, Ast.Binop_add)
+      ; (Token.Minus, Ast.Binop_sub) ] _parse_mul_expr
 
-and _parse_mul_expr (* left-associative *)
-    (s : _tok_stream) : Ast.expression =
+and _parse_mul_expr (s : _tok_stream) : Ast.expression =
+  _parse_binary_expr_left_assoc
+    s [ (Token.Asterisk, Ast.Binop_mul) ] _parse_apply_expr
+
+and _parse_binary_expr_left_assoc
+    (s : _tok_stream)
+    (ops : (Token.desc * Ast.binary_op) list)
+    (parse_subexpr : _tok_stream -> Ast.expression)
+    : Ast.expression =
   let rec go lhs_expr =
     match s.peek () with 
-    | Some tok when tok.token_desc = Asterisk ->
-      s.skip ();
-      let rhs_expr = _parse_apply_expr s in
-      let lhs_expr = (* left-assoc *)
-      { Ast.expr_desc = Exp_binop (Binop_mul, lhs_expr, rhs_expr);
-        expr_span = (Span.merge lhs_expr.expr_span rhs_expr.expr_span) }
-      in
-      go lhs_expr
-    | _ -> lhs_expr
+    | None -> lhs_expr
+    | Some tok ->
+      match List.assoc_opt tok.token_desc ops with
+      | None -> lhs_expr
+      | Some binop -> s.skip ();
+        let rhs_expr = parse_subexpr s in
+        let lhs_expr = (* left-assoc *)
+          { Ast.expr_desc = Exp_binop (binop, lhs_expr, rhs_expr);
+            expr_span = (Span.merge lhs_expr.expr_span rhs_expr.expr_span) } in
+        go lhs_expr
   in
-  go (_parse_apply_expr s)
+  go (parse_subexpr s)
 
 and _parse_apply_expr (* > 1 consecutive primary expr *)
     (s : _tok_stream) : Ast.expression =
