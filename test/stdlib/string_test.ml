@@ -32,6 +32,13 @@ let tests = OUnit2.(>:::) "string_test" [
         OUnit2.assert_equal true ((String.compare "ab0" "ab") > 0);
         OUnit2.assert_equal true ((String.compare "z" "ab0") > 0);
       );
+
+    OUnit2.(>::) "test_join_with" (fun _ ->
+        OUnit2.assert_equal "" (String.join_with [] "");
+        OUnit2.assert_equal "" (String.join_with [] "aaa");
+        OUnit2.assert_equal "ss" (String.join_with ["ss"] "aaa");
+        OUnit2.assert_equal "a; bb; a" (String.join_with ["a"; "bb"; "a"] "; ");
+      );
   ]
 
 let _ =
