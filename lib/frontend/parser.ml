@@ -84,7 +84,7 @@ let rec _skip_zero_or_more (s : _tok_stream) (to_skip : Token.desc) : unit =
    1. Should we pass along the peeked token?
       - YES: It saves checks for EOF.
       - NO:  It complicates function signature, sometimes disperses calls to
-             get/peek token at multiple recursion call sites. 
+                get/peek token at multiple recursion call sites. 
       So I went with NO. It felt like just moving calls to get/peek token from
       recursion call sites to beginning of called functions. But 1 less arg:).
       With the extra initial check, the impls also read more like grammar rules.
@@ -109,7 +109,7 @@ and _parse_arrow_typ (s : _tok_stream) : Ast.typ = (* right associative *)
     { Ast.typ_desc = Typ_arrow (in_typ, out_typ);
       typ_span = Span.merge in_typ.typ_span out_typ.typ_span }
   | _ -> in_typ (* no arrow *)
-  
+
 and _parse_primary_typ (s : _tok_stream) : Ast.typ = (* int, (a -> b), etc. *)
   let expected = Token.[DecapIdent ""; Lparen] in (* NOTE stay synched! *)
   let tok = _peek_token_exn s expected in
@@ -179,7 +179,7 @@ and _parse_let_expr (s : _tok_stream) : Ast.expression =
 
 and _parse_let_cont_on_body (s : _tok_stream) (* starting from [In] token *)
     (let_tok : Token.t) (bindings : Ast.binding list) (rec_flag : Ast.rec_flag)
-    : Ast.expression =
+  : Ast.expression =
   _skip_next_token_expect s In;
   let body_expr = _parse_expr s in
   { Ast.expr_desc = Exp_let (rec_flag, bindings, body_expr);
@@ -220,52 +220,52 @@ and _parse_if_expr (s : _tok_stream) : Ast.expression =
   { Ast.expr_desc = Exp_if (cond_expr, then_expr, else_expr);
     expr_span = (Span.merge if_tok.token_span else_expr.expr_span) }
 
-and _parse_logical_or_expr (* right-associative to speed up short-circuit *)
-    (s : _tok_stream) : Ast.expression =
-  _parse_binary_expr_right_assoc
-    s [ (Token.BarBar, Ast.Binop_or) ] _parse_logical_and_expr
+and _parse_logical_or_expr (s : _tok_stream) : Ast.expression =
+  (* right-assoc to speed up short-circuit *)
+  _parse_binary_expr_right_assoc s _parse_logical_and_expr
+    [ (Token.BarBar, Ast.Binop_or) ] 
 
-and _parse_logical_and_expr
-    (s : _tok_stream) : Ast.expression =
-  _parse_binary_expr_right_assoc
-    s [ (Token.AmperAmper, Ast.Binop_and) ] _parse_relational_expr
+and _parse_logical_and_expr (s : _tok_stream) : Ast.expression =
+  (* right-assoc to speed up short-circuit *)
+  _parse_binary_expr_right_assoc s _parse_relational_expr
+    [ (Token.AmperAmper, Ast.Binop_and) ] 
 
 and _parse_binary_expr_right_assoc
     (s : _tok_stream)
-    (ops : (Token.desc * Ast.binary_op) list)
     (subexpr_parser : _tok_stream -> Ast.expression)
-    : Ast.expression =
+    (ops : (Token.desc * Ast.binary_op) list)
+  : Ast.expression =
   let lhs_expr = subexpr_parser s in
   match s.peek () with 
   | None -> lhs_expr
   | Some tok ->
-      match List.assoc_opt tok.token_desc ops with
-      | None -> lhs_expr
-      | Some binop -> s.skip ();
-        (* this recursive call makes it right-assoc *)
-        let rhs_expr = _parse_binary_expr_right_assoc s ops subexpr_parser in
-        { Ast.expr_desc = Exp_binop (binop, lhs_expr, rhs_expr);
-          expr_span = (Span.merge lhs_expr.expr_span rhs_expr.expr_span) }
+    match List.assoc_opt tok.token_desc ops with
+    | None -> lhs_expr
+    | Some binop -> s.skip ();
+      (* this recursive call makes it right-assoc *)
+      let rhs_expr = _parse_binary_expr_right_assoc s subexpr_parser ops in
+      { Ast.expr_desc = Exp_binop (binop, lhs_expr, rhs_expr);
+        expr_span = (Span.merge lhs_expr.expr_span rhs_expr.expr_span) }
 
 and _parse_relational_expr (s : _tok_stream) : Ast.expression =
-  _parse_binary_expr_left_assoc
-    s [ (Token.Equal, Ast.Binop_eq)
-      ; (Token.Less, Ast.Binop_less) ] _parse_add_sub_expr
+  _parse_binary_expr_left_assoc s _parse_add_sub_expr
+    [ (Token.Equal, Ast.Binop_eq)
+    ; (Token.Less, Ast.Binop_less) ]
 
 and _parse_add_sub_expr (s : _tok_stream) : Ast.expression =
-  _parse_binary_expr_left_assoc
-    s [ (Token.Plus, Ast.Binop_add)
-      ; (Token.Minus, Ast.Binop_sub) ] _parse_mul_expr
+  _parse_binary_expr_left_assoc s  _parse_mul_expr
+    [ (Token.Plus, Ast.Binop_add)
+    ; (Token.Minus, Ast.Binop_sub) ]
 
 and _parse_mul_expr (s : _tok_stream) : Ast.expression =
-  _parse_binary_expr_left_assoc
-    s [ (Token.Asterisk, Ast.Binop_mul) ] _parse_apply_expr
+  _parse_binary_expr_left_assoc s _parse_apply_expr
+    [ (Token.Asterisk, Ast.Binop_mul) ]
 
 and _parse_binary_expr_left_assoc
     (s : _tok_stream)
-    (ops : (Token.desc * Ast.binary_op) list)
     (parse_subexpr : _tok_stream -> Ast.expression)
-    : Ast.expression =
+    (ops : (Token.desc * Ast.binary_op) list)
+  : Ast.expression =
   let rec go lhs_expr =
     match s.peek () with 
     | None -> lhs_expr
