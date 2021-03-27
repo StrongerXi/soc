@@ -59,6 +59,38 @@ let _print_newline (p : printer) : unit =
 
 (* Again, this deserves a module but to simplify self-compilation... TODO *)
 
+
+let _pp_lexer_action (what : Errors.lexer_action) : string =
+  match what with
+  | Lexing_expecting expect ->
+    let reason = String.append "expecting '" (Char.to_string expect) in
+    String.append reason "'"
+  | Lexing_number -> "lexing a number"
+  | Lexing_identifier_or_keyword -> "lexing an identifier or keyword"
+;;
+
+let pp_lexer_error (err : Errors.lexer_error) : string =
+  match err with
+  | Lexer_unexpected_char (expect, actual, loc) ->
+    let msg = String.append "Expected '" (Char.to_string expect) in
+    let msg = String.append msg "', but got '" in
+    let msg = String.append msg (Char.to_string actual) in
+    let msg = String.append msg "'" in
+    let msg = String.append msg " at " in
+    String.append msg (Location.to_string loc)
+  | Lexer_unexpected_eof (where, action) ->
+    let msg = "Unexpected EOF while " in
+    let msg = String.append msg (_pp_lexer_action action) in
+    let msg = String.append msg " at " in
+    String.append msg (Location.to_string where)
+  | Lexer_invalid_start (start, loc) ->
+    let msg = "Invalid start of token: '" in
+    let msg = String.append msg (Char.to_string start) in
+    let msg = String.append msg "' at " in
+    String.append msg (Location.to_string loc)
+;;
+
+
 let _pp_span (span : Span.t) : string =
   let str = String.append "<" (Location.to_string span.start) in
   let str = String.append str "-" in
@@ -104,7 +136,6 @@ let pp_token (tok : Token.t) =
   let str = String.append str "> }" in
   str
 ;;
-
 
 let pp_parser_error (err : Errors.parser_error) =
   let pp_expected_tokens (toks : Token.desc list) : string =
