@@ -15,6 +15,26 @@ type t =
   }
 
 
+exception Lexer_error of Errors.lexer_error
+let _error (err : Errors.lexer_error) : 'a =
+  raise (Lexer_error err)
+;;
+
+(* ASSUME [t] hasn't encountered EOF *)
+let _lexer_error_expect_ch (expected : char) t : 'a =
+  let cur_ch = String.get t.content t.cur_idx in
+  _error (Errors.Lexer_unexpected_char (expected, cur_ch, t.cur_loc))
+;;
+
+let _lexer_error_eof (what : Errors.lexer_action) t : 'a =
+  _error (Errors.Lexer_unexpected_eof (t.cur_loc, what))
+;;
+
+let _lexer_error_invalid_start (start : char) t : 'a =
+  _error (Errors.Lexer_invalid_start (start, t.cur_loc))
+;;
+
+
 (* These keywords are subset of identifier with more than 1 character. *)
 let _keyword_map : (string, Token.desc) Map.t =
   List.fold_right
@@ -47,24 +67,6 @@ let _get_token_str t : string =
 
 let _can_be_ident (ch : char) : bool =
   (Char.is_alpha ch) || (ch = '_')
-;;
-
-(* [printf "%s at (%d, %d)" reason t.cur_row t.cur_col] *)
-let _lexer_error_general reason t : 'a =
-  let msg = String.append reason " at " in
-  let msg = String.append msg (Location.to_string t.cur_loc) in
-  failwith msg
-;;
-
-(* [printf "Expected '%c', but got '%c' at (%d, %d)" ...]
- * ASSUME [t] hasn't encountered EOF *)
-let _lexer_error_expect_ch (expected : char) t : 'a =
-  let reason = String.append "Expected '" (Char.to_string expected) in
-  let reason = String.append reason "', but got '" in
-  let cur_ch = String.get t.content t.cur_idx in
-  let reason = String.append reason (Char.to_string cur_ch) in
-  let reason = String.append reason "'" in
-  _lexer_error_general reason t
 ;;
 
 (* skip to a newline if [t.cur_idx] points to '\n' *)
@@ -100,14 +102,14 @@ let rec _cont_num t : Token.desc =
   match _peek_ch t with
   | Some ch when (Char.is_num ch) -> _increment_cur_pos t; _cont_num t
   | Some _ -> Token.Int (_get_token_str t)
-  | None -> _lexer_error_general "Unexpected EOF while lexing a number" t
+  | None -> _lexer_error_eof Errors.Lexing_number t
 ;;
 
 let rec _cont_ident_or_keywd t : Token.desc =
   match _peek_ch t with
   | Some ch when _can_be_ident ch -> _increment_cur_pos t; _cont_ident_or_keywd t
   | Some _ -> _get_keywd_or_iden_token_desc (_get_token_str t)
-  | None -> _lexer_error_general "Unexpected EOF while lexing an identifier" t
+  | None -> _lexer_error_eof Errors.Lexing_identifier_or_keyword t
 ;;
 
 let _cont_minus_or_arrow t : Token.desc =
@@ -123,11 +125,7 @@ let _cont_expect_ch t (expect : char) (tok : Token.desc)
   | Some ch ->
     if ch = expect then tok
     else _lexer_error_expect_ch expect t
-  | None ->
-    let reason = "Unexpected EOF while expecting '" in
-    let reason = String.append reason (Char.to_string expect) in
-    let reason = String.append reason "'" in
-    _lexer_error_general reason t
+  | None -> _lexer_error_eof (Errors.Lexing_expecting expect) t
 ;;
 
 (* ASSUME 
@@ -138,6 +136,7 @@ let _lex_with_cur_ch t (cur_ch : char) : Token.desc =
   | _ when (Char.is_num cur_ch) -> _cont_num t
   | _ when _can_be_ident cur_ch -> _cont_ident_or_keywd t
   | '-' -> _cont_minus_or_arrow t
+           (* XXX Might have to change if say, ";" becomes a valid token *)
   | ';' -> _cont_expect_ch t cur_ch Token.SemiSemiColon
   | '&' -> _cont_expect_ch t cur_ch Token.AmperAmper
   | '|' -> _cont_expect_ch t cur_ch Token.BarBar
@@ -148,10 +147,7 @@ let _lex_with_cur_ch t (cur_ch : char) : Token.desc =
   | '(' -> Token.Lparen
   | ')' -> Token.Rparen
   | '<' -> Token.Less
-  | _ -> 
-    let reason =
-      String.append "Unknown start of token" (Char.to_string cur_ch) in
-    _lexer_error_general reason t
+  | _ -> _lexer_error_invalid_start cur_ch t
 ;;
 
 (* ENSURE:
@@ -167,7 +163,7 @@ let rec _lex_skip_space t : unit =
 
 
 let create filename =
-  let content = Externals.read_entire_file filename in
+  let content = Io.read_file filename in
   { filename; content;
     bgn_idx = 0; cur_idx = -1; cur_loc = Location.create 0 ~-1 }
 ;;

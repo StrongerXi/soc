@@ -59,81 +59,115 @@ let _print_newline (p : printer) : unit =
 
 (* Again, this deserves a module but to simplify self-compilation... TODO *)
 
-let _pp_span (span : Span.t) : string =
-  let str = String.append "<" (Location.to_string span.start) in
-  let str = String.append str "-" in
-  let str = String.append str (Location.to_string span.final) in
-  String.append str ">"
+
+let _pp_lexer_action (what : Errors.lexer_action) : string =
+  match what with
+  | Lexing_expecting expect ->
+    String.join_with [ "expecting '"; (Char.to_string expect); "'" ] ""
+  | Lexing_number -> "lexing a number"
+  | Lexing_identifier_or_keyword -> "lexing an identifier or keyword"
+;;
+
+let pp_lexer_error (err : Errors.lexer_error) : string =
+  match err with
+  | Lexer_unexpected_char (expect, actual, loc) ->
+    String.join_with
+      [ "Expected '"; (Char.to_string expect);
+        "', but got '"; (Char.to_string actual); "'";
+        " at "; (Location.to_string loc); ]
+      ""
+  | Lexer_unexpected_eof (where, action) ->
+    String.join_with
+      [ "Unexpected EOF while "; (_pp_lexer_action action);
+        " at "; (Location.to_string where); ]
+      ""
+  | Lexer_invalid_start (start, loc) ->
+    String.join_with
+      [ "Invalid start of token: '"; (Char.to_string start);
+        "' at "; (Location.to_string loc); ]
+      ""
 ;;
 
 
+let _pp_span (span : Span.t) : string =
+  String.join_with
+    [ "<"; (Location.to_string span.start); "-";
+      (Location.to_string span.final); ">" ]
+    ""
+;;
+
+(* Whether to show content of [Token.Int], etc. *)
+type token_desc_visibility =
+  | Show_content
+  | Hide_content
+
+let _pp_token_desc_impl desc (visibility : token_desc_visibility) =
+  match desc, visibility with
+  | Token.Plus, _ -> "<Plus>"
+  | Token.Minus, _ -> "<Minus>"
+  | Token.Asterisk, _ -> "<Asterisk>"
+  | Token.AmperAmper, _ -> "<AmperAmper>"
+  | Token.BarBar, _ -> "<BarBar>"
+  | Token.If, _ -> "<If>"
+  | Token.Then, _ -> "<Then>"
+  | Token.Else, _ -> "<Else>"
+  | Token.Let, _ -> "<Let>"
+  | Token.Rec, _ -> "<Rec>"
+  | Token.Colon, _ -> "<Colon>"
+  | Token.Equal, _ -> "<Equal>"
+  | Token.And, _ -> "<And>"
+  | Token.In, _ -> "<In>"
+  | Token.Lparen, _ -> "<Lparen>"
+  | Token.Rparen, _ -> "<Rparen>"
+  | Token.Rarrow, _ -> "<Rarrow>"
+  | Token.Fun, _ -> "<Fun>"
+  | Token.Less, _ -> "<Less>"
+  | Token.True, _ -> "<True>"
+  | Token.False, _ -> "<False>"
+  | Token.Int _, Hide_content -> "<Int>"
+  | Token.Int s, Show_content -> String.join_with ["<Int ("; s; ")>"] ""
+  | Token.DecapIdent _, Hide_content -> "<DecapIdent>"
+  | Token.DecapIdent s, Show_content ->
+    String.join_with ["<DecapIdent ("; s; ")>"] ""
+  | Token.SemiSemiColon, _ -> "<SemiSemiColon>"
+;;
+
 let pp_token_desc desc =
-  match desc with
-  | Token.Plus -> "<Plus>"
-  | Token.Minus -> "<Minus>"
-  | Token.Asterisk -> "<Asterisk>"
-  | Token.AmperAmper -> "<AmperAmper>"
-  | Token.BarBar -> "<BarBar>"
-  | Token.If -> "<If>"
-  | Token.Then -> "<Then>"
-  | Token.Else -> "<Else>"
-  | Token.Let -> "<Let>"
-  | Token.Rec -> "<Rec>"
-  | Token.Colon -> "<Colon>"
-  | Token.Equal -> "<Equal>"
-  | Token.And -> "<And>"
-  | Token.In -> "<In>"
-  | Token.Lparen -> "<Lparen>"
-  | Token.Rparen -> "<Rparen>"
-  | Token.Rarrow -> "<Rarrow>"
-  | Token.Fun -> "<Fun>"
-  | Token.Less -> "<Less>"
-  | Token.True -> "<True>"
-  | Token.False -> "<False>"
-  | Token.Int s -> String.append (String.append "<Int (" s) ")>"
-  | Token.DecapIdent s -> String.append (String.append "<DecapIdent (" s) ")>"
-  | Token.SemiSemiColon -> "<SemiSemiColon>"
+  _pp_token_desc_impl desc Show_content
 ;;
 
 let pp_token (tok : Token.t) =
-  let str = String.append "{ " (pp_token_desc tok.token_desc) in
-  let str = String.append str " in <" in
-  let str = String.append str tok.token_span.filename in
-  let str = String.append str ":" in
-  let str = String.append str (_pp_span tok.token_span) in
-  let str = String.append str "> }" in
-  str
+  String.join_with
+    [ "{"; (pp_token_desc tok.token_desc);
+      " in <"; tok.token_span.filename; ":"; (_pp_span tok.token_span); ">}"; ]
+    ""
 ;;
-
 
 let pp_parser_error (err : Errors.parser_error) =
   let pp_expected_tokens (toks : Token.desc list) : string =
     match toks with
     | [] -> "<unknown>"
     | _ ->
-      let inner = String.join_with (List.map pp_token_desc toks) "; " in
-      String.append "[" (String.append inner "]")
+      let tok_strs =
+        List.map (fun tok -> _pp_token_desc_impl tok Hide_content) toks in
+      let inner = String.join_with tok_strs "; " in
+      String.join_with ["["; inner; "]"] ""
   in
   match err with
   | Parser_invalid_integer (text, span) ->
-    let str = String.append "[Parser]: Invalid integer token <" text in
-    let str = String.append str "> at " in
-    let str = String.append str (_pp_span span) in
-    String.append str "\n"
-
+    String.join_with
+      [ "[Parser]: Invalid integer token <"; text; "> at "; (_pp_span span); ]
+      ""
   | Parser_unexpected_token (actual, expects) ->
-    let str = "[Parser]: Unexpected token " in
-    let str = String.append str (pp_token actual) in
-    let str = String.append str " where expected tokens are " in
-    let str = String.append str (pp_expected_tokens expects) in
-    String.append str "\n"
-
+    String.join_with
+      [ "[Parser]: Unexpected token "; (pp_token actual);
+        " where expected tokens are "; (pp_expected_tokens expects); ]
+      ""
   | Parser_unexpected_eof (eof_loc, expects) ->
-    let str = "[Parser]: Unexpected EOF at " in
-    let str = String.append str (Location.to_string eof_loc) in
-    let str = String.append str " where expected tokens are " in
-    let str = String.append str (pp_expected_tokens expects) in
-    String.append str "\n"
+    String.join_with
+      [ "[Parser]: Unexpected EOF at "; (Location.to_string eof_loc);
+        " where expected tokens are "; (pp_expected_tokens expects); ]
+      ""
 ;;
 
 
@@ -224,7 +258,8 @@ and _pp_ast_let_bindings
     List.iter (fun bd ->
         _print_newline p;
         _print_str p "and ";
-        _pp_ast_binding p bd) bds;
+        _pp_ast_binding p bd)
+      bds;
 
 and _pp_ast_binding (p : printer) (binding : Ast.binding) : unit =
   _pp_ast_opt_typ_var p binding.binding_lhs;

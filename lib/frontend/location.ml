@@ -9,12 +9,9 @@ let create row col =
 ;;
 
 let to_string t =
-  let str = "(" in
-  let str = String.append str (Int.to_string t.row) in
-  let str = String.append str ", " in
-  let str = String.append str (Int.to_string t.col) in
-  let str = String.append str ")" in
-  str
+  String.join_with
+    ["("; (Int.to_string t.row); ", "; (Int.to_string t.col); ")"]
+    ""
 ;;
 
 let advance t =
