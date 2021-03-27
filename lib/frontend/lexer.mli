@@ -7,8 +7,11 @@ type t
     Error on invalid file. *)
 val create : string -> t
 
-(** [next t] returns the next token and update [t] accordingly.
-    Error on invalid input. *)
+(** Hook for client to catch lexing errors during downstream tasks *)
+exception Lexer_error of Errors.lexer_error
+
+(** [next t] returns the next token or error on invalid input.
+    Update [t] accordingly in either case. *)
 val next : t -> Token.t option
 
 (** [next_loc t] returns the location of the next character [t] would examine *)
