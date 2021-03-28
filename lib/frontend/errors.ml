@@ -26,3 +26,14 @@ type parser_error =
          *)
   | Parser_unexpected_eof of Location.t * (Token.desc list)
         (* like [Parser_unexpected_token], except EOF only has 1 location. *)
+
+
+type ast_interp_error =
+  | Ast_interp_unbound_var of string * Span.t
+        (* the unbound variable's name and span *)
+  | Ast_interp_type_mismatch of string * string * Span.t
+        (* expected type, actual type, span of the faulty expression *)
+  | Ast_interp_arity_mismatch of int * int * Span.t
+        (* expected arity, actual arity, span of the application expr *)
+  | Ast_interp_letrec_invalid_rhs of Span.t
+        (* span of the rhs expr (that broke value restriction) *)
