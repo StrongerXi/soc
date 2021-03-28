@@ -1,10 +1,5 @@
 open Pervasives
 
-type token_stream =
-  { next  : unit -> Token.t option (* [None] on EOF *)
-  ; where : unit -> Location.t     (* last examined location *)
-  }
-
-(** [parse stream] returns a parsed abstract syntax tree,
+(** [parse lexer] returns a parsed abstract syntax tree,
     or error on invalid input. *)
-val parse : token_stream -> (Ast.structure, Errors.parser_error) result
+val parse : Lexer.t -> (Ast.structure, Errors.parser_error) result

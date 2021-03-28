@@ -8,10 +8,8 @@ let _get_full_path (filename : string) : string =
 let _check_parser_pp_ast (filepath_no_suffix : string) : unit =
   let filepath = String.append filepath_no_suffix ".soml" in
   let lexer = Lexer.create filepath in
-  let stream = { Parser.next = (fun () -> Lexer.next lexer)
-               ; where = (fun () -> Lexer.next_loc lexer) } in
   let result =
-    match Parser.parse stream with
+    match Parser.parse lexer with
     | Error err -> Frontend_pp.pp_parser_error err
     | Ok ast -> Frontend_pp.pp_ast_structure ast
   in
@@ -23,14 +21,7 @@ let _check_parser_pp_ast (filepath_no_suffix : string) : unit =
 ;;
 
 
-let tests = OUnit2.(>:::) "lexer_test" [
-
-    OUnit2.(>::) "test_blank_file" (fun _ ->
-        let stream = { Parser.next = (fun () -> None)
-                     ; where = (fun () -> Location.create 0 0) } in
-        let ast = Parser.parse stream in
-        OUnit2.assert_equal (Ok []) ast
-      );
+let tests = OUnit2.(>:::) "parser_test" [
 
     OUnit2.(>::) "test_integration" (fun _ ->
         let path = _get_full_path "parser_input_mixed" in

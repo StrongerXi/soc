@@ -7,9 +7,7 @@ let _get_full_path (filename : string) : string =
 
 let _parse_ast_exn (filepath : string) : Ast.structure =
   let lexer = Lexer.create filepath in
-  let stream = { Parser.next = (fun () -> Lexer.next lexer)
-               ; where = (fun () -> Lexer.next_loc lexer) } in
-  match Parser.parse stream with
+  match Parser.parse lexer with
   | Error _ ->
     let msg = ("Unexpected parsing failure on [" ^ filepath ^ "]") in
     OUnit2.assert_failure msg;

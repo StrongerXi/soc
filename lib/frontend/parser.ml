@@ -1,11 +1,6 @@
 open Pervasives
 
-type token_stream =
-  { next  : unit -> Token.t option
-  ; where : unit -> Location.t
-  }
-
-(* Internal wrapper around token_stream to support peeking.
+(* Internal wrapper around lexer to support peeking.
  * [peek ()] returns the same token until [skip ()]. *)
 type _tok_stream =
   { skip  : unit -> unit         (* skips peeked token *)
@@ -13,7 +8,7 @@ type _tok_stream =
   ; where : unit -> Location.t   (* same as [token_stream.where] *)
   }
 
-let _create_tok_stream (s : token_stream) : _tok_stream =
+let _create_tok_stream (lexer : Lexer.t) : _tok_stream =
   let peeked = ref None in (* None already stands for EOF *)
   let skip () =
     peeked := None
@@ -21,11 +16,14 @@ let _create_tok_stream (s : token_stream) : _tok_stream =
   let peek () =
     match !peeked with
     | None ->
-      let opt_tok = s.next () in
+      let opt_tok = Lexer.next lexer in
       peeked := Some opt_tok; opt_tok
     | Some opt_tok -> opt_tok
   in
-  { skip; peek; where = s.where }
+  let where () =
+    Lexer.next_loc lexer
+  in
+  { skip; peek; where }
 ;;
 (* Ideally _tok_stream should go in a module, but I want to make self-compilation
  * easier; I'll refactor later when soc supports nested module *)
@@ -371,9 +369,9 @@ let rec _parse_structure (s : _tok_stream) : Ast.structure =
     item::rest
 ;;
 
-let parse (s : token_stream) =
+let parse (lexer : Lexer.t) =
   try 
-    let internal_tok_stream = _create_tok_stream s in
+    let internal_tok_stream = _create_tok_stream lexer in
     let structure = _parse_structure internal_tok_stream in
     Ok structure
   with Parser_error(err) -> Error err
