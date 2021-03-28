@@ -23,6 +23,9 @@ let read_entire_file (filename : string) : string =
   s
 ;;
 
+let print = Stdlib.print_string
+;;
+
 let char_code = Stdlib.Char.code
 ;;
 
