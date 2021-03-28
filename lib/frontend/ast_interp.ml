@@ -159,8 +159,8 @@ and _interp_let_bindings (ctx : context)
     (rec_flag : Ast.rec_flag) (bds : Ast.binding list) : context =
   let _interp_one_binding (b : Ast.binding) : (string * value) =
     let name = b.binding_lhs.var.stuff in
-    match b.binding_rhs.expr_desc with
-    | Exp_const _ | Exp_fun _ -> (* value restriction *)
+    match b.binding_rhs.expr_desc, rec_flag with (* value restriction *)
+    | _, Nonrecursive | Exp_const _, _ | Exp_fun _, _ ->
       let rhs_v = _interp_expr ctx b.binding_rhs in (name, rhs_v)
     | _ -> _error_letrec_invalid_rhs b.binding_rhs.expr_span
   in
