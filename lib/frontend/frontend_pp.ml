@@ -72,18 +72,18 @@ let pp_lexer_error (err : Errors.lexer_error) : string =
   match err with
   | Lexer_unexpected_char (expect, actual, loc) ->
     String.join_with
-      [ "Expected '"; (Char.to_string expect);
+      [ "[Lexer] Expected '"; (Char.to_string expect);
         "', but got '"; (Char.to_string actual); "'";
         " at "; (Location.to_string loc); ]
       ""
   | Lexer_unexpected_eof (where, action) ->
     String.join_with
-      [ "Unexpected EOF while "; (_pp_lexer_action action);
+      [ "[Lexer] Unexpected EOF while "; (_pp_lexer_action action);
         " at "; (Location.to_string where); ]
       ""
   | Lexer_invalid_start (start, loc) ->
     String.join_with
-      [ "Invalid start of token: '"; (Char.to_string start);
+      [ "[Lexer] Invalid start of token: '"; (Char.to_string start);
         "' at "; (Location.to_string loc); ]
       ""
 ;;
@@ -201,14 +201,17 @@ let rec _pp_ast_typ (p : printer) (typ : Ast.typ) : unit =
   match typ.typ_desc with
   | Typ_const name -> _print_str p name;
   | Typ_arrow (in_ty, out_ty) ->
-    if _is_atomic_typ in_ty
-    then _pp_ast_typ p in_ty
-    else (_print_str p "("; _pp_ast_typ p in_ty; _print_str p ")");
+    _pp_ast_typ_parens_on_non_atomic p in_ty;
     _print_str p " -> ";
-    if _is_atomic_typ out_ty
-    then _pp_ast_typ p out_ty
-    else (_print_str p "("; _pp_ast_typ p out_ty; _print_str p ")");
+    _pp_ast_typ_parens_on_non_atomic p out_ty;
+
+and _pp_ast_typ_parens_on_non_atomic (p : printer) (typ : Ast.typ)
+  : unit =
+  if _is_atomic_typ typ
+  then _pp_ast_typ p typ
+  else (_print_str p "("; _pp_ast_typ p typ; _print_str p ")");
 ;;
+
 
 let _binop_to_str (binop : Ast.binary_op) : string =
   match binop with
@@ -232,13 +235,9 @@ let rec _pp_ast_expr (p : printer) (expr : Ast.expression) : unit =
   | Exp_const const -> _pp_ast_const p const
   | Exp_ident name -> _print_str p name
   | Exp_binop (binop, lhs, rhs) ->
-    if _is_atomic_expr lhs
-    then _pp_ast_expr p lhs
-    else (_print_str p "("; _pp_ast_expr p lhs; _print_str p ")");
+    _pp_ast_expr_parens_on_non_atomic p lhs;
     _print_strs p [" "; (_binop_to_str binop); " ";];
-    if _is_atomic_expr rhs
-    then _pp_ast_expr p rhs
-    else (_print_str p "("; _pp_ast_expr p rhs; _print_str p ")");
+    _pp_ast_expr_parens_on_non_atomic p rhs
   | Exp_let (rec_flag, bindings, body) ->
     _pp_ast_let_bindings p rec_flag bindings;
     _println_str p " in";
@@ -251,15 +250,23 @@ let rec _pp_ast_expr (p : printer) (expr : Ast.expression) : unit =
     _print_newline p;
     _println_str p ")";
   | Exp_apply (func, args) ->
-    _print_str p "(";
     _pp_ast_expr p func;
-    List.iter (fun arg -> _print_str p " "; _pp_ast_expr p arg;) args;
-    _print_str p ")";
+    List.iter (fun arg ->
+        _print_str p " "; (* first space separates func and arg *)
+        _pp_ast_expr_parens_on_non_atomic p arg;)
+      args;
   | Exp_if (cnd, thn, els) ->
-    _print_str p "if ("; _pp_ast_expr p cnd; _println_str p ")";
+    _print_str p "if "; _pp_ast_expr_parens_on_non_atomic p cnd;
+    _print_newline p;
     _print_str p "then "; _inc_space p 5; _pp_ast_expr p thn; _dec_space p 5;
     _print_newline p;
     _print_str p "else "; _inc_space p 5; _pp_ast_expr p els; _dec_space p 5;
+
+and _pp_ast_expr_parens_on_non_atomic (p : printer) (expr : Ast.expression)
+  : unit =
+  if _is_atomic_expr expr
+  then _pp_ast_expr p expr
+  else (_print_str p "("; _pp_ast_expr p expr; _print_str p ")");
 
 and _pp_ast_const (p : printer) (const : Ast.constant) : unit =
   match const with
