@@ -7,6 +7,7 @@ type value =
   | Closure of string list * Ast.expression * context
                (* arg names, body expr, enclosing context *)
 
+(** A [context] is an immutable execution context for the interpreter *)
 and context = (string, value) Map.t
 
 
