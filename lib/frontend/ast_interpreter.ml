@@ -14,6 +14,10 @@ type value =
 (** A [context] is an immutable execution context for the interpreter *)
 and context = (string, value) Map.t
 
+let _int_type = "int"
+and _bool_type = "bool"
+and _function_type = "function"
+;;
 
 let _println_val (v : value) : unit =
   match v with
@@ -22,6 +26,14 @@ let _println_val (v : value) : unit =
   | Bool false -> Io.println "false"
   | Closure _  -> Io.println "<function>"
   | Native _   -> Io.println "<builtin-function>"
+;;
+
+let _type_of (v : value) : string = (* TODO better type representation *)
+  match v with
+  | Int _     -> _int_type
+  | Bool _    -> _bool_type
+  | Closure _ -> _function_type
+  | Native _  -> _function_type
 ;;
 
 let _context_lookup (ctx : context) (name : string) : value option =
@@ -38,6 +50,29 @@ let _context_insert_pairs (ctx : context) (pairs : (string * value) list)
 ;;
 
 
+exception Ast_interp_error of Errors.ast_interp_error
+let _error (err : Errors.ast_interp_error) : 'a =
+  raise (Ast_interp_error err)
+;;
+
+let _error_unbound_var (name : string) (span : Span.t) : 'a =
+  _error (Errors.Ast_interp_unbound_var (name, span))
+;;
+
+let _error_type_mismatch (expect : string) (actual : string) (span : Span.t)
+  : 'a =
+  _error (Errors.Ast_interp_type_mismatch (expect, actual, span))
+;;
+
+let _error_arity_mismatch (expect : int) (actual : int) (span : Span.t) : 'a =
+  _error (Errors.Ast_interp_arity_mismatch (expect, actual, span))
+;;
+
+let _error_letrec_invalid_rhs (span : Span.t) : 'a =
+  _error (Errors.Ast_interp_letrec_invalid_rhs span)
+;;
+
+
 type _short_circuit = (* for evaluating boolean ops *)
   | SC_on_true
   | SC_on_false
@@ -50,7 +85,7 @@ let _interp_const (const : Ast.constant) : value =
 
 let _interp_name (ctx : context) (name : string) (where : Span.t) : value =
   match _context_lookup ctx name with
-  | None -> failwith "TODO unbound name"
+  | None -> _error_unbound_var name where
   | Some v -> v
 ;;
 
@@ -65,23 +100,31 @@ let rec _interp_expr (ctx : context) (expr : Ast.expression) : value =
   | Exp_binop (binop, lhs, rhs)   -> _interp_binop_expr ctx binop lhs rhs
   | Exp_if (cnd, thn, els)        -> _interp_if_expr    ctx cnd thn els
   | Exp_let (rec_flag, bds, body) -> _interp_let_expr   ctx rec_flag bds body
-  | Exp_apply (func, args)        -> _interp_apply      ctx func args
+  | Exp_apply (func, args)        -> _interp_apply      ctx func args expr.expr_span
 
 and _interp_binop_expr (ctx : context)
     (op : Ast.binary_op) (lhs : Ast.expression) (rhs : Ast.expression) : value =
   match op with
   | Binop_and -> _interp_boolean_binop ctx lhs rhs SC_on_false
-  | Binop_or -> _interp_boolean_binop ctx lhs rhs SC_on_true
-  | _ ->
+  | Binop_or  -> _interp_boolean_binop ctx lhs rhs SC_on_true
+  | Binop_eq  ->
     let lhs_v = _interp_expr ctx lhs in
     let rhs_v = _interp_expr ctx rhs in
-    match op, lhs_v, rhs_v with
-    | Binop_add, Int n1, Int n2 -> Int (n1 + n2)
-    | Binop_sub, Int n1, Int n2 -> Int (n1 - n2)
-    | Binop_mul, Int n1, Int n2 -> Int (n1 * n2)
-    | Binop_less, Int n1, Int n2 -> Bool (n1 < n2)
-    | Binop_eq, _, _ -> Bool (lhs_v = rhs_v)
-    | _ -> failwith "TODO Type mismatch"
+    Bool (lhs_v = rhs_v)
+  | _ ->
+    let n1 = _interp_check_int ctx lhs in
+    let n2 = _interp_check_int ctx rhs in
+    match op with
+    | Binop_add -> Int (n1 + n2)
+    | Binop_sub -> Int (n1 - n2)
+    | Binop_mul -> Int (n1 * n2)
+    | Binop_less -> Bool (n1 < n2)
+    | _ -> assert false (* TODO, why does compiler complain w/o this case? *)
+
+and _interp_check_int (ctx :context) (expr : Ast.expression) : int =
+  match _interp_expr ctx expr with
+  | Int n -> n
+  | _ as v -> _error_type_mismatch _int_type (_type_of v) expr.expr_span
 
 and _interp_boolean_binop (ctx : context)
     (lhs : Ast.expression) (rhs : Ast.expression) (sc : _short_circuit)
@@ -90,13 +133,13 @@ and _interp_boolean_binop (ctx : context)
   match lhs_v, sc with
   | Bool true, SC_on_true -> lhs_v
   | Bool false, SC_on_false -> lhs_v
-  | Bool b, _ ->
+  | Bool _, _ ->
     begin
       match _interp_expr ctx rhs with
       | Bool b -> Bool b
-      | _ -> failwith "expected bool TODO"
+      | _ as v -> _error_type_mismatch _bool_type (_type_of v) rhs.expr_span
     end
-  | _ -> failwith "expected bool TODO"
+  | _ -> _error_type_mismatch _bool_type (_type_of lhs_v) lhs.expr_span
 
 and _interp_if_expr (ctx : context)
     (cnd : Ast.expression) (thn : Ast.expression) (els : Ast.expression)
@@ -104,7 +147,7 @@ and _interp_if_expr (ctx : context)
   match _interp_expr ctx cnd with
   | Bool true -> _interp_expr ctx thn
   | Bool false -> _interp_expr ctx els
-  | _ -> failwith "expected boolean TODO"
+  | _ as v -> _error_type_mismatch _bool_type (_type_of v) cnd.expr_span
 
 and _interp_let_expr (ctx : context)
     (rec_flag : Ast.rec_flag) (bds : Ast.binding list) (body : Ast.expression)
@@ -119,7 +162,7 @@ and _interp_let_bindings (ctx : context)
     match b.binding_rhs.expr_desc with
     | Exp_const _ | Exp_fun _ -> (* value restriction *)
       let rhs_v = _interp_expr ctx b.binding_rhs in (name, rhs_v)
-    | _ -> failwith "TODO bad rhs for rec"
+    | _ -> _error_letrec_invalid_rhs b.binding_rhs.expr_span
   in
   let name_arg_pairs = List.map _interp_one_binding bds in
   let ctx = _context_insert_pairs ctx name_arg_pairs in
@@ -134,29 +177,32 @@ and _interp_let_bindings (ctx : context)
   ctx
 
 and _interp_apply (ctx : context)
-    (func : Ast.expression) (args : Ast.expression list) : value =
+    (func : Ast.expression) (args : Ast.expression list) (span : Span.t)
+  : value =
   match _interp_expr ctx func with
   | Closure (names, body, func_ctx) ->
     let argvs = List.map (_interp_expr ctx) args in
     let len_expect = List.length names in
     let len_actual = List.length argvs in
-    if len_expect <> len_actual then failwith "TODO arity error"
+    if len_expect <> len_actual
+    then _error_arity_mismatch len_expect len_actual span
     else
       let name_arg_pairs = List.combine names argvs in
       let ctx = _context_insert_pairs !func_ctx name_arg_pairs in
       _interp_expr ctx body
-  | Native func ->
-    _interp_native_apply ctx func args
-  | _ -> failwith "TODO expected closure"
+  | Native func -> _interp_native_apply ctx func args span
+  | _ as v -> _error_type_mismatch _function_type (_type_of v) func.expr_span
 
 and _interp_native_apply (ctx : context)
-    (func : builtin_func) (args : Ast.expression list) : value =
-  let argvs = List.map (_interp_expr ctx) args in
+    (func : builtin_func) (args : Ast.expression list) (span : Span.t) : value =
   match func with
   | Builtin_println ->
-    match argvs with
-    | [v] -> _println_val v; v
-    | _ -> failwith "TODO arity error"
+    match args with
+    | [arg_e] ->
+      let arg_v = _interp_expr ctx arg_e in
+      _println_val arg_v;
+      arg_v
+    | _ -> _error_arity_mismatch 1 (List.length args) span
 ;;
 
 let _interp_struct_item (ctx : context) (item : Ast.struct_item) : context =
@@ -165,9 +211,14 @@ let _interp_struct_item (ctx : context) (item : Ast.struct_item) : context =
   | Struct_bind (rec_flag, bds) -> _interp_let_bindings ctx rec_flag bds
 ;;
 
-let interp_struct items =
+let _interp_struct_impl items =
   let init_ctx = Map.empty String.compare in
   let init_ctx = Map.add "println" (Native Builtin_println) init_ctx in
   let _ = List.fold_left _interp_struct_item init_ctx items in
   ()
+;;
+
+let interp_struct items =
+  try Ok (_interp_struct_impl items)
+  with Ast_interp_error err -> Error err
 ;;
