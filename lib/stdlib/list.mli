@@ -69,3 +69,7 @@ val remove_dups : ('a -> 'a -> bool) -> 'a list -> 'a list
 
 (** [split [(a1,b1); ...; (an,bn)]] is [([a1; ...; an], [b1; ...; bn])]. *)
 val split : ('a * 'b) list -> 'a list * 'b list
+
+(** [combine [([a1; ...; am], [b1; ...; bn])]] is [(a1,b1); ...; (ak,bk)]. 
+    where k = min(m, n) *)
+val combine : 'a list -> 'b list -> ('a * 'b) list

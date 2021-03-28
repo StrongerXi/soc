@@ -122,3 +122,11 @@ let rec split xys =
     let xs, ys = split xys in
     (x::xs, y::ys)
 ;;
+
+let rec combine xs ys =
+  match xs, ys with
+  | x::xs, y::ys -> 
+    let xys = combine xs ys in
+    (x, y)::xys
+  | _ -> []
+;;

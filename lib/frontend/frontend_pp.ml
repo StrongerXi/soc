@@ -170,6 +170,26 @@ let pp_parser_error (err : Errors.parser_error) =
       ""
 ;;
 
+let pp_ast_interp_error (err : Errors.ast_interp_error) =
+  match err with
+  | Ast_interp_unbound_var (name, span) ->
+    String.join_with
+      [ "[Ast_interp]: Unbound variable <"; name; "> at "; (_pp_span span); ]
+      ""
+  | Ast_interp_type_mismatch (expect, actual, span) ->
+    String.join_with
+      [ "[Ast_interp]: Expected type <"; expect; ">";
+        " but got <"; actual; "> at "; (_pp_span span); ]
+      ""
+  | Ast_interp_arity_mismatch (expect, actual, span) ->
+    String.join_with
+      [ "[Ast_interp]: Expected arity "; (Int.to_string expect);
+        " but got "; (Int.to_string actual); " at "; (_pp_span span); ]
+      ""
+  | Ast_interp_letrec_invalid_rhs span ->
+    String.append "Invalid rhs of let rec binding at " (_pp_span span)
+;;
+
 
 let _is_atomic_typ (typ : Ast.typ) : bool =
   match typ.typ_desc with

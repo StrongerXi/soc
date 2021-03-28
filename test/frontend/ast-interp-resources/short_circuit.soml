@@ -1,0 +1,20 @@
+
+(println true) || (println false)
+;;
+println 1
+;;
+
+(println false) || (println true)
+;;
+println 2
+;;
+
+(println false) && (println true)
+;;
+println 1
+;;
+
+(println true) && (println false)
+;;
+println 2
+;;
