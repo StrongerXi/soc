@@ -4,7 +4,7 @@ open Pervasives
 type value =
   | Int of int
   | Bool of bool
-  | Closure of string list * Ast.expression * context
+  | Closure of string list * Ast.expression * (context ref)
                (* arg names, body expr, enclosing context *)
 
 (** A [context] is an immutable execution context for the interpreter *)
