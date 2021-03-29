@@ -1,7 +1,7 @@
 
 let x : bool = 42 + 42 * 55 || true && false - f a b c in xx;;
 
-let (y : bool) = (fun x (y : bool -> int -> int) z -> 42);;
+let (y : bool) = (fun x (y : bool -> 'aa -> int) z -> 42);;
 
 let print_str = (fun (p : printer) (s : string) (endline : bool) ->
   let rec print_space = fun n_more ->

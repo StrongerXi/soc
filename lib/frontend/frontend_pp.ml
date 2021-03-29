@@ -196,13 +196,14 @@ let pp_ast_interp_error (err : Errors.ast_interp_error) =
 
 let _is_atomic_typ (typ : Ast.typ) : bool =
   match typ.typ_desc with
-  | Typ_const _ -> true
+  | Typ_const _ | Typ_var _ -> true
   | _ -> false
 ;;
 
 let rec _pp_ast_typ (p : printer) (typ : Ast.typ) : unit =
   match typ.typ_desc with
   | Typ_const name -> _print_str p name;
+  | Typ_var name -> _print_str p "'"; _print_str p name;
   | Typ_arrow (in_ty, out_ty) ->
     _pp_ast_typ_parens_on_non_atomic p in_ty;
     _print_str p " -> ";

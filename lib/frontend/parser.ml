@@ -107,11 +107,14 @@ and _parse_arrow_typ (s : _tok_stream) : Ast.typ = (* right associative *)
       typ_span = Span.merge in_typ.typ_span out_typ.typ_span }
   | _ -> in_typ (* no arrow *)
 
-and _parse_primary_typ (s : _tok_stream) : Ast.typ = (* int, (a -> b), etc. *)
-  let expected = Token.[DecapIdent ""; Lparen] in (* NOTE stay synched! *)
+and _parse_primary_typ (s : _tok_stream) : Ast.typ = (* int, 'a, (a -> b) *)
+                        (* NOTE stay synched! *)
+  let expected = Token.[QuoteIdent ""; DecapIdent ""; Lparen] in 
   let tok = _peek_token_exn s expected in
   s.skip ();
   match tok.token_desc with
+  | QuoteIdent name ->
+    { Ast.typ_desc = Typ_var name; typ_span = tok.token_span }
   | DecapIdent name ->
     { Ast.typ_desc = Typ_const name; typ_span = tok.token_span }
   | Lparen ->
