@@ -24,6 +24,7 @@ type desc =
   | False
   | Int of string
   | DecapIdent of string
+  | QuoteIdent of string
   | SemiSemiColon
 
 type t =

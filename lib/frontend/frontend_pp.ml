@@ -129,6 +129,9 @@ let _pp_token_desc_impl desc (visibility : token_desc_visibility) =
   | Token.DecapIdent _, Hide_content -> "<DecapIdent>"
   | Token.DecapIdent s, Show_content ->
     String.join_with ["<DecapIdent ("; s; ")>"] ""
+  | Token.QuoteIdent _, Hide_content -> "<QuoteIdent>"
+  | Token.QuoteIdent s, Show_content ->
+    String.join_with ["<QuoteIdent ("; s; ")>"] ""
   | Token.SemiSemiColon, _ -> "<SemiSemiColon>"
 ;;
 

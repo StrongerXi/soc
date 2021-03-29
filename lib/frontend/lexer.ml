@@ -125,6 +125,17 @@ let _cont_ident_or_keywd t : Token.desc =
   | None -> _lexer_error_eof Errors.Lexing_identifier_or_keyword t
 ;;
 
+let _cont_quote_ident t : Token.desc =
+  _increment_cur_pos t; (* skip the quote *)
+  _consume_ident t;
+  match _peek_ch t with
+  | Some _ ->
+    let name = _get_token_str t in
+    let name_wo_quote = String.sub name 1 ((String.length name) - 1) in
+    Token.QuoteIdent name_wo_quote
+  | None -> _lexer_error_eof Errors.Lexing_identifier_or_keyword t
+;;
+
 let _cont_minus_or_arrow t : Token.desc =
   match _peek_ch t with
   | Some '>' -> _increment_cur_pos t; Token.Rarrow
@@ -150,6 +161,7 @@ let _lex_with_cur_ch t (cur_ch : char) : Token.desc =
   | _ when (Char.is_num cur_ch) -> _cont_num t
   | _ when _can_be_ident cur_ch -> _cont_ident_or_keywd t
   | '-' -> _cont_minus_or_arrow t
+  | '\'' -> _cont_quote_ident t
   | ';' -> _cont_expect_ch t cur_ch Token.SemiSemiColon
   | '&' -> _cont_expect_ch t cur_ch Token.AmperAmper
   | '|' -> _cont_expect_ch t cur_ch Token.BarBar
