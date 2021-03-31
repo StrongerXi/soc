@@ -37,3 +37,6 @@ type ast_interp_error =
         (* expected arity, actual arity, span of the application expr *)
   | Ast_interp_letrec_invalid_rhs of Span.t
         (* span of the rhs expr (that broke value restriction) *)
+
+
+type infer_error = |
