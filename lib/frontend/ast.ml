@@ -28,8 +28,8 @@ type typ =
 and typ_desc =
   | Typ_const of string
       (* int, foobar, ... *)
-  | Typ_var of string
-      (* 'a, 'b, ... *)
+  | Typ_var of string option
+      (* 'a, 'b, ... [None] for _ *)
   | Typ_arrow of typ * typ
       (* int -> (int -> int) ... *)
 

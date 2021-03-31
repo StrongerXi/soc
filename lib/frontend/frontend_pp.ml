@@ -114,6 +114,7 @@ let _pp_token_desc_impl desc (visibility : token_desc_visibility) =
   | Token.Let, _ -> "<Let>"
   | Token.Rec, _ -> "<Rec>"
   | Token.Colon, _ -> "<Colon>"
+  | Token.Underscore, _ -> "<Underscore>"
   | Token.Equal, _ -> "<Equal>"
   | Token.And, _ -> "<And>"
   | Token.In, _ -> "<In>"
@@ -203,7 +204,8 @@ let _is_atomic_typ (typ : Ast.typ) : bool =
 let rec _pp_ast_typ (p : printer) (typ : Ast.typ) : unit =
   match typ.typ_desc with
   | Typ_const name -> _print_str p name;
-  | Typ_var name -> _print_str p "'"; _print_str p name;
+  | Typ_var None -> _print_str p "_";
+  | Typ_var (Some name) -> _print_str p "'"; _print_str p name;
   | Typ_arrow (in_ty, out_ty) ->
     _pp_ast_typ_parens_on_non_atomic p in_ty;
     _print_str p " -> ";

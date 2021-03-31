@@ -125,6 +125,12 @@ let _cont_ident_or_keywd t : Token.desc =
   | None -> _lexer_error_eof Errors.Lexing_identifier_or_keyword t
 ;;
 
+let _cont_underscore_or_ident t : Token.desc =
+  match _peek_ch t with
+  | Some ch when _can_be_ident ch -> _cont_ident_or_keywd t
+  | _ -> Token.Underscore
+;;
+
 let _cont_quote_ident t : Token.desc =
   _increment_cur_pos t; (* skip the quote *)
   _consume_ident t;
@@ -158,8 +164,7 @@ let _cont_expect_ch t (expect : char) (tok : Token.desc)
  * 2. [cur_ch] is the [t.cur_idx]th char in [t.contents] *)
 let _lex_with_cur_ch t (cur_ch : char) : Token.desc =
   match cur_ch with
-  | _ when (Char.is_num cur_ch) -> _cont_num t
-  | _ when _can_be_ident cur_ch -> _cont_ident_or_keywd t
+  | '_' -> _cont_underscore_or_ident t
   | '-' -> _cont_minus_or_arrow t
   | '\'' -> _cont_quote_ident t
   | ';' -> _cont_expect_ch t cur_ch Token.SemiSemiColon
@@ -172,6 +177,8 @@ let _lex_with_cur_ch t (cur_ch : char) : Token.desc =
   | '(' -> Token.Lparen
   | ')' -> Token.Rparen
   | '<' -> Token.Less
+  | _ when (Char.is_num cur_ch) -> _cont_num t
+  | _ when _can_be_ident cur_ch -> _cont_ident_or_keywd t
   | _ -> _lexer_error_invalid_start cur_ch t
 ;;
 

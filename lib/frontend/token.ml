@@ -12,6 +12,7 @@ type desc =
   | Let
   | Rec
   | Colon
+  | Underscore
   | Equal
   | And
   | In

@@ -4,7 +4,7 @@
   **&&
 then else (fun int : x) -> and in ;;
 
-rec  <<
+rec  << _ _a
 
  true false
 '_abc
