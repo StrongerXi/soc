@@ -30,7 +30,7 @@ and typ_desc =
       (* int, foobar, ... *)
   | Typ_var of string option
       (* 'a, 'b, ... [None] for _ *)
-  | Typ_arrow of typ * typ
+  | Typ_arrow of typ_desc * typ_desc
       (* int -> (int -> int) ... *)
 
 type rec_flag =
