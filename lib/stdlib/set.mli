@@ -27,10 +27,6 @@ val remove : 'e -> 'e t -> 'e t
 (** [mem e t] returns true iff [e] is present in [t] *)
 val mem : 'e -> 'e t -> bool
 
-(** [get e1 t] returns [Some e2] if [e2] is in [t] and [e1], [e2] are considered
-    equal in [t]; otherwise it returns [None] *)
-val get : 'e -> 'e t -> 'e option
-
 (** [map f t] returns a new map where each value [v] in [t] becomes [f v] *)
 val map : ('e -> 'e) -> 'e t -> 'e t
 
@@ -50,3 +46,10 @@ val diff : 'e t -> 'e t -> 'e t
 
 (** [subset s1 s2] returns true iff all elements in [s1] are in [s2] as well. *)
 val subset : 'e t -> 'e t -> bool
+
+(** [to_list t] returns all elements in the set in no particular order *)
+val to_list : 'e t -> 'e list
+
+(** [to_string f t] returns a string representation of the [t], using [f] to
+    format individual elements *)
+val to_string : ('e -> string) -> 'e t -> string

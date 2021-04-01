@@ -136,6 +136,22 @@ let tests = OUnit2.(>:::) "set_tests" [
         OUnit2.assert_equal true (Set.subset s1 s3);
         OUnit2.assert_equal true (Set.subset s1 s4);
       );
+
+    OUnit2.(>::) "test_to_list" (fun _ ->
+        let s3 = from_list [11; 11; 1; 42; 1; 42] int_cmp in
+        let l3 = Set.to_list s3 in
+        OUnit2.assert_equal [] (Set.to_list emp_int);
+        OUnit2.assert_equal 3 (List.length l3);
+        OUnit2.assert_equal true (List.mem 11 l3);
+        OUnit2.assert_equal true (List.mem 1 l3);
+        OUnit2.assert_equal true (List.mem 42 l3);
+      );
+
+    OUnit2.(>::) "test_to_string" (fun _ ->
+        let s4 = from_list [33; 11; 1; 42] int_cmp in
+        OUnit2.assert_equal "{}" (Set.to_string Int.to_string emp_int);
+        OUnit2.assert_equal "{33; 11; 1; 42}" (Set.to_string Int.to_string s4);
+      );
   ]
 
 let _ =
