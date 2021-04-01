@@ -218,6 +218,11 @@ and _pp_ast_typ_parens_on_non_atomic (p : printer) (typ : Ast.typ_desc)
   else (_print_str p "("; _pp_ast_typ_desc p typ; _print_str p ")");
 ;;
 
+let pp_ast_typ_desc (desc : Ast.typ_desc) =
+  let p = _create_printer () in
+  _pp_ast_typ_desc p desc;
+  p.buffer
+;;
 
 let _binop_to_str (binop : Ast.binary_op) : string =
   match binop with
@@ -327,4 +332,20 @@ let pp_ast_structure (structure : Ast.structure) =
   let p = _create_printer () in
   List.iter (_pp_ast_struct_item p) structure;
   p.buffer
+;;
+
+
+let pp_infer_error (err : Errors.infer_error) =
+  match err with
+  | Infer_unbound_var (name, span) ->
+    String.join_with
+      [ "[Infer]: Unbound variable <"; name; "> at "; (_pp_span span); ]
+      ""
+  | Infer_type_mismatch (expect, actual, span) ->
+    String.join_with
+      [ "[Infer]: Expected type <"; (pp_ast_typ_desc expect); ">";
+        " but got <"; (pp_ast_typ_desc actual); "> at "; (_pp_span span); ]
+      ""
+  | Infer_illegal_letrec_rhs span ->
+    String.append "[Infer]: Illegal rhs of let rec binding at " (_pp_span span)
 ;;
