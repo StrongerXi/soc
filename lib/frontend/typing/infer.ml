@@ -90,11 +90,9 @@ and _infer_let_expr
     (ctx : Infer_ctx.t) (expr_span : Span.t)
     (rec_flag : Ast.rec_flag) (bds : Ast.binding list) (body : Ast.expression)
   : Ast.expression ret =
-  let ctx = Infer_ctx.open_scope ctx in
   let (ctx, bds) = _infer_let_bindings ctx rec_flag bds in
   let (ctx, body_typ, body) = _infer_expr ctx body in
   let expr = { Ast.expr_desc = Exp_let (rec_flag, bds, body); expr_span } in
-  let ctx = Infer_ctx.close_scope ctx in
   (ctx, body_typ, expr)
 
 and _infer_let_bindings
@@ -168,7 +166,6 @@ and _infer_fun_expr
     (ctx : Infer_ctx.t) (expr_span : Span.t)
     (params : Ast.opt_typed_var list) (body : Ast.expression)
   : Ast.expression ret =
-  let ctx = Infer_ctx.open_scope ctx in
   let ctx = _add_opt_typed_vars ctx params in
   let (ctx, body_typ, body) = _infer_expr ctx body in
   let (ctx, params, ret_typ) = List.fold_right
@@ -184,7 +181,6 @@ and _infer_fun_expr
          (ctx, otv::params, ret_typ))
       params (ctx, [], body_typ)
   in
-  let ctx = Infer_ctx.close_scope ctx in
   let expr = { Ast.expr_desc = Exp_fun (params, body); expr_span } in
   (ctx, ret_typ, expr)
 
@@ -235,6 +231,7 @@ let rec _infer_struct
 
 
 let infer_struct structure =
+  let structure = Name_manager.rename_struct structure in
   let ctx = Infer_ctx.empty in
   let (ctx, structure) = Infer_ctx.rename_tyvars ctx structure in
   let (ctx, structure) = _infer_struct ctx structure in

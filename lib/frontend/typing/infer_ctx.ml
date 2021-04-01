@@ -1,18 +1,17 @@
 open Pervasives
 
 type scheme = (* a variation of type scheme from Hindley-Milner *)
-  | Mono_typ of string
+  | Mono_typ of Ast.typ_desc
       (* a tyvar, to be resolved via substs *)
   | Poly_typ of string list * Ast.typ_desc
       (* tyvar params and body of the type scheme *)
 
 
 type t =
-  { cur_scope   : (string, scheme) Map.t        (* var name to scheme or tyvar *)
-  ; prev_scopes : ((string, scheme) Map.t) list (* var name to scheme or tyvar *)
-  ; substs      : (string, Ast.typ_desc) Map.t  (* tyvar name to type *)
-  ; rev_errs    : Errors.infer_error list
-  ; stamp       : int                           (* for unique name generation *)
+  { typ_env  : (string, scheme) Map.t        (* var name to scheme or tyvar *)
+  ; substs   : (string, Ast.typ_desc) Map.t  (* tyvar name to type *)
+  ; rev_errs : Errors.infer_error list
+  ; stamp    : int                           (* for unique name generation *)
   }
 
 
@@ -40,23 +39,20 @@ let rec _map_typ_desc (* static map for each base case in [Ast.typ_desc] *)
     Typ_arrow (in_typ, out_typ)
 ;;
 
-let rec _subst_tv_name (substs : (string, Ast.typ_desc) Map.t) (tv : string)
-  : Ast.typ_desc =
-  match Map.get tv substs with
-  | None -> Ast.Typ_var (Some tv)
-  | Some desc -> _subst_typ_desc substs desc
-
-and _subst_typ_desc
+let rec _subst_typ_desc
     (substs : (string, Ast.typ_desc) Map.t)  (desc : Ast.typ_desc)
   : Ast.typ_desc = 
   match desc with (* TODO assume hitting non-tyvar is enough? *)
   | Typ_const _ | Typ_arrow _ | Typ_var None -> desc
-  | Typ_var (Some tyvar) -> _subst_tv_name substs tyvar
+  | Typ_var (Some tv_name) ->
+    match Map.get tv_name substs with
+    | None -> Ast.Typ_var (Some tv_name)
+    | Some desc -> _subst_typ_desc substs desc
 ;;
 
 let _scheme_to_typ_desc t (s : scheme) : (t * Ast.typ_desc) =
   match s with
-  | Mono_typ tyvar -> (t, _subst_tv_name t.substs tyvar)
+  | Mono_typ typ_desc -> (t, _subst_typ_desc t.substs typ_desc)
   | Poly_typ (ty_params, typ_desc) ->
     let t, (map : (string, Ast.typ_desc) Map.t) = List.fold_left
         (fun (t, map) tyvar_param ->
@@ -74,18 +70,6 @@ let _scheme_to_typ_desc t (s : scheme) : (t * Ast.typ_desc) =
         | Some desc -> desc
     in
     (t, _map_typ_desc f typ_desc)
-;;
-
-let _get_scheme t name : scheme option =
-  let rec go scopes = 
-    match scopes with
-    | [] -> None
-    | scp::scopes ->
-      match Map.get name scp with
-      | None -> go scopes
-      | Some schm -> Some schm
-  in
-  go (t.cur_scope::t.prev_scopes)
 ;;
 
 
@@ -113,23 +97,17 @@ let _apply_subst_to_scheme (tyvar : string) (typ : Ast.typ_desc)
 (* ASSUME [tyvar] and [typ] has been substituted into most specific form *)
 let _apply_subst t (tyvar : string) (typ : Ast.typ_desc) : t =
   let substs = Map.map (_apply_subst_to_typ_desc tyvar typ) t.substs in
-  let cur_scope = Map.map (_apply_subst_to_scheme tyvar typ) t.cur_scope in
-  let prev_scopes =
-    List.map
-      (fun scope -> Map.map (_apply_subst_to_scheme tyvar typ) scope)
-      t.prev_scopes
-  in
+  let typ_env = Map.map (_apply_subst_to_scheme tyvar typ) t.typ_env in
   let substs = Map.add tyvar typ substs in
-  { t with substs; cur_scope; prev_scopes }
+  { t with substs; typ_env }
 ;;
 
 
 let empty =
-  { cur_scope   = Map.empty String.compare
-  ; prev_scopes = []
-  ; substs      = Map.empty String.compare
-  ; rev_errs    = []
-  ; stamp       = 0
+  { typ_env   = Map.empty String.compare
+  ; substs    = Map.empty String.compare
+  ; rev_errs  = []
+  ; stamp     = 0
   }
 ;;
 
@@ -142,14 +120,12 @@ let get_errors t =
 ;;
 
 let add_type t name typ =
-  let t, tv_name = _get_new_tyvar_name t in
-  let substs = Map.add tv_name typ t.substs in
-  let cur_scope = Map.add name (Mono_typ tv_name) t.cur_scope in
-  { t with substs; cur_scope }
+  let typ_env = Map.add name (Mono_typ typ) t.typ_env in
+  { t with typ_env }
 ;;
 
 let get_type t name span =
-  match _get_scheme t name with
+  match Map.get name t.typ_env with
   | None -> 
       let err = Errors.Infer_unbound_var (name, span) in
       let t = add_error t err in
@@ -159,16 +135,6 @@ let get_type t name span =
   | Some schm -> _scheme_to_typ_desc t schm
 ;;
 
-let open_scope t = 
-  { t with cur_scope = Map.empty String.compare
-         ; prev_scopes = t.cur_scope::t.prev_scopes }
-;;
-
-let close_scope t =
-  match t.prev_scopes with
-  | [] -> failwith "[Infer_ctx.close_scope] can't close global scope"
-  | prev::prev_scopes -> { t with cur_scope = prev; prev_scopes }
-;;
 
 exception Unify_mismatch of t
 (* ASSUME [expect] and [actual] has been substituted to most specific form *)
@@ -269,8 +235,8 @@ let rec _add_fv_in_typ_desc (s : string Set.t) (desc : Ast.typ_desc)
 
 let _sub_fv_in_scheme t (s : string Set.t) (schm : scheme) : string Set.t =
   match schm with
-  | Mono_typ tv_name ->
-    let typ_desc = _subst_tv_name t.substs tv_name in
+  | Mono_typ typ_desc ->
+    let typ_desc = _subst_typ_desc t.substs typ_desc in
     let fvs = _add_fv_in_typ_desc (Set.empty String.compare) typ_desc in
     Set.diff s fvs
   | Poly_typ (ty_params, typ_desc) -> (* TODO need to subst typ_desc here? *)
@@ -279,36 +245,25 @@ let _sub_fv_in_scheme t (s : string Set.t) (schm : scheme) : string Set.t =
     Set.diff s fvs
 ;;
 
-let _sub_fv_in_scope t (s : string Set.t) (scope : (string, scheme) Map.t)
+let _sub_fv_in_typ_env t (s : string Set.t) (typ_env : (string, scheme) Map.t)
   : string Set.t =
-  Map.fold (fun schm s -> _sub_fv_in_scheme t s schm) scope s
-;;
-
-let rec _remove_first_from_scopes (name : string)
-    (scopes : (string, scheme) Map.t list) : (string, scheme) Map.t list =
-  match scopes with
-  | [] -> []
-  | scp::scopes ->
-    match Map.get name scp with
-    | None -> scp::(_remove_first_from_scopes name scopes)
-    | _ -> (Map.remove name scp)::scopes
+  Map.fold (fun schm s -> _sub_fv_in_scheme t s schm) typ_env s
 ;;
 
 let generalize t name =
-  match _get_scheme t name with
+  match Map.get name t.typ_env with
   | None -> t (* ignore this request *)
   | Some (Poly_typ _) ->
     failwith "[Infer_ctx.generalize] can't generalize more than once"
-  | Some (Mono_typ tv_name) ->
-    let typ_desc = _subst_tv_name t.substs tv_name in
+  | Some (Mono_typ typ_desc) ->
+    let typ_desc = _subst_typ_desc t.substs typ_desc in
     let s = Set.empty String.compare in
     let s = _add_fv_in_typ_desc s typ_desc in
-    let scopes = t.cur_scope::t.prev_scopes in
-    let scopes = _remove_first_from_scopes name scopes in (* NOTE critical *)
-    let s = List.fold_left (fun s scp -> _sub_fv_in_scope t s scp) s scopes in
+    let typ_env = Map.remove name t.typ_env in (* NOTE critical *)
+    let s = _sub_fv_in_typ_env t s typ_env in
     let free_tyvars = Set.to_list s in
     let schm = Poly_typ (free_tyvars, typ_desc) in
-    { t with cur_scope = Map.add name schm t.cur_scope }
+    { t with typ_env = Map.add name schm typ_env }
 ;;
 
 

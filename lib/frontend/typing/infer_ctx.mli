@@ -15,21 +15,15 @@ val add_error : t -> Errors.infer_error -> t
     in ascending order of addition time *)
 val get_errors : t -> Errors.infer_error list
 
-(** [add_type t name typ] returns a new context that binds [name] with [typ] in
-    the current scope, regardless of whether [name] is already bound in [t] *)
+(** [add_type t name typ] returns a new context that binds [name] with [typ],
+    overwrite if [name] is already bound in [t] *)
 val add_type : t -> string -> Ast.typ_desc -> t
 
-(** [get_type t name span] returns the type bound to [name] in the current
-    scope of [t]; if not bound, a general type is returned to ensure
-    continuation of typechecking, and an error is recorded in output context.
-    [span] is where the identifier [name] locates, used for error reporting. *)
+(** [get_type t name span] returns the type bound to [name] in [t]; if not bound,
+    a general type is returned to ensure continuation of typechecking, and an
+    error is recorded in output context.  [span] is where the identifier [name]
+    locates, used for error reporting. *)
 val get_type : t -> string -> Span.t -> t * Ast.typ_desc
-
-(** [open_scope t] returns a context with a new scope opened *)
-val open_scope : t -> t
-
-(** [close_scope t] removes all bindings added in the current scope *)
-val close_scope : t -> t
 
 
 (* NOTE [unify_X] always accumulate error on failure, and return a general type
@@ -50,8 +44,7 @@ val unify_binop : t
   -> (t * Ast.typ_desc)
 
 
-(** [generalize t name] generalizes [name] in [t]; 
-    ASSUME [name] is unbound and in current (not previous) scope. *)
+(** [generalize t name] generalizes the type bound to [name] in [t]. *)
 val generalize : t -> string -> t
 
 
@@ -60,4 +53,3 @@ val generalize : t -> string -> t
     - same variables in the same scope (defined by top-level `let`) are renamed
       to the same variables *)
 val rename_tyvars : t -> Ast.structure -> (t * Ast.structure)
-
