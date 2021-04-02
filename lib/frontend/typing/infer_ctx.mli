@@ -5,8 +5,9 @@ open Pervasives
     - maps normal variable to their current types, after unification(s) *)
 type t
 
-(** [empty] is an empty initial context *)
-val empty : t
+(** [create tv_namer] is an initial context which will use [tv_namer] to
+    generate new tyvars in following operations. *)
+val create : Tyvar_namer.t -> t
 
 (** [add_error t err] returns a new context that keeps track of [err] *)
 val add_error : t -> Errors.infer_error -> t
@@ -46,10 +47,3 @@ val unify_binop : t
 
 (** [generalize t name] generalizes the type bound to [name] in [t]. *)
 val generalize : t -> string -> t
-
-
-(** [rename_tyvars t s] returns an updated context and a structure that
-    - has all `Ast.Ty_var` annotated to a unique new variable
-    - same variables in the same scope (defined by top-level `let`) are renamed
-      to the same variables *)
-val rename_tyvars : t -> Ast.structure -> (t * Ast.structure)

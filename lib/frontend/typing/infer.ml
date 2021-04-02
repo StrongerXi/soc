@@ -230,12 +230,12 @@ let rec _infer_struct
 ;;
 
 
-let infer_struct structure =
-  let structure = Name_manager.rename_struct structure in
-  let ctx = Infer_ctx.empty in
-  let (ctx, structure) = Infer_ctx.rename_tyvars ctx structure in
-  let (ctx, structure) = _infer_struct ctx structure in
+let infer_struct strc =
+  let strc = Var_namer.rename_struct strc in
+  let (tv_namer, strc) = Tyvar_namer.rename_struct Tyvar_namer.init strc in
+  let ctx = Infer_ctx.create tv_namer in
+  let (ctx, strc) = _infer_struct ctx strc in
   match Infer_ctx.get_errors ctx with
-  | [] -> Ok structure
+  | [] -> Ok strc
   | errs -> Error errs
 ;;
