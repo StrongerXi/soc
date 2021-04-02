@@ -128,37 +128,59 @@ let get_type t name span =
   | Some schm -> _scheme_to_typ_desc t schm
 ;;
 
+(* does [tv_name] occur in [typ_desc]?
+ * ASSUME [typ_desc] is updated with [t.substs] *)
+let rec occurs (tv_name : string) (typ_desc : Ast.typ_desc) : bool =
+  match typ_desc with
+  | Typ_const _ | Typ_var None -> false
+  | Typ_var (Some tv) -> tv = tv_name
+  | Typ_arrow (in_typ, out_typ) ->
+    (occurs tv_name in_typ) || (occurs tv_name out_typ)
+;;
 
-exception Unify_mismatch of t
+(* For easy error propogation back to [unify] *)
+type _unify_error_reason =
+  | Unify_mismatch 
+  | Unify_occurs of string * Ast.typ_desc (* tyvar name and desc it occurs in *)
+exception Unify_error of t * _unify_error_reason
+let _unify_err t (err : _unify_error_reason) : 'a =
+  raise (Unify_error (t, err))
+;;
+
 (* ASSUME [expect] and [actual] has been substituted to most specific form *)
 let rec _unify t (expect : Ast.typ_desc) (actual : Ast.typ_desc) =
   let expect = _subst_typ_desc t.substs expect in
   let actual = _subst_typ_desc t.substs actual in
-  let result =
-    match expect, actual with
-    | Typ_var None, other | other, Typ_var None ->
-      (t, other)
-    | Typ_var (Some tv), other | other, Typ_var (Some tv) ->
-      (_apply_subst t tv other, other)
-    | Typ_const ex, Typ_const ac when ex = ac -> (t, actual)
-    | Typ_arrow (ex_in, ex_out), Typ_arrow (ac_in, ac_out) ->
-      let t, in_typ = _unify t ex_in ac_in in
-      let t, out_typ = _unify t ex_out ac_out in
-      (t, Typ_arrow (in_typ, out_typ))
-    (* TODO for nested mismatch errors, raise [error of t] and construct error in [unify] *)
-    | _ -> raise (Unify_mismatch t)
-  in
-  result
+  match expect, actual with
+  | Typ_var None, other | other, Typ_var None ->
+    (t, other)
+  | Typ_var (Some tv1), Typ_var (Some tv2) when tv1 = tv2 ->
+    (t, actual)
+  | Typ_var (Some tv), other | other, Typ_var (Some tv) ->
+    if occurs tv other
+    then _unify_err t (Unify_occurs (tv, other))
+    else _apply_subst t tv other, other
+  | Typ_const ex, Typ_const ac when ex = ac -> (t, actual)
+  | Typ_arrow (ex_in, ex_out), Typ_arrow (ac_in, ac_out) ->
+    let t, in_typ = _unify t ex_in ac_in in
+    let t, out_typ = _unify t ex_out ac_out in
+    (t, Typ_arrow (in_typ, out_typ))
+  | _ -> _unify_err t Unify_mismatch
 ;;
 
 (* automatically catch and accumulate errors *)
-let unify t expect actual where =
+let unify t expect actual actual_span =
   try _unify t expect actual
-  with Unify_mismatch t ->
-    (* update types based on the information gathered before mismatch *)
+  with Unify_error (t, err) ->
     let expect = _subst_typ_desc t.substs expect in
     let actual = _subst_typ_desc t.substs actual in
-    let err = Errors.Infer_type_mismatch (expect, actual, where) in
+    let err = match err with
+      | Unify_mismatch ->
+        Errors.Infer_type_mismatch (expect, actual, actual_span)
+      | Unify_occurs (tv, occurree) ->
+        Errors.Infer_tyvar_occurs (expect, actual, actual_span, tv, occurree)
+    in
+    (* update types based on the information gathered before mismatch *)
     let t = { t with rev_errs = err::t.rev_errs } in
     (t, actual)
 ;;
