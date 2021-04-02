@@ -133,25 +133,26 @@ and _rename_tyvars_in_let_bindings t (tv_map : (string, string) Map.t)
   (t, tv_map, bds)
 ;;
 
-let _rename_tyvars_in_struct_item t (tv_map : (string, string) Map.t)
-    (item : Ast.struct_item) : (t * (string, string) Map.t * Ast.struct_item) =
+let _rename_tyvars_in_struct_item t (item : Ast.struct_item)
+  : (t * Ast.struct_item) =
+  let tv_map = Map.empty String.compare in
   match item.struct_item_desc with
   | Struct_eval expr -> 
     let (t, expr) = _rename_tyvars_in_expr t tv_map expr in
     let item = { item with struct_item_desc = Struct_eval expr } in
-    (t, tv_map, item)
+    (t, item)
   | Struct_bind (rec_flag, bds) ->
-    let (t, tv_map, bds) = _rename_tyvars_in_let_bindings t tv_map bds in
+    let (t, _, bds) = _rename_tyvars_in_let_bindings t tv_map bds in
     let item = { item with struct_item_desc = Struct_bind (rec_flag, bds) } in
-    (t, tv_map, item)
+    (t, item)
 ;;
 
 let rename_struct t structure =
-  let t, _, rev_struct_items = List.fold_left
-      (fun (t, tv_map, rev_struct_items) item ->
-         let t, tv_map, item = _rename_tyvars_in_struct_item t tv_map item in
-         (t, tv_map, item::rev_struct_items))
-      (t, Map.empty String.compare, [])
+  let t, rev_struct_items = List.fold_left
+      (fun (t, rev_struct_items) item ->
+         let t, item = _rename_tyvars_in_struct_item t item in
+         (t, item::rev_struct_items))
+      (t, [])
       structure
   in
   (t, List.rev rev_struct_items)
