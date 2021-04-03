@@ -276,12 +276,10 @@ let rec _infer_struct
 
 
 let infer_struct strc =
-  let strc = Var_namer.rename_struct strc in
   let (tv_namer, strc) = Tyvar_namer.rename_struct Tyvar_namer.init strc in
   let ctx = Infer_ctx.create tv_namer in
   let (ctx, strc) = _infer_struct ctx strc in
   let strc = _update_tyvars_in_struct ctx strc in
-  Io.println (Frontend_pp.pp_ast_structure strc);
   match Infer_ctx.get_errors ctx with
   | [] -> Ok strc
   | errs -> Error errs
