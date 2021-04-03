@@ -2,7 +2,8 @@ open Pervasives
 
 (** A [t] represents the context during type inference. It
     - accumulates the errors encountered
-    - maps normal variable to their current types, after unification(s) *)
+    - maps normal variable to their current types, after unification(s) 
+    - keeps track of different levels of scope *)
 type t
 
 (** [create tv_namer] is an initial context which will use [tv_namer] to
@@ -16,8 +17,14 @@ val add_error : t -> Errors.infer_error -> t
     in ascending order of addition time *)
 val get_errors : t -> Errors.infer_error list
 
-(** [add_type t name typ] returns a new context that binds [name] with [typ],
-    overwrite if [name] is already bound in [t] *)
+(** [open_scope t] returns a context with a new scope opened *)
+val open_scope : t -> t
+
+(** [close_scope t] removes all bindings added in the current scope *)
+val close_scope : t -> t
+
+(** [add_type t name typ] returns a new context that binds [name] with [typ] in
+ * the current scope, overwrite if [name] is already bound there. *)
 val add_type : t -> string -> Ast.typ_desc -> t
 
 (** [get_type t name span] returns the type bound to [name] in [t], with type
@@ -48,5 +55,6 @@ val unify_binop : t
 
 
 (** [generalize t names] generalizes the types bound to [names] in [t], so that
-    they might behave as polymorphic types. ASSUME [names] are bound in [t] *)
+    they might behave as polymorphic types.
+    ASSUME [names] are bound in current scope of [t], not previous ones. *)
 val generalize : t -> string list -> t

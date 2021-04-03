@@ -15,10 +15,11 @@ type scheme = (* a variation of type scheme from Hindley-Milner *)
  *    is one of tyvar params for the typ_desc); this means that types in the
  *    environment are always updated with substitutions. *)
 type t =
-  { typ_env  : (string, scheme) Map.t        (* var name to scheme or tyvar *)
-  ; substs   : (string, Ast.typ_desc) Map.t  (* tyvar name to type *)
-  ; rev_errs : Errors.infer_error list
-  ; tv_namer : Tyvar_namer.t
+  { cur_typ_env   : (string, scheme) Map.t        (* var name to scheme *)
+  ; prev_typ_envs : (string, scheme) Map.t list   (* previous scopes *)
+  ; substs        : (string, Ast.typ_desc) Map.t  (* tyvar name to type *)
+  ; rev_errs      : Errors.infer_error list
+  ; tv_namer      : Tyvar_namer.t
   }
 
 let _get_new_tyvar t =
@@ -87,20 +88,23 @@ let _add_subst t (tyvar : string) (typ : Ast.typ_desc) : t =
       else Poly_typ (ty_params, _subst_typ_desc typ_desc)
   in
   let substs = Map.map _subst_typ_desc t.substs in
-  let typ_env = Map.map _subst_scheme t.typ_env in
+  let cur_typ_env = Map.map _subst_scheme t.cur_typ_env in
+  let prev_typ_envs = List.map (Map.map _subst_scheme) t.prev_typ_envs in
   let substs = Map.add tyvar typ substs in
   (* for invariants, (b) & (c) & (2) ==> (A); (b) & (d) & (2) ==> (B) *)
-  { t with substs; typ_env }
+  { t with substs; cur_typ_env; prev_typ_envs }
 ;;
 
 
 let create tv_namer =
-  { typ_env   = Map.empty String.compare
-  ; substs    = Map.empty String.compare
-  ; rev_errs  = []
+  { cur_typ_env   = Map.empty String.compare
+  ; prev_typ_envs = []
+  ; substs        = Map.empty String.compare
+  ; rev_errs      = []
   ; tv_namer
   }
 ;;
+
 
 let add_error t err =
   { t with rev_errs = err::t.rev_errs }
@@ -110,22 +114,43 @@ let get_errors t =
   List.rev t.rev_errs
 ;;
 
+
+let open_scope t =
+  { t with cur_typ_env = Map.empty String.compare
+         ; prev_typ_envs = t.cur_typ_env::t.prev_typ_envs }
+;;
+
+let close_scope t =
+  match t.prev_typ_envs with
+  | [] -> failwith "[Infer_ctx.close_scope] cannot close top level scope"
+  | last::rest ->
+    { t with cur_typ_env = last; prev_typ_envs = rest }
+;;
+
+
 let add_type t name typ =
   let typ = _apply_substs_to_typ_desc t.substs typ in
-  let typ_env = Map.add name (Mono_typ typ) t.typ_env in
-  { t with typ_env }
+  let cur_typ_env = Map.add name (Mono_typ typ) t.cur_typ_env in
+  { t with cur_typ_env }
 ;;
 
 let get_type t name span =
-  match Map.get name t.typ_env with
-  | None -> 
+  let rec go (scopes : (string, scheme) Map.t list) : (t * Ast.typ_desc) =
+    match scopes with
+    | [] -> 
       let err = Errors.Infer_unbound_var (name, span) in
       let t = add_error t err in
       let t, tyvar = _get_new_tyvar t in
       let t = add_type t name tyvar in
       (t, tyvar)
-  | Some schm -> _scheme_to_typ_desc t schm
+    | cur_scope::rest_scopes ->
+      match Map.get name cur_scope with
+      | None -> go rest_scopes
+      | Some schm -> _scheme_to_typ_desc t schm
+  in
+  go (t.cur_typ_env::t.prev_typ_envs)
 ;;
+
 
 (* does [tv_name] occur in [typ_desc]?
  * ASSUME [typ_desc] is updated with [t.substs] *)
@@ -256,9 +281,13 @@ let _add_fvs_in_scheme (s : string Set.t) (schm : scheme) : string Set.t =
     List.fold_right Set.remove ty_params fvs
 ;;
 
-let _get_fvs_in_typ_env (typ_env : (string, scheme) Map.t) : string Set.t =
-  let s = Set.empty String.compare in
-  Map.fold (fun schm s -> _add_fvs_in_scheme s schm) typ_env s
+(* skip names in [names_to_ignore] *)
+let _add_fvs_in_typ_env (s : string Set.t) (typ_env : (string, scheme) Map.t)
+    (names_to_ignore : string Set.t) : string Set.t =
+  Map.foldi (fun name schm s ->
+      if Set.mem name names_to_ignore then s
+      else _add_fvs_in_scheme s schm)
+    typ_env s
 ;;
 
 (* A helper for generalize 1 name in typ_env *)
@@ -274,16 +303,22 @@ let _generalize_typ_desc (typ_desc : Ast.typ_desc) (fvs_in_typ_env : string Set.
 
 let generalize t names =
   (* ignore the names themselves in context, since their tyvars are not free *)
-  let typ_env = List.fold_right Map.remove names t.typ_env in
-  let fvs_in_typ_env = _get_fvs_in_typ_env typ_env in
+  let names_to_ignore =
+    List.fold_right Set.add names (Set.empty String.compare) in
+  let fvs_in_typ_env =
+    List.fold_left
+      (fun s typ_env -> _add_fvs_in_typ_env s typ_env names_to_ignore)
+      (Set.empty String.compare) (t.cur_typ_env::t.prev_typ_envs)
+  in
   List.fold_left
     (fun t name ->
-       match Map.get name t.typ_env with
-       | None -> failwith "[Infer_ctx.generalize] can't generalize unbound name"
+       match Map.get name t.cur_typ_env with
+       | None ->
+         failwith "[Infer_ctx.generalize] can't generalize name unbound in current scope"
        | Some (Poly_typ _) ->
          failwith "[Infer_ctx.generalize] can't generalize same name multiple times"
        | Some (Mono_typ typ_desc) ->
          let generalized = _generalize_typ_desc typ_desc fvs_in_typ_env in
-         { t with typ_env = Map.add name generalized t.typ_env })
+         { t with cur_typ_env = Map.add name generalized t.cur_typ_env })
     t names
 ;;

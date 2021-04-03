@@ -158,8 +158,10 @@ and _infer_let_expr
     (ctx : Infer_ctx.t) (expr_span : Span.t)
     (rec_flag : Ast.rec_flag) (bds : Ast.binding list) (body : Ast.expression)
   : Ast.expression ret =
+  let ctx = Infer_ctx.open_scope ctx in
   let (ctx, bds) = _infer_let_bindings ctx rec_flag bds in
   let (ctx, body_typ, body) = _infer_expr ctx body in
+  let ctx = Infer_ctx.close_scope ctx in
   let expr = { Ast.expr_desc = Exp_let (rec_flag, bds, body); expr_span } in
   (ctx, body_typ, expr)
 
@@ -211,6 +213,7 @@ and _infer_fun_expr
     (ctx : Infer_ctx.t) (expr_span : Span.t)
     (params : Ast.opt_typed_var list) (body : Ast.expression)
   : Ast.expression ret =
+  let ctx = Infer_ctx.open_scope ctx in
   let ctx = _add_opt_typed_vars ctx params in
   let (ctx, body_typ, body) = _infer_expr ctx body in
   let (ctx, ret_typ) = List.fold_right
@@ -221,6 +224,7 @@ and _infer_fun_expr
          (ctx, ret_typ))
       params (ctx, body_typ)
   in
+  let ctx = Infer_ctx.close_scope ctx in
   let expr = { Ast.expr_desc = Exp_fun (params, body); expr_span } in
   (ctx, ret_typ, expr)
 
