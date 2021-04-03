@@ -7,6 +7,9 @@
    ; frontend
    location_test span_test lexer_test parser_test ast_interp_test infer_test
    substs_test
+
+   ; helper functions
+   test_aux
   )
   (libraries ounit2 soc)
 )

@@ -5,16 +5,6 @@ let _get_full_path (filename : string) : string =
   String.append "../../../test/frontend/interp/ast-interp-resources/" filename
 ;;
 
-let _parse_ast_exn (filepath : string) : Ast.structure =
-  let lexer = Lexer.create filepath in
-  match Parser.parse lexer with
-  | Error err ->
-    let msg = ("Unexpected parsing failure on [" ^ filepath ^ "]:\n") in
-    let msg = String.append msg (Frontend_pp.pp_parser_error err) in
-    OUnit2.assert_failure msg;
-  | Ok ast -> ast
-;;
-
 (* Interpreting the program at [filepath_no_suffix.soml],
  * redirect output to [filepath_no_suffix.actual],
  * check output against [filepath_no_suffix.expect] *)
@@ -22,7 +12,7 @@ let _check_ast_interp (filepath_no_suffix : string) : unit =
   let filepath = String.append filepath_no_suffix ".soml" in
   let expect_path = String.append filepath_no_suffix ".expect" in
   let actual_path = String.append filepath_no_suffix ".actual" in
-  let ast = _parse_ast_exn filepath in
+  let ast = Test_aux.parse_ast_exn filepath in
 
   (* Temporarily redirect stdout to [actual_path] *)
   let oldstdout = Unix.dup Unix.stdout in

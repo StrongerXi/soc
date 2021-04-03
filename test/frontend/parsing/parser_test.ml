@@ -13,11 +13,9 @@ let _check_parser_pp_ast (filepath_no_suffix : string) : unit =
     | Error err -> Frontend_pp.pp_parser_error err
     | Ok ast -> Frontend_pp.pp_ast_structure ast
   in
-  let output = Stdlib.open_out (String.append filepath_no_suffix ".actual") in
-  Stdlib.output_string output result;
-  Stdlib.close_out output;
-  let expect = Externals.read_entire_file (String.append filepath_no_suffix ".expect") in
-  OUnit2.assert_equal expect result;
+  let expect_path = String.append filepath_no_suffix ".expect" in
+  let actual_path = String.append filepath_no_suffix ".actual" in
+  Test_aux.check_and_output_str result expect_path actual_path;
 ;;
 
 
