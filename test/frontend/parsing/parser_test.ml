@@ -7,10 +7,9 @@ let _get_full_path (filename : string) : string =
 
 let _check_parser_pp_ast (filepath_no_suffix : string) : unit =
   let filepath = String.append filepath_no_suffix ".soml" in
-  let lexer = Lexer.create filepath in
   let result =
-    match Parser.parse lexer with
-    | Error err -> Frontend_pp.pp_parser_error err
+    match Driver.parse_file filepath with
+    | Error msg -> msg
     | Ok ast -> Frontend_pp.pp_ast_structure ast
   in
   let expect_path = String.append filepath_no_suffix ".expect" in
