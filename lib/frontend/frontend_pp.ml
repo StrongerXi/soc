@@ -209,7 +209,9 @@ let rec _pp_ast_typ_desc (p : printer) (desc : Ast.typ) : unit =
   | Typ_arrow (in_ty, out_ty) ->
     _pp_ast_typ_parens_on_non_atomic p in_ty;
     _print_str p " -> ";
-    _pp_ast_typ_parens_on_non_atomic p out_ty;
+    match out_ty with (* arrow is right associative *)
+    | Typ_arrow _ -> _pp_ast_typ_desc p out_ty;
+    | _ -> _pp_ast_typ_parens_on_non_atomic p out_ty;
 
 and _pp_ast_typ_parens_on_non_atomic (p : printer) (typ : Ast.typ)
   : unit =
@@ -241,6 +243,12 @@ let _is_atomic_expr (expr : Ast.expression) : bool =
   | _ -> false
 ;;
 
+let _may_fit_on_oneline (expr : Ast.expression) : bool =
+  match expr.expr_desc with
+  | Exp_if _ | Exp_let _ -> false
+  | Exp_const _ | Exp_ident _ | Exp_binop _ | Exp_fun _ | Exp_apply _ -> true
+;;
+
 let rec _pp_ast_expr (p : printer) (expr : Ast.expression) : unit =
   match expr.expr_desc with
   | Exp_const const -> _pp_ast_const p const
@@ -256,10 +264,13 @@ let rec _pp_ast_expr (p : printer) (expr : Ast.expression) : unit =
   | Exp_fun (args, body) ->
     _print_str p "(fun";
     List.iter (fun v -> _print_str p " "; _pp_ast_opt_typ_var p v;) args;
-    _println_str p " -> ";
-    _inc_space p 2; _pp_ast_expr p body; _dec_space p 2;
-    _print_newline p;
-    _println_str p ")";
+    _print_str p " -> ";
+    if _may_fit_on_oneline body
+    then _pp_ast_expr p body
+    else (_print_newline p;
+          _inc_space p 2; _pp_ast_expr p body; _dec_space p 2;
+          _print_newline p;);
+    _print_str p ")";
   | Exp_apply (func, args) ->
     _pp_ast_expr p func;
     List.iter (fun arg ->
@@ -302,7 +313,11 @@ and _pp_ast_let_bindings
 and _pp_ast_binding (p : printer) (binding : Ast.binding) : unit =
   _pp_ast_opt_typ_var p binding.binding_lhs;
   _print_str p " = ";
-  _pp_ast_expr p binding.binding_rhs;
+  if _may_fit_on_oneline binding.binding_rhs
+  then _pp_ast_expr p binding.binding_rhs
+  else
+    (_print_newline p;
+     _inc_space p 2; _pp_ast_expr p binding.binding_rhs; _dec_space p 2;)
 
 and _pp_ast_opt_typ_var (p : printer) (otv : Ast.opt_typed_var) : unit =
   match otv.typ with
@@ -324,6 +339,7 @@ let _pp_ast_struct_item (p : printer) (item : Ast.struct_item) : unit =
     _print_newline p; _print_newline p;
   | Struct_bind (rec_flag, bindings) -> 
     _pp_ast_let_bindings p rec_flag bindings;
+    _print_newline p;
     _println_str p ";;";
     _print_newline p;
 ;;
