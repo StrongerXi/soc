@@ -7,13 +7,10 @@ let _get_full_path (filename : string) : string =
 
 let _check_infer_struct (filepath_no_suffix : string) : unit =
   let filepath = String.append filepath_no_suffix ".soml" in
-  let ast = Test_aux.parse_ast_exn filepath in
   let result =
-    match Typer.type_struct ast with
-    | Error errs ->
-      String.join_with (List.map Frontend_pp.pp_typer_error errs) "\n"
-    | Ok ast ->
-      Frontend_pp.pp_ast_structure ast
+    match Driver.type_file filepath with
+    | Error msg -> msg
+    | Ok ast -> Frontend_pp.pp_ast_structure ast
   in
   let expect_path = String.append filepath_no_suffix ".expect" in
   let actual_path = String.append filepath_no_suffix ".actual" in
