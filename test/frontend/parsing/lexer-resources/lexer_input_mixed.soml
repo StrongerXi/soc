@@ -2,7 +2,7 @@
 3+-42 ||letrec let
 
   **&&
-then else (fun int : x) -> and in ;;
+then else (fun int : x77) -> and in ;;
 
 rec  << _ _a
 

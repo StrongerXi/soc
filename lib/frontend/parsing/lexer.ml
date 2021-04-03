@@ -65,8 +65,12 @@ let _get_token_str t : string =
   String.sub t.content t.bgn_idx (t.cur_idx + 1 - t.bgn_idx)
 ;;
 
-let _can_be_ident (ch : char) : bool =
+let _can_be_ident_start (ch : char) : bool =
   (Char.is_alpha ch) || (ch = '_')
+;;
+
+let _can_be_ident (ch : char) : bool =
+  (Char.is_alphanum ch) || (ch = '_')
 ;;
 
 (* skip to a newline if [t.cur_idx] points to '\n' *)
@@ -127,7 +131,7 @@ let _cont_ident_or_keywd t : Token.desc =
 
 let _cont_underscore_or_ident t : Token.desc =
   match _peek_ch t with
-  | Some ch when _can_be_ident ch -> _cont_ident_or_keywd t
+  | Some ch when _can_be_ident_start ch -> _cont_ident_or_keywd t
   | _ -> Token.Underscore
 ;;
 
@@ -178,7 +182,7 @@ let _lex_with_cur_ch t (cur_ch : char) : Token.desc =
   | ')' -> Token.Rparen
   | '<' -> Token.Less
   | _ when (Char.is_num cur_ch) -> _cont_num t
-  | _ when _can_be_ident cur_ch -> _cont_ident_or_keywd t
+  | _ when _can_be_ident_start cur_ch -> _cont_ident_or_keywd t
   | _ -> _lexer_error_invalid_start cur_ch t
 ;;
 

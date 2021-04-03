@@ -64,12 +64,12 @@ let tests = OUnit2.(>:::) "lexer_test" [
               _create_tok (Token.Fun) path 4 11 4 13;
               _create_tok (Token.DecapIdent "int") path 4 15 4 17;
               _create_tok (Token.Colon) path 4 19 4 19;
-              _create_tok (Token.DecapIdent "x") path 4 21 4 21;
-              _create_tok (Token.Rparen) path 4 22 4 22;
-              _create_tok (Token.Rarrow) path 4 24 4 25;
-              _create_tok (Token.And) path 4 27 4 29;
-              _create_tok (Token.In) path 4 31 4 32;
-              _create_tok (Token.SemiSemiColon) path 4 34 4 35;
+              _create_tok (Token.DecapIdent "x77") path 4 21 4 23;
+              _create_tok (Token.Rparen) path 4 24 4 24;
+              _create_tok (Token.Rarrow) path 4 26 4 27;
+              _create_tok (Token.And) path 4 29 4 31;
+              _create_tok (Token.In) path 4 33 4 34;
+              _create_tok (Token.SemiSemiColon) path 4 36 4 37;
               _create_tok (Token.Rec) path 6 0 6 2;
               _create_tok (Token.Less) path 6 5 6 5;
               _create_tok (Token.Less) path 6 6 6 6;
