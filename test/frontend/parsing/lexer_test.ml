@@ -38,9 +38,9 @@ let tests = OUnit2.(>:::) "lexer_test" [
         let empty = _get_full_path "lexer_input_empty.soml" in
         let spaces = _get_full_path "lexer_input_spaces.soml" in
         let lexer = _check_tokens empty [] in
-        OUnit2.assert_equal (Location.create 0 0) (Lexer.next_loc lexer);
+        OUnit2.assert_equal (Location.create 1 1) (Lexer.next_loc lexer);
         let lexer = _check_tokens spaces [] in
-        OUnit2.assert_equal (Location.create 5 0) (Lexer.next_loc lexer);
+        OUnit2.assert_equal (Location.create 6 1) (Lexer.next_loc lexer);
         ()
       );
 
@@ -48,39 +48,39 @@ let tests = OUnit2.(>:::) "lexer_test" [
         let path = _get_full_path "lexer_input_mixed.soml" in
         let lexer = _check_tokens path
             [
-              _create_tok (Token.Int "3") path 1 0 1 0;
-              _create_tok (Token.Plus) path 1 1 1 1;
-              _create_tok (Token.Minus) path 1 2 1 2;
-              _create_tok (Token.Int "42") path 1 3 1 4;
-              _create_tok (Token.BarBar) path 1 6 1 7;
-              _create_tok (Token.DecapIdent "letrec") path 1 8 1 13;
-              _create_tok (Token.Let) path 1 15 1 17;
-              _create_tok (Token.Asterisk) path 3 2 3 2;
-              _create_tok (Token.Asterisk) path 3 3 3 3;
-              _create_tok (Token.AmperAmper) path 3 4 3 5;
-              _create_tok (Token.Then) path 4 0 4 3;
-              _create_tok (Token.Else) path 4 5 4 8;
-              _create_tok (Token.Lparen) path 4 10 4 10;
-              _create_tok (Token.Fun) path 4 11 4 13;
-              _create_tok (Token.DecapIdent "int") path 4 15 4 17;
-              _create_tok (Token.Colon) path 4 19 4 19;
-              _create_tok (Token.DecapIdent "x77") path 4 21 4 23;
-              _create_tok (Token.Rparen) path 4 24 4 24;
-              _create_tok (Token.Rarrow) path 4 26 4 27;
-              _create_tok (Token.And) path 4 29 4 31;
-              _create_tok (Token.In) path 4 33 4 34;
-              _create_tok (Token.SemiSemiColon) path 4 36 4 37;
-              _create_tok (Token.Rec) path 6 0 6 2;
-              _create_tok (Token.Less) path 6 5 6 5;
-              _create_tok (Token.Less) path 6 6 6 6;
-              _create_tok (Token.Underscore) path 6 8 6 8;
-              _create_tok (Token.DecapIdent "_a") path 6 10 6 11;
-              _create_tok (Token.True) path 8 1 8 4;
-              _create_tok (Token.False) path 8 6 8 10;
-              _create_tok (Token.QuoteIdent "_abc") path 9 0 9 4;
+              _create_tok (Token.Int "3") path 2 1 2 1;
+              _create_tok (Token.Plus) path 2 2 2 2;
+              _create_tok (Token.Minus) path 2 3 2 3;
+              _create_tok (Token.Int "42") path 2 4 2 5;
+              _create_tok (Token.BarBar) path 2 7 2 8;
+              _create_tok (Token.DecapIdent "letrec") path 2 9 2 14;
+              _create_tok (Token.Let) path 2 16 2 18;
+              _create_tok (Token.Asterisk) path 4 3 4 3;
+              _create_tok (Token.Asterisk) path 4 4 4 4;
+              _create_tok (Token.AmperAmper) path 4 5 4 6;
+              _create_tok (Token.Then) path 5 1 5 4;
+              _create_tok (Token.Else) path 5 6 5 9;
+              _create_tok (Token.Lparen) path 5 11 5 11;
+              _create_tok (Token.Fun) path 5 12 5 14;
+              _create_tok (Token.DecapIdent "int") path 5 16 5 18;
+              _create_tok (Token.Colon) path 5 20 5 20;
+              _create_tok (Token.DecapIdent "x77") path 5 22 5 24;
+              _create_tok (Token.Rparen) path 5 25 5 25;
+              _create_tok (Token.Rarrow) path 5 27 5 28;
+              _create_tok (Token.And) path 5 30 5 32;
+              _create_tok (Token.In) path 5 34 5 35;
+              _create_tok (Token.SemiSemiColon) path 5 37 5 38;
+              _create_tok (Token.Rec) path 7 1 7 3;
+              _create_tok (Token.Less) path 7 6 7 6;
+              _create_tok (Token.Less) path 7 7 7 7;
+              _create_tok (Token.Underscore) path 7 9 7 9;
+              _create_tok (Token.DecapIdent "_a") path 7 11 7 12;
+              _create_tok (Token.True) path 9 2 9 5;
+              _create_tok (Token.False) path 9 7 9 11;
+              _create_tok (Token.QuoteIdent "_abc") path 10 1 10 5;
             ]
         in
-        OUnit2.assert_equal (Location.create 10 0) (Lexer.next_loc lexer);
+        OUnit2.assert_equal (Location.create 11 1) (Lexer.next_loc lexer);
       );
   ]
 

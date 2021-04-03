@@ -201,7 +201,7 @@ let rec _lex_skip_space t : unit =
 let create filename =
   let content = Io.read_file filename in
   { filename; content;
-    bgn_idx = 0; cur_idx = -1; cur_loc = Location.create 0 ~-1 }
+    bgn_idx = 0; cur_idx = -1; cur_loc = Location.create 1 0 }
 ;;
 
 let next t =

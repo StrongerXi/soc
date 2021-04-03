@@ -17,16 +17,16 @@ let tests = OUnit2.(>:::) "location_test" [
 
     OUnit2.(>::) "test_skip_line" (fun _ ->
         OUnit2.assert_equal
-          (Location.create 1 0)
+          (Location.create 1 1)
           (Location.skip_line (Location.create 0 0));
         OUnit2.assert_equal
-          (Location.create 1 0)
+          (Location.create 1 1)
           (Location.skip_line (Location.create 0 2000));
         OUnit2.assert_equal
-          (Location.create 11 0)
+          (Location.create 11 1)
           (Location.skip_line (Location.create 10 0));
         OUnit2.assert_equal
-          (Location.create 11 0)
+          (Location.create 11 1)
           (Location.skip_line (Location.create 10 21));
       );
   ]
