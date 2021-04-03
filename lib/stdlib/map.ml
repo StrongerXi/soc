@@ -25,6 +25,10 @@ let _has_key_by_cmp
   (cmp k k1) = 0
 ;;
 
+let _unique_pairs t =
+  List.remove_dups (_equal_by_cmp t.cmp) t.rep
+;;
+
 
 let empty cmp =
   { cmp; rep = [] }
@@ -35,7 +39,7 @@ let is_empty t =
 ;;
 
 let size t =
-  List.length (List.remove_dups (_equal_by_cmp t.cmp) t.rep)
+  List.length (_unique_pairs t)
 ;;
 
 let get k t =
@@ -59,4 +63,24 @@ let map f t =
 let mapi f t =
   let f (k, v) = (k, f k v) in
   { t with rep = List.map f t.rep }
+;;
+
+let fold f t a =
+  let unique_pairs = List.remove_dups (_equal_by_cmp t.cmp) t.rep in
+  let unique_vals = List.map (fun (_, v) -> v) unique_pairs in
+  List.fold_right f unique_vals a
+;;
+
+let foldi f t acc =
+  let unique_vals = List.remove_dups (_equal_by_cmp t.cmp) t.rep in
+  List.fold_left (fun acc (k, v) -> f k v acc) acc unique_vals
+;;
+
+let to_string f g t =
+  let pair_to_str (k, v) =
+    String.join_with ["("; (f k); ", "; (g v); ")"] ""
+  in
+  let pairs = List.map pair_to_str (_unique_pairs t) in
+  let inner = String.join_with pairs "; " in
+  String.append "{" (String.append inner "}")
 ;;

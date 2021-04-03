@@ -37,3 +37,15 @@ type ast_interp_error =
         (* expected arity, actual arity, span of the application expr *)
   | Ast_interp_letrec_invalid_rhs of Span.t
         (* span of the rhs expr (that broke value restriction) *)
+
+
+type infer_error =
+  | Infer_unbound_var of string * Span.t
+        (* the unbound variable's name and span *)
+  | Infer_type_mismatch of Ast.typ_desc * Ast.typ_desc * Span.t
+        (* expected type, actual type, span of the faulty expression *)
+  | Infer_illegal_letrec_rhs of Span.t
+        (* where the illegal rhs expr is *)
+  | Infer_tyvar_occurs of
+      Ast.typ_desc * Ast.typ_desc * Span.t * string * Ast.typ_desc
+        (* expect, actual, actual_span, tyvar, typ_desc that tyvar occurs in *)

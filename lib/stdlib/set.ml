@@ -13,6 +13,10 @@ let _equal_by_cmp (cmp : 'a -> 'a -> int) (e1 : 'a) (e2 : 'a) : bool =
   (cmp e1 e2) = 0
 ;;
 
+let _unique_elems t =
+  List.remove_dups (_equal_by_cmp t.cmp) t.rep
+;;
+
 
 let empty cmp =
   { cmp; rep = [] }
@@ -30,18 +34,14 @@ let remove e t =
   { t with rep = List.filter (fun x -> not (_equal_by_cmp t.cmp e x)) t.rep }
 ;;
 
-let get e t =
-  List.find_opt (_equal_by_cmp t.cmp e) t.rep
-;;
-
 let mem e t =
-  match get e t with
+  match List.find_opt (_equal_by_cmp t.cmp e) t.rep with
   | None   -> false
   | Some _ -> true
 ;;
 
 let size t =
-  List.length (List.remove_dups (_equal_by_cmp t.cmp) t.rep)
+  List.length (_unique_elems t)
 ;;
 
 let map f t =
@@ -69,4 +69,14 @@ let diff t1 t2 =
 
 let subset t1 t2 =
   List.for_all (fun e -> mem e t2) t1.rep
+;;
+
+let to_list t =
+  List.remove_dups (_equal_by_cmp t.cmp) t.rep
+;;
+
+let to_string f t =
+  let es = List.map f (_unique_elems t) in
+  let inner = String.join_with es "; " in
+  String.append "{" (String.append inner "}")
 ;;

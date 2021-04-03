@@ -114,6 +114,7 @@ let _pp_token_desc_impl desc (visibility : token_desc_visibility) =
   | Token.Let, _ -> "<Let>"
   | Token.Rec, _ -> "<Rec>"
   | Token.Colon, _ -> "<Colon>"
+  | Token.Underscore, _ -> "<Underscore>"
   | Token.Equal, _ -> "<Equal>"
   | Token.And, _ -> "<And>"
   | Token.In, _ -> "<In>"
@@ -129,6 +130,9 @@ let _pp_token_desc_impl desc (visibility : token_desc_visibility) =
   | Token.DecapIdent _, Hide_content -> "<DecapIdent>"
   | Token.DecapIdent s, Show_content ->
     String.join_with ["<DecapIdent ("; s; ")>"] ""
+  | Token.QuoteIdent _, Hide_content -> "<QuoteIdent>"
+  | Token.QuoteIdent s, Show_content ->
+    String.join_with ["<QuoteIdent ("; s; ")>"] ""
   | Token.SemiSemiColon, _ -> "<SemiSemiColon>"
 ;;
 
@@ -191,27 +195,34 @@ let pp_ast_interp_error (err : Errors.ast_interp_error) =
 ;;
 
 
-let _is_atomic_typ (typ : Ast.typ) : bool =
-  match typ.typ_desc with
-  | Typ_const _ -> true
+let _is_atomic_typ_desc (desc : Ast.typ_desc) : bool =
+  match desc with
+  | Typ_const _ | Typ_var _ -> true
   | _ -> false
 ;;
 
-let rec _pp_ast_typ (p : printer) (typ : Ast.typ) : unit =
-  match typ.typ_desc with
+let rec _pp_ast_typ_desc (p : printer) (desc : Ast.typ_desc) : unit =
+  match desc with
   | Typ_const name -> _print_str p name;
+  | Typ_var None -> _print_str p "_";
+  | Typ_var (Some name) -> _print_str p "'"; _print_str p name;
   | Typ_arrow (in_ty, out_ty) ->
     _pp_ast_typ_parens_on_non_atomic p in_ty;
     _print_str p " -> ";
     _pp_ast_typ_parens_on_non_atomic p out_ty;
 
-and _pp_ast_typ_parens_on_non_atomic (p : printer) (typ : Ast.typ)
+and _pp_ast_typ_parens_on_non_atomic (p : printer) (typ : Ast.typ_desc)
   : unit =
-  if _is_atomic_typ typ
-  then _pp_ast_typ p typ
-  else (_print_str p "("; _pp_ast_typ p typ; _print_str p ")");
+  if _is_atomic_typ_desc typ
+  then _pp_ast_typ_desc p typ
+  else (_print_str p "("; _pp_ast_typ_desc p typ; _print_str p ")");
 ;;
 
+let pp_ast_typ_desc (desc : Ast.typ_desc) =
+  let p = _create_printer () in
+  _pp_ast_typ_desc p desc;
+  p.buffer
+;;
 
 let _binop_to_str (binop : Ast.binary_op) : string =
   match binop with
@@ -301,7 +312,7 @@ and _pp_ast_opt_typ_var (p : printer) (var : Ast.opt_typed_var) : unit =
       _print_str p "(";
       _print_str p var.var.stuff;
       _print_str p " : ";
-      _pp_ast_typ p typ;
+      _pp_ast_typ_desc p typ.typ_desc;
       _print_str p ")";
     end
 ;;
@@ -321,4 +332,27 @@ let pp_ast_structure (structure : Ast.structure) =
   let p = _create_printer () in
   List.iter (_pp_ast_struct_item p) structure;
   p.buffer
+;;
+
+
+let pp_infer_error (err : Errors.infer_error) =
+  match err with
+  | Infer_unbound_var (name, span) ->
+    String.join_with
+      [ "[Infer]: Unbound variable <"; name; "> at "; (_pp_span span); ]
+      ""
+  | Infer_type_mismatch (expect, actual, span) ->
+    String.join_with
+      [ "[Infer]: Expected type <"; (pp_ast_typ_desc expect); ">";
+        " but got <"; (pp_ast_typ_desc actual); "> at "; (_pp_span span); ]
+      ""
+  | Infer_illegal_letrec_rhs span ->
+    String.append "[Infer]: Illegal rhs of let rec binding at " (_pp_span span)
+  | Infer_tyvar_occurs (expect, actual, actual_span, tv_name, occurree) ->
+    String.join_with
+      [ "[Infer]: Expected type <"; (pp_ast_typ_desc expect); ">";
+        " but got <"; (pp_ast_typ_desc actual); "> at "; (_pp_span actual_span);
+        ". The type variable '"; tv_name;
+        " occurs within "; (pp_ast_typ_desc occurree) ]
+      ""
 ;;

@@ -94,21 +94,51 @@ let _next_ch t : char option =
   | Some ch -> (_increment_cur_pos t); (Some ch)
 ;;
 
+(* NOTE [_consume_X] ensures that [t.cur_idx] points before the next non-X or
+ * stays unchanged. *)
+let rec _consume_num t : unit =
+  match _peek_ch t with
+  | Some ch when (Char.is_num ch) -> _increment_cur_pos t; _consume_num t
+  | _ -> ()
+;;
+
+let rec _consume_ident t : unit =
+  match _peek_ch t with
+  | Some ch when _can_be_ident ch -> _increment_cur_pos t; _consume_ident t
+  | _ -> ()
+;;
+
 
 (* NOTE [_cont_X t] assumes the last character(s) examined by [t] determine a
  * unique start of [X] so we "continue" to lex [X] *)
-
-let rec _cont_num t : Token.desc =
+let _cont_num t : Token.desc =
+  _consume_num t;
   match _peek_ch t with
-  | Some ch when (Char.is_num ch) -> _increment_cur_pos t; _cont_num t
   | Some _ -> Token.Int (_get_token_str t)
   | None -> _lexer_error_eof Errors.Lexing_number t
 ;;
 
-let rec _cont_ident_or_keywd t : Token.desc =
+let _cont_ident_or_keywd t : Token.desc =
+  _consume_ident t;
   match _peek_ch t with
-  | Some ch when _can_be_ident ch -> _increment_cur_pos t; _cont_ident_or_keywd t
   | Some _ -> _get_keywd_or_iden_token_desc (_get_token_str t)
+  | None -> _lexer_error_eof Errors.Lexing_identifier_or_keyword t
+;;
+
+let _cont_underscore_or_ident t : Token.desc =
+  match _peek_ch t with
+  | Some ch when _can_be_ident ch -> _cont_ident_or_keywd t
+  | _ -> Token.Underscore
+;;
+
+let _cont_quote_ident t : Token.desc =
+  _increment_cur_pos t; (* skip the quote *)
+  _consume_ident t;
+  match _peek_ch t with
+  | Some _ ->
+    let name = _get_token_str t in
+    let name_wo_quote = String.sub name 1 ((String.length name) - 1) in
+    Token.QuoteIdent name_wo_quote
   | None -> _lexer_error_eof Errors.Lexing_identifier_or_keyword t
 ;;
 
@@ -128,15 +158,15 @@ let _cont_expect_ch t (expect : char) (tok : Token.desc)
   | None -> _lexer_error_eof (Errors.Lexing_expecting expect) t
 ;;
 
+
 (* ASSUME 
  * 1. space has been skipped.
  * 2. [cur_ch] is the [t.cur_idx]th char in [t.contents] *)
 let _lex_with_cur_ch t (cur_ch : char) : Token.desc =
   match cur_ch with
-  | _ when (Char.is_num cur_ch) -> _cont_num t
-  | _ when _can_be_ident cur_ch -> _cont_ident_or_keywd t
+  | '_' -> _cont_underscore_or_ident t
   | '-' -> _cont_minus_or_arrow t
-           (* XXX Might have to change if say, ";" becomes a valid token *)
+  | '\'' -> _cont_quote_ident t
   | ';' -> _cont_expect_ch t cur_ch Token.SemiSemiColon
   | '&' -> _cont_expect_ch t cur_ch Token.AmperAmper
   | '|' -> _cont_expect_ch t cur_ch Token.BarBar
@@ -147,6 +177,8 @@ let _lex_with_cur_ch t (cur_ch : char) : Token.desc =
   | '(' -> Token.Lparen
   | ')' -> Token.Rparen
   | '<' -> Token.Less
+  | _ when (Char.is_num cur_ch) -> _cont_num t
+  | _ when _can_be_ident cur_ch -> _cont_ident_or_keywd t
   | _ -> _lexer_error_invalid_start cur_ch t
 ;;
 

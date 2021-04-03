@@ -95,31 +95,43 @@ let rec _skip_zero_or_more (s : _tok_stream) (to_skip : Token.desc) : unit =
    consume that token (by [_get_next_token_expect] or [_skip_next_token]).
 *)
 
-let rec _parse_typ (s : _tok_stream) : Ast.typ =
-  _parse_arrow_typ s (* nice forward compatibility :) *)
+(* [_parse_*_typ_desc s] returns parsed typ_desc and span of the type *)
+let rec _parse_typ_desc (s : _tok_stream)
+  : (Ast.typ_desc * Span.t) =
+  _parse_arrow_typ_desc s (* nice forward compatibility :) *)
 
-and _parse_arrow_typ (s : _tok_stream) : Ast.typ = (* right associative *)
-  let in_typ = _parse_primary_typ s in
+and _parse_arrow_typ_desc (s : _tok_stream) (* right associative *)
+  : (Ast.typ_desc * Span.t) =
+  let (in_typ, span) = _parse_primary_typ_desc s in
   match s.peek () with 
   | Some tok when tok.token_desc = Rarrow -> s.skip ();
-    let out_typ = _parse_arrow_typ s in
-    { Ast.typ_desc = Typ_arrow (in_typ, out_typ);
-      typ_span = Span.merge in_typ.typ_span out_typ.typ_span }
-  | _ -> in_typ (* no arrow *)
+    let out_typ, last_span = _parse_arrow_typ_desc s in
+    let desc = Ast.Typ_arrow (in_typ, out_typ) in
+    let span = Span.merge span last_span in
+    (desc, span)
+  | _ -> in_typ, span (* no arrow *)
 
-and _parse_primary_typ (s : _tok_stream) : Ast.typ = (* int, (a -> b), etc. *)
-  let expected = Token.[DecapIdent ""; Lparen] in (* NOTE stay synched! *)
+and _parse_primary_typ_desc (s : _tok_stream)  (* int, 'a, _, (a -> b) *)
+  : (Ast.typ_desc * Span.t) =
+                        (* NOTE stay synched! *)
+  let expected = Token.[QuoteIdent ""; DecapIdent ""; Underscore; Lparen] in
   let tok = _peek_token_exn s expected in
   s.skip ();
   match tok.token_desc with
-  | DecapIdent name ->
-    { Ast.typ_desc = Typ_const name; typ_span = tok.token_span }
+  | Underscore -> (Typ_var None, tok.token_span)
+  | QuoteIdent name -> (Typ_var (Some name), tok.token_span)
+  | DecapIdent name -> (Typ_const name, tok.token_span)
   | Lparen ->
-    let typ = _parse_typ s in
-    let last = _get_next_token_expect s Rparen in
-    { Ast.typ_desc = typ.typ_desc;
-      typ_span = (Span.merge tok.token_span last.token_span) }
+    let desc, _ = _parse_typ_desc s in
+    let last_tok = _get_next_token_expect s Rparen in
+    let span = Span.merge tok.token_span last_tok.token_span in
+    (desc, span)
   | _ -> _error_unexpected_token tok expected
+;;
+
+let _parse_typ (s : _tok_stream) : Ast.typ =
+  let typ_desc, typ_span = _parse_arrow_typ_desc s in
+  { Ast.typ_desc; typ_span }
 ;;
 
 

@@ -12,6 +12,7 @@ type desc =
   | Let
   | Rec
   | Colon
+  | Underscore
   | Equal
   | And
   | In
@@ -24,6 +25,7 @@ type desc =
   | False
   | Int of string
   | DecapIdent of string
+  | QuoteIdent of string
   | SemiSemiColon
 
 type t =

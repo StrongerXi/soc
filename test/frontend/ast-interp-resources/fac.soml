@@ -10,7 +10,7 @@ let rec print_facs = (fun (max : int) ->
   if max = 0
   then println (fac max)
   else
-    let _ = print_facs (max - 1) in
+    let ignore = print_facs (max - 1) in
     println (fac max)
 )
 ;;

@@ -8,8 +8,9 @@ let _get_full_path (filename : string) : string =
 let _parse_ast_exn (filepath : string) : Ast.structure =
   let lexer = Lexer.create filepath in
   match Parser.parse lexer with
-  | Error _ ->
-    let msg = ("Unexpected parsing failure on [" ^ filepath ^ "]") in
+  | Error err ->
+    let msg = ("Unexpected parsing failure on [" ^ filepath ^ "]:\n") in
+    let msg = String.append msg (Frontend_pp.pp_parser_error err) in
     OUnit2.assert_failure msg;
   | Ok ast -> ast
 ;;

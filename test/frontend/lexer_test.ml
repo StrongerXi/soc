@@ -73,11 +73,14 @@ let tests = OUnit2.(>:::) "lexer_test" [
               _create_tok (Token.Rec) path 6 0 6 2;
               _create_tok (Token.Less) path 6 5 6 5;
               _create_tok (Token.Less) path 6 6 6 6;
+              _create_tok (Token.Underscore) path 6 8 6 8;
+              _create_tok (Token.DecapIdent "_a") path 6 10 6 11;
               _create_tok (Token.True) path 8 1 8 4;
               _create_tok (Token.False) path 8 6 8 10;
+              _create_tok (Token.QuoteIdent "_abc") path 9 0 9 4;
             ]
         in
-        OUnit2.assert_equal (Location.create 9 0) (Lexer.next_loc lexer);
+        OUnit2.assert_equal (Location.create 10 0) (Lexer.next_loc lexer);
       );
   ]
 

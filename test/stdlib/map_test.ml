@@ -62,6 +62,34 @@ let tests = OUnit2.(>:::) "map_tests" [
         OUnit2.assert_equal (Some (42, 'a')) (Map.get 42 s2);
         OUnit2.assert_equal (Some (1, 'b')) (Map.get 1 s2);
       );
+
+    OUnit2.(>::) "test_fold" (fun _ ->
+        let s2 = from_list [(42, 'a'); (1, 'b')] int_cmp in
+        let f v acc = v::acc in
+        OUnit2.assert_equal [] (Map.fold f emp_int []);
+        let res = Map.fold f s2 [] in
+        OUnit2.assert_equal 2 (List.length res);
+        OUnit2.assert_equal true (List.mem 'a' res);
+        OUnit2.assert_equal true (List.mem 'b' res);
+      );
+
+    OUnit2.(>::) "test_foldi" (fun _ ->
+        let s2 = from_list [(42, 'a'); (1, 'b')] int_cmp in
+        let f k v acc = (k, v)::acc in
+        OUnit2.assert_equal [] (Map.foldi f emp_int []);
+        let res = Map.foldi f s2 [] in
+        OUnit2.assert_equal 2 (List.length res);
+        OUnit2.assert_equal true (List.mem (42, 'a') res);
+        OUnit2.assert_equal true (List.mem (1, 'b') res);
+      );
+
+    OUnit2.(>::) "test_to_string" (fun _ ->
+        let s2 = from_list [(42, 'a'); (1, 'b')] int_cmp in
+        OUnit2.assert_equal "{}"
+          (Map.to_string Int.to_string Char.to_string emp_int);
+        OUnit2.assert_equal "{(42, a); (1, b)}"
+          (Map.to_string Int.to_string Char.to_string s2);
+      );
   ]
 
 let _ =
