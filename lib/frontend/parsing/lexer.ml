@@ -1,8 +1,8 @@
 open Pervasives
 
+(** A [t] represents the state of lexer *)
 type t = 
-  { filename : string
-  ; content  : string (* content of file with [filename] *)
+  { content  : string (* source to be lexed *)
 
   (* content[bgn_idx] is what the next token starts with *)
   ; mutable bgn_idx  : int
@@ -197,24 +197,33 @@ let rec _lex_skip_space t : unit =
   | _ -> t.bgn_idx <- t.cur_idx + 1 (* not a space, start of new token *)
 ;;
 
-
-let create filename =
-  let content = Io.read_file filename in
-  { filename; content;
-    bgn_idx = 0; cur_idx = -1; cur_loc = Location.create 1 0 }
-;;
-
-let next t =
+let _next t =
   _lex_skip_space t;
   match _next_ch t with
   | None -> None
   | Some (ch) ->
     let start_loc = t.cur_loc in
     let token_desc = _lex_with_cur_ch t ch in
-    let token_span = Span.create t.filename start_loc t.cur_loc in
+    let token_span = Span.create start_loc t.cur_loc in
     t.bgn_idx <- t.cur_idx + 1;
     Some { Token.token_desc; token_span }
 ;;
 
-let next_loc t = _get_next_cur_loc t
+let _lex_all_tokens t : Token.t list =
+  let rec go toks =
+    match _next t with
+    | None -> List.rev toks
+    | Some (tok) -> go (tok::toks)
+  in
+  go []
+;;
+
+let lex str =
+  if str = "" then Ok []
+  else
+    let t = { content = str; bgn_idx = 0; cur_idx = -1
+            ; cur_loc = Location.create 1 0 }
+    in
+    try Ok (_lex_all_tokens t)
+    with Lexer_error err -> Error err
 ;;

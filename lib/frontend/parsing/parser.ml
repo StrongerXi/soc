@@ -3,27 +3,32 @@ open Pervasives
 (* Internal wrapper around lexer to support peeking.
  * [peek ()] returns the same token until [skip ()]. *)
 type _tok_stream =
-  { skip  : unit -> unit         (* skips peeked token *)
-  ; peek  : unit -> Token.t option 
-  ; where : unit -> Location.t   (* same as [token_stream.where] *)
+  { skip  : unit -> unit           (* skips peeked token *)
+  ; peek  : unit -> Token.t option (* [None] = EOF *)
+  ; last_loc : unit -> Location.t  (* end location of last skipped token *)
   }
 
-let _create_tok_stream (lexer : Lexer.t) : _tok_stream =
-  let peeked = ref None in (* None already stands for EOF *)
+let _create_tok_stream (first_tok : Token.t) (rest_tokens : Token.t list)
+  : _tok_stream =
+  (* [None] -> haven't peeked or skipped, [Some None] -> EOF *)
+  let peeked = ref (Some (Some first_tok)) in
+  let last_pos = ref first_tok.token_span.final in
+  let tokens = ref rest_tokens in
   let skip () =
     peeked := None
   in
   let peek () =
     match !peeked with
-    | None ->
-      let opt_tok = Lexer.next lexer in
-      peeked := Some opt_tok; opt_tok
     | Some opt_tok -> opt_tok
+    | None ->
+      let opt_tok = match !tokens with
+        | [] -> None
+        | tok::rest -> tokens := rest; Some tok
+      in
+      peeked := Some opt_tok; opt_tok
   in
-  let where () =
-    Lexer.next_loc lexer
-  in
-  { skip; peek; where }
+  let last_loc () = !last_pos in
+  { skip; peek; last_loc }
 ;;
 (* Ideally _tok_stream should go in a module, but I want to make self-compilation
  * easier; I'll refactor later when soc supports nested module *)
@@ -51,7 +56,7 @@ let _error_unexpected_token (actual : Token.t) (expect : Token.desc list) : 'a =
 (* Only compare token based on category, not internal fields *)
 let _get_next_token_expect (s : _tok_stream) (expect : Token.desc) : Token.t =
   match s.peek () with
-  | None -> _error_on_eof (s.where ()) [expect]
+  | None -> _error_on_eof (s.last_loc ()) [expect]
   | Some actual ->
     s.skip ();
     if expect = actual.token_desc then actual
@@ -61,7 +66,7 @@ let _get_next_token_expect (s : _tok_stream) (expect : Token.desc) : Token.t =
 (* Error on EOF. NOTE only use if a token is absolutely expected  *)
 let _peek_token_exn (s : _tok_stream) (expected : Token.desc list) : Token.t =
   match s.peek () with
-  | None -> _error_on_eof (s.where ()) expected
+  | None -> _error_on_eof (s.last_loc ()) expected
   | Some tok -> tok
 ;;
 
@@ -420,10 +425,13 @@ let rec _parse_structure (s : _tok_stream) : Ast.structure =
     item::rest
 ;;
 
-let parse (lexer : Lexer.t) =
-  try 
-    let internal_tok_stream = _create_tok_stream lexer in
-    let structure = _parse_structure internal_tok_stream in
-    Ok structure
-  with Parser_error(err) -> Error err
+let parse tokens =
+  match tokens with
+  | [] -> Ok []
+  | tok::tokens ->
+    try 
+      let internal_tok_stream = _create_tok_stream tok tokens in
+      let structure = _parse_structure internal_tok_stream in
+      Ok structure
+    with Parser_error(err) -> Error err
 ;;

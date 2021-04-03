@@ -6,5 +6,6 @@ open Pervasives
  * [X_file path] runs all the compiler phases up till [X] for the file at
  * [path]; it returns the target representation or formatted error string *)
 
+val lex_file : string -> (Token.t list, string) result
 val parse_file : string -> (Ast.structure, string) result
 val type_file  : string -> (Ast.structure, string) result
