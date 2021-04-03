@@ -20,10 +20,12 @@ val get_errors : t -> Errors.infer_error list
     overwrite if [name] is already bound in [t] *)
 val add_type : t -> string -> Ast.typ_desc -> t
 
-(** [get_type t name span] returns the type bound to [name] in [t]; if not bound,
-    a general type is returned to ensure continuation of typechecking, and an
-    error is recorded in output context.  [span] is where the identifier [name]
-    locates, used for error reporting. *)
+(** [get_type t name span] returns the type bound to [name] in [t], with type
+    appropriate instantiation if [name] has been generalized (so it behaves
+    polymorphically when upon unification).
+    If [name] is not bound in [t], a general type is returned to ensure
+    continuation of typechecking, and an error is recorded in output context.
+    [span] is where the identifier [name] locates, used for error reporting. *)
 val get_type : t -> string -> Span.t -> t * Ast.typ_desc
 
 
@@ -45,5 +47,6 @@ val unify_binop : t
   -> (t * Ast.typ_desc)
 
 
-(** [generalize t name] generalizes the type bound to [name] in [t]. *)
-val generalize : t -> string -> t
+(** [generalize t names] generalizes the types bound to [names] in [t], so that
+    they might behave as polymorphic types. ASSUME [names] are bound in [t] *)
+val generalize : t -> string list -> t

@@ -237,44 +237,53 @@ let unify_binop t binop lhs_typ lhs_span rhs_typ rhs_span =
 
 
 
-let rec _add_fv_in_typ_desc (s : string Set.t) (desc : Ast.typ_desc)
+(* Some helpers for computing free type variables *)
+let rec _add_fvs_in_typ_desc (s : string Set.t) (desc : Ast.typ_desc)
   : string Set.t =
   match desc with
   | Typ_const _ | Typ_var None -> s
   | Typ_var (Some tv) -> Set.add tv s
   | Typ_arrow (in_typ, out_typ) ->
-    let s = _add_fv_in_typ_desc s in_typ in
-    _add_fv_in_typ_desc s out_typ
+    let s = _add_fvs_in_typ_desc s in_typ in
+    _add_fvs_in_typ_desc s out_typ
 ;;
 
-let _sub_fv_in_scheme (s : string Set.t) (schm : scheme) : string Set.t =
+let _add_fvs_in_scheme (s : string Set.t) (schm : scheme) : string Set.t =
   match schm with
-  | Mono_typ typ_desc ->
-    let fvs = _add_fv_in_typ_desc (Set.empty String.compare) typ_desc in
-    Set.diff s fvs
+  | Mono_typ typ_desc -> _add_fvs_in_typ_desc s typ_desc
   | Poly_typ (ty_params, typ_desc) ->
-    let fvs = _add_fv_in_typ_desc (Set.empty String.compare) typ_desc in
-    let fvs = List.fold_right Set.remove ty_params fvs in
-    Set.diff s fvs
+    let fvs = _add_fvs_in_typ_desc s typ_desc in
+    List.fold_right Set.remove ty_params fvs
 ;;
 
-let _sub_fv_in_typ_env (s : string Set.t) (typ_env : (string, scheme) Map.t)
-  : string Set.t =
-  Map.fold (fun schm s -> _sub_fv_in_scheme s schm) typ_env s
+let _get_fvs_in_typ_env (typ_env : (string, scheme) Map.t) : string Set.t =
+  let s = Set.empty String.compare in
+  Map.fold (fun schm s -> _add_fvs_in_scheme s schm) typ_env s
 ;;
 
-let generalize t name =
-  match Map.get name t.typ_env with
-  | None -> t (* ignore this request *)
-  | Some (Poly_typ _) ->
-    failwith "[Infer_ctx.generalize] can't generalize more than once"
-  | Some (Mono_typ typ_desc) ->
-    let s = Set.empty String.compare in
-    let s = _add_fv_in_typ_desc s typ_desc in
-    let typ_env = Map.remove name t.typ_env in (* NOTE critical *)
-    let s = _sub_fv_in_typ_env s typ_env in
-    let free_tyvars = Set.to_list s in
-    let schm = Poly_typ (free_tyvars, typ_desc) in
-    (* INVARIANTS are preserved since we are adding more ty_params *)
-    { t with typ_env = Map.add name schm typ_env }
+(* A helper for generalize 1 name in typ_env *)
+let _generalize_typ_desc (typ_desc : Ast.typ_desc) (fvs_in_typ_env : string Set.t)
+  : scheme =
+  let fvs = Set.empty String.compare in
+  let fvs = _add_fvs_in_typ_desc fvs typ_desc in
+  let fvs = Set.diff fvs fvs_in_typ_env in
+  let free_tyvars = Set.to_list fvs in
+  (* INVARIANTS are preserved since we are adding more ty_params *)
+  Poly_typ (free_tyvars, typ_desc)
+;;
+
+let generalize t names =
+  (* ignore the names themselves in context, since their tyvars are not free *)
+  let typ_env = List.fold_right Map.remove names t.typ_env in
+  let fvs_in_typ_env = _get_fvs_in_typ_env typ_env in
+  List.fold_left
+    (fun t name ->
+       match Map.get name t.typ_env with
+       | None -> failwith "[Infer_ctx.generalize] can't generalize unbound name"
+       | Some (Poly_typ _) ->
+         failwith "[Infer_ctx.generalize] can't generalize same name multiple times"
+       | Some (Mono_typ typ_desc) ->
+         let generalized = _generalize_typ_desc typ_desc fvs_in_typ_env in
+         { t with typ_env = Map.add name generalized t.typ_env })
+    t names
 ;;

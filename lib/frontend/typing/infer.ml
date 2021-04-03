@@ -166,11 +166,8 @@ and _infer_let_expr
 and _infer_let_bindings
     (ctx : Infer_ctx.t) (rec_flag : Ast.rec_flag) (bds : Ast.binding list)
   : (Infer_ctx.t * Ast.binding list) =
-  (* can't put lhs of nonrec let into ctx yet, so we return the inferred rhs
-   * type and unify it with lhs annotation later, to make rhs_typ up-to-date *)
   let _infer_one_binding
-      (ctx : Infer_ctx.t) (bd : Ast.binding)
-    : (Infer_ctx.t * (Ast.binding * Ast.typ_desc)) =
+      (ctx : Infer_ctx.t) (bd : Ast.binding) : (Infer_ctx.t * Ast.binding) =
     let ctx =
       if _is_legal_let_rhs rec_flag bd.binding_rhs then ctx
       else Infer_ctx.add_error ctx
@@ -179,36 +176,35 @@ and _infer_let_bindings
     let (ctx, rhs_typ, rhs) = _infer_expr ctx bd.binding_rhs in
     let lhs_typ = _get_annotated_typ_desc bd.binding_lhs in
     let ctx, _ = Infer_ctx.unify ctx lhs_typ rhs_typ rhs.expr_span in
-    (ctx, ({ bd with binding_rhs = rhs }, rhs_typ))
+    (ctx, { bd with binding_rhs = rhs })
   in
   let ctx = match rec_flag with
     | Nonrecursive -> ctx
-    | Recursive -> (* only let rec can access lhs in rhs *)
+    | Recursive -> (* let rec can access lhs in rhs *)
       let otvs = List.map (fun (bd : Ast.binding) -> bd.binding_lhs) bds in
       _add_opt_typed_vars ctx otvs
   in
-  let (ctx, rev_bd_typ_pairs) = (* infer each binding *)
+  let (ctx, rev_bds) = (* infer each binding *)
     List.fold_left
-      (fun (ctx, rev_bd_typ_pairs) bd ->
-         let (ctx, bd_typ) = _infer_one_binding ctx bd in
-         (ctx, bd_typ::rev_bd_typ_pairs))
+      (fun (ctx, rev_bds) bd ->
+         let (ctx, bd) = _infer_one_binding ctx bd in
+         (ctx, bd::rev_bds))
       (ctx, []) bds
   in
-  (* generalize each binding and add it to ctx (overwrite for rec) *)
-  let (ctx, rev_bds) =
-    List.fold_right
-      (fun ((bd : Ast.binding), (infer_typ : Ast.typ_desc)) (ctx, rev_bds) ->
-         let name = bd.binding_lhs.var.stuff in
-         match rec_flag with
-         | Recursive ->
-           let ctx = Infer_ctx.generalize ctx name in
-           (ctx, bd::rev_bds)
-         | Nonrecursive -> 
-           let ctx = Infer_ctx.add_type ctx name infer_typ in
-           let ctx = Infer_ctx.generalize ctx name in
-           (ctx, bd::rev_bds))
-        rev_bd_typ_pairs (ctx, [])
+  let ctx = match rec_flag with
+    | Recursive -> ctx
+    | Nonrecursive -> (* add lhs into context *)
+      List.fold_left
+        (fun ctx (bd : Ast.binding) ->
+           let name = bd.binding_lhs.var.stuff in
+           let lhs_typ = _get_annotated_typ_desc bd.binding_lhs in
+           (* [lhs_typ] will be promoted via substitutions *)
+           Infer_ctx.add_type ctx name lhs_typ)
+        ctx rev_bds
   in
+  let names =
+    List.map (fun (bd : Ast.binding) -> bd.binding_lhs.var.stuff) rev_bds in
+  let ctx = Infer_ctx.generalize ctx names in
   (ctx, List.rev rev_bds)
 
 and _infer_fun_expr
