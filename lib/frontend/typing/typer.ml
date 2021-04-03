@@ -218,8 +218,7 @@ and _type_fun_expr
   let (ctx, body_typ, body) = _type_expr ctx body in
   let (ctx, ret_typ) = List.fold_right
       (fun (otv : Ast.opt_typed_var) (ctx, ret_typ) ->
-         let name, span = otv.var, Span.dummy in (* must be bound *)
-         let ctx, in_typ = Typer_ctx.get_type ctx name span in
+         let in_typ = _get_annotated_typ otv in
          let ret_typ = Ast.Typ_arrow (in_typ, ret_typ) in
          (ctx, ret_typ))
       params (ctx, body_typ)

@@ -4,13 +4,9 @@ type t =
   { filename : string
   ; start    : Location.t
   ; final    : Location.t
-  ; is_dummy : bool
   }
 
-(** A dummy span generated during parsing *)
-val dummy : t
-
-(* [create filename start final] creates a [t] with [is_dummy = false] *)
+(* [create filename start final] creates a [t] *)
 val create : string -> Location.t -> Location.t -> t
 
 (** [merge s1 s2] returns a span that goes from the start of [s1] to
