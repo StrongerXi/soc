@@ -143,7 +143,7 @@ let pp_token_desc desc =
 let pp_token (tok : Token.t) =
   String.join_with
     [ "{"; (pp_token_desc tok.token_desc);
-      " in <"; tok.token_span.filename; ":"; (_pp_span tok.token_span); ">}"; ]
+      " at "; (_pp_span tok.token_span); "}"; ]
     ""
 ;;
 

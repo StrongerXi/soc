@@ -1,12 +1,11 @@
 
 type t =
-  { filename : string
-  ; start    : Location.t
+  { start    : Location.t
   ; final    : Location.t
   }
   
-let create filename start final =
-  { filename; start; final; }
+let create start final =
+  { start; final; }
 ;;
 
 let merge t1 t2 =
