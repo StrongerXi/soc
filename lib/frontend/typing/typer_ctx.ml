@@ -1,10 +1,9 @@
 open Pervasives
 
-type scheme = (* a variation of type scheme from Hindley-Milner *)
+type scheme = (* type scheme from Hindley-Milner *)
   | Mono_typ of Ast.typ
-      (* a tyvar, to be resolved via substs *)
   | Poly_typ of string list * Ast.typ
-      (* tyvar params and body of the type scheme *)
+      (* tyvar params (DISTINCT) and body of the type scheme *)
 
 
 (* INVARIANTS:
@@ -23,39 +22,27 @@ let _get_new_tyvar t =
   (t, tyvar)
 ;;
 
-(* ENSURE: (a) output doesn't contain keys of [substs] *)
-let rec _apply_substs_to_typ
-    (substs : (string, Ast.typ) Map.t)  (desc : Ast.typ) : Ast.typ = 
-  match desc with
-  | Typ_const _ | Typ_var None -> desc
-  | Typ_arrow (in_typ, out_typ) ->
-    let in_typ  = _apply_substs_to_typ substs in_typ in
-    let out_typ = _apply_substs_to_typ substs out_typ in
-    Typ_arrow (in_typ, out_typ)
-  | Typ_var (Some tv_name) ->
-    let opt_desc = Map.get tv_name substs in (* Invariant (A) => (a) *)
-    Option.value opt_desc desc
-;;
-
 (* replace each type param with unique tyvar, the source of polymorphism *)
 let _scheme_to_typ t (s : scheme) : (t * Ast.typ) =
   match s with
   | Mono_typ typ -> (t, typ)
   | Poly_typ (ty_params, typ) ->
     let t, substs = List.fold_left
-        (fun (t, map) tyvar_param ->
-           let t, tv_name = _get_new_tyvar t in
-           let map = Map.add tyvar_param tv_name map in
-           (t, map))
-        (t, Map.empty String.compare)
+        (fun (t, substs) param ->
+           let t, new_tyvar = _get_new_tyvar t in
+           let param_tyvar = Ast.Typ_var (Some param) in
+           (* can't error since ty_params are distinct *)
+           let substs, _ = Substs.unify substs param_tyvar new_tyvar in
+           (t, substs))
+        (t, Substs.empty)
         ty_params
     in
-    let typ = _apply_substs_to_typ substs typ in
+    let typ = Substs.apply_to_typ substs typ in
     (t, typ)
 ;;
 
 let _update_envs_with_substs t : t =
-  let _subst_scheme (schm : scheme): scheme =
+  let _update_scheme (schm : scheme): scheme =
     match schm with
     | Mono_typ typ -> Mono_typ (Substs.apply_to_typ t.substs typ)
     | Poly_typ (ty_params, typ) ->
@@ -63,8 +50,8 @@ let _update_envs_with_substs t : t =
         Substs.apply_to_typ_exclude t.substs typ ty_params
       in Poly_typ (ty_params, substituted)
   in
-  let cur_var_env = Map.map _subst_scheme t.cur_var_env in
-  let prev_var_envs = List.map (Map.map _subst_scheme) t.prev_var_envs in
+  let cur_var_env = Map.map _update_scheme t.cur_var_env in
+  let prev_var_envs = List.map (Map.map _update_scheme) t.prev_var_envs in
   { t with cur_var_env; prev_var_envs }
 ;;
 
