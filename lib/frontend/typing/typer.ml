@@ -1,25 +1,24 @@
 open Pervasives
 
 (* A short-hand to simplify common return types *)
-type 'a ret = (Typer_ctx.t * Ast.typ_desc * 'a)
+type 'a ret = (Typer_ctx.t * Ast.typ * 'a)
 
 
-let _get_annotated_typ_desc (otv : Ast.opt_typed_var) : Ast.typ_desc =
+let _get_annotated_typ (otv : Ast.opt_typed_var) : Ast.typ =
   match otv.typ with
   | None ->  
-    let msg = "[Typer._get_annotated_typ_desc]" in
+    let msg = "[Typer._get_annotated_typ]" in
     let msg = String.append msg " all variables should have type annotations" in
     failwith msg
-  | Some typ -> typ.typ_desc
+  | Some typ -> typ
 ;;
 
 
 (* The following group of functions update all type annotations using [ctx] *)
 let _update_tyvars_in_otv (ctx : Typer_ctx.t) (otv : Ast.opt_typed_var)
   : Ast.opt_typed_var =
-  let typ_desc = _get_annotated_typ_desc otv in
-  let typ_desc = Typer_ctx.update_typ_desc ctx typ_desc in
-  let typ = { Ast.typ_desc; typ_span = Span.dummy } in
+  let typ = _get_annotated_typ otv in
+  let typ = Typer_ctx.update_typ ctx typ in
   { otv with typ = Some typ }
 ;;
 
@@ -93,14 +92,14 @@ let _add_opt_typed_vars (ctx : Typer_ctx.t) (otvs : Ast.opt_typed_var list)
   : Typer_ctx.t =
   List.fold_left 
     (fun ctx (otv : Ast.opt_typed_var) ->
-       let name = otv.var.stuff in
-       let typ = _get_annotated_typ_desc otv in
+       let name = otv.var in
+       let typ = _get_annotated_typ otv in
        Typer_ctx.add_type ctx name typ)
     ctx otvs
 ;;
 
 
-let _type_const (const : Ast.constant) : Ast.typ_desc =
+let _type_const (const : Ast.constant) : Ast.typ =
   match const with
   | Const_Int  _ -> Builtin_types.int_typ
   | Const_Bool _ -> Builtin_types.bool_typ
@@ -177,7 +176,7 @@ and _type_let_bindings
           (Errors.Typer_illegal_letrec_rhs bd.binding_rhs.expr_span)
     in 
     let (ctx, rhs_typ, rhs) = _type_expr ctx bd.binding_rhs in
-    let lhs_typ = _get_annotated_typ_desc bd.binding_lhs in
+    let lhs_typ = _get_annotated_typ bd.binding_lhs in
     let ctx, _ = Typer_ctx.unify ctx lhs_typ rhs_typ rhs.expr_span in
     (ctx, { bd with binding_rhs = rhs })
   in
@@ -199,14 +198,14 @@ and _type_let_bindings
     | Nonrecursive -> (* add lhs into context *)
       List.fold_left
         (fun ctx (bd : Ast.binding) ->
-           let name = bd.binding_lhs.var.stuff in
-           let lhs_typ = _get_annotated_typ_desc bd.binding_lhs in
+           let name = bd.binding_lhs.var in
+           let lhs_typ = _get_annotated_typ bd.binding_lhs in
            (* [lhs_typ] will be promoted via substitutions *)
            Typer_ctx.add_type ctx name lhs_typ)
         ctx rev_bds
   in
   let names =
-    List.map (fun (bd : Ast.binding) -> bd.binding_lhs.var.stuff) rev_bds in
+    List.map (fun (bd : Ast.binding) -> bd.binding_lhs.var) rev_bds in
   let ctx = Typer_ctx.generalize ctx names in
   (ctx, List.rev rev_bds)
 
@@ -219,9 +218,9 @@ and _type_fun_expr
   let (ctx, body_typ, body) = _type_expr ctx body in
   let (ctx, ret_typ) = List.fold_right
       (fun (otv : Ast.opt_typed_var) (ctx, ret_typ) ->
-         let name, span = otv.var.stuff, otv.var.span in
-         let ctx, in_typ_desc = Typer_ctx.get_type ctx name span in
-         let ret_typ = Ast.Typ_arrow (in_typ_desc, ret_typ) in
+         let name, span = otv.var, Span.dummy in (* must be bound *)
+         let ctx, in_typ = Typer_ctx.get_type ctx name span in
+         let ret_typ = Ast.Typ_arrow (in_typ, ret_typ) in
          (ctx, ret_typ))
       params (ctx, body_typ)
   in

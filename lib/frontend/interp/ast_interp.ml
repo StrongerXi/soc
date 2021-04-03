@@ -95,7 +95,7 @@ let rec _interp_expr (ctx : context) (expr : Ast.expression) : value =
   | Exp_ident name  -> _interp_name ctx name expr.expr_span
   | Exp_fun (arg_names, body) ->
     let names =
-      List.map (fun (x : Ast.opt_typed_var) -> x.var.stuff) arg_names in
+      List.map (fun (x : Ast.opt_typed_var) -> x.var) arg_names in
     Closure (names, body, ref ctx)
   | Exp_binop (binop, lhs, rhs)   -> _interp_binop_expr ctx binop lhs rhs
   | Exp_if (cnd, thn, els)        -> _interp_if_expr    ctx cnd thn els
@@ -158,7 +158,7 @@ and _interp_let_expr (ctx : context)
 and _interp_let_bindings (ctx : context)
     (rec_flag : Ast.rec_flag) (bds : Ast.binding list) : context =
   let _interp_one_binding (b : Ast.binding) : (string * value) =
-    let name = b.binding_lhs.var.stuff in
+    let name = b.binding_lhs.var in
     match b.binding_rhs.expr_desc, rec_flag with (* value restriction *)
     | _, Nonrecursive | Exp_const _, _ | Exp_fun _, _ ->
       let rhs_v = _interp_expr ctx b.binding_rhs in (name, rhs_v)

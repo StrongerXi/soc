@@ -1,9 +1,9 @@
 open Pervasives
 
 type scheme = (* a variation of type scheme from Hindley-Milner *)
-  | Mono_typ of Ast.typ_desc
+  | Mono_typ of Ast.typ
       (* a tyvar, to be resolved via substs *)
-  | Poly_typ of string list * Ast.typ_desc
+  | Poly_typ of string list * Ast.typ
       (* tyvar params and body of the type scheme *)
 
 
@@ -24,14 +24,13 @@ let _get_new_tyvar t =
 ;;
 
 (* ENSURE: (a) output doesn't contain keys of [substs] *)
-let rec _apply_substs_to_typ_desc
-    (substs : (string, Ast.typ_desc) Map.t)  (desc : Ast.typ_desc)
-  : Ast.typ_desc = 
+let rec _apply_substs_to_typ
+    (substs : (string, Ast.typ) Map.t)  (desc : Ast.typ) : Ast.typ = 
   match desc with
   | Typ_const _ | Typ_var None -> desc
   | Typ_arrow (in_typ, out_typ) ->
-    let in_typ  = _apply_substs_to_typ_desc substs in_typ in
-    let out_typ = _apply_substs_to_typ_desc substs out_typ in
+    let in_typ  = _apply_substs_to_typ substs in_typ in
+    let out_typ = _apply_substs_to_typ substs out_typ in
     Typ_arrow (in_typ, out_typ)
   | Typ_var (Some tv_name) ->
     let opt_desc = Map.get tv_name substs in (* Invariant (A) => (a) *)
@@ -39,10 +38,10 @@ let rec _apply_substs_to_typ_desc
 ;;
 
 (* replace each type param with unique tyvar, the source of polymorphism *)
-let _scheme_to_typ_desc t (s : scheme) : (t * Ast.typ_desc) =
+let _scheme_to_typ t (s : scheme) : (t * Ast.typ) =
   match s with
-  | Mono_typ typ_desc -> (t, typ_desc)
-  | Poly_typ (ty_params, typ_desc) ->
+  | Mono_typ typ -> (t, typ)
+  | Poly_typ (ty_params, typ) ->
     let t, substs = List.fold_left
         (fun (t, map) tyvar_param ->
            let t, tv_name = _get_new_tyvar t in
@@ -51,17 +50,17 @@ let _scheme_to_typ_desc t (s : scheme) : (t * Ast.typ_desc) =
         (t, Map.empty String.compare)
         ty_params
     in
-    let typ_desc = _apply_substs_to_typ_desc substs typ_desc in
-    (t, typ_desc)
+    let typ = _apply_substs_to_typ substs typ in
+    (t, typ)
 ;;
 
 let _update_envs_with_substs t : t =
   let _subst_scheme (schm : scheme): scheme =
     match schm with
-    | Mono_typ typ_desc -> Mono_typ (Substs.apply_to_typ_desc t.substs typ_desc)
-    | Poly_typ (ty_params, typ_desc) ->
+    | Mono_typ typ -> Mono_typ (Substs.apply_to_typ t.substs typ)
+    | Poly_typ (ty_params, typ) ->
       let substituted =
-        Substs.apply_to_typ_desc_exclude t.substs typ_desc ty_params
+        Substs.apply_to_typ_exclude t.substs typ ty_params
       in Poly_typ (ty_params, substituted)
   in
   let cur_var_env = Map.map _subst_scheme t.cur_var_env in
@@ -103,13 +102,13 @@ let close_scope t =
 
 
 let add_type t name typ =
-  let typ = Substs.apply_to_typ_desc t.substs typ in (* INVARIANT (A) *)
+  let typ = Substs.apply_to_typ t.substs typ in (* INVARIANT (A) *)
   let cur_var_env = Map.add name (Mono_typ typ) t.cur_var_env in
   { t with cur_var_env }
 ;;
 
 let get_type t name span =
-  let rec go (scopes : (string, scheme) Map.t list) : (t * Ast.typ_desc) =
+  let rec go (scopes : (string, scheme) Map.t list) : (t * Ast.typ) =
     match scopes with
     | [] -> 
       let err = Errors.Typer_unbound_var (name, span) in
@@ -120,7 +119,7 @@ let get_type t name span =
     | cur_scope::rest_scopes ->
       match Map.get name cur_scope with
       | None -> go rest_scopes
-      | Some schm -> _scheme_to_typ_desc t schm
+      | Some schm -> _scheme_to_typ t schm
   in
   go (t.cur_var_env::t.prev_var_envs)
 ;;
@@ -129,12 +128,12 @@ let get_type t name span =
 (* automatically catch and accumulate errors *)
 let unify t expect actual actual_span =
   let substs, err_opt = Substs.unify t.substs expect actual in
-  let actual = Substs.apply_to_typ_desc substs actual in
+  let actual = Substs.apply_to_typ substs actual in
   let t = { t with substs } in
   match err_opt with
   | None -> let t = _update_envs_with_substs t in (t, actual)
   | Some err ->
-    let expect = Substs.apply_to_typ_desc substs expect in
+    let expect = Substs.apply_to_typ substs expect in
     let err = match err with
       | Unify_mismatch ->
         Errors.Typer_type_mismatch (expect, actual, actual_span)
@@ -170,13 +169,13 @@ let unify_apply t func_typ func_span arg_typ_span_pairs =
          let t, _ = unify t expect_typ actual_typ actual_span in t)
       t (List.combine general_arg_typs arg_typ_span_pairs)
   in
-  let out_ty = Substs.apply_to_typ_desc t.substs out_ty in
+  let out_ty = Substs.apply_to_typ t.substs out_ty in
   (t, out_ty)
 ;;
 
 let _get_binop_typ (* returns the type of lhs, rhs, and output for [binop] *)
     t (binop : Ast.binary_op)
-  : (t * Ast.typ_desc * Ast.typ_desc * Ast.typ_desc) =
+  : (t * Ast.typ * Ast.typ * Ast.typ) =
   match binop with
   | Binop_add | Binop_sub | Binop_mul ->
     t, Builtin_types.int_typ, Builtin_types.int_typ, Builtin_types.int_typ
@@ -193,28 +192,28 @@ let unify_binop t binop lhs_typ lhs_span rhs_typ rhs_span =
   let (t, lhs_expect, rhs_expect, out_ty) = _get_binop_typ t binop in
   let (t, _) = unify t lhs_expect lhs_typ lhs_span in
   let (t, _) = unify t rhs_expect rhs_typ rhs_span in
-  let out_ty = Substs.apply_to_typ_desc t.substs out_ty in
+  let out_ty = Substs.apply_to_typ t.substs out_ty in
   (t, out_ty)
 ;;
 
 
 
 (* Some helpers for computing free type variables *)
-let rec _add_fvs_in_typ_desc (s : string Set.t) (desc : Ast.typ_desc)
+let rec _add_fvs_in_typ (s : string Set.t) (desc : Ast.typ)
   : string Set.t =
   match desc with
   | Typ_const _ | Typ_var None -> s
   | Typ_var (Some tv) -> Set.add tv s
   | Typ_arrow (in_typ, out_typ) ->
-    let s = _add_fvs_in_typ_desc s in_typ in
-    _add_fvs_in_typ_desc s out_typ
+    let s = _add_fvs_in_typ s in_typ in
+    _add_fvs_in_typ s out_typ
 ;;
 
 let _add_fvs_in_scheme (s : string Set.t) (schm : scheme) : string Set.t =
   match schm with
-  | Mono_typ typ_desc -> _add_fvs_in_typ_desc s typ_desc
-  | Poly_typ (ty_params, typ_desc) ->
-    let fvs = _add_fvs_in_typ_desc s typ_desc in
+  | Mono_typ typ -> _add_fvs_in_typ s typ
+  | Poly_typ (ty_params, typ) ->
+    let fvs = _add_fvs_in_typ s typ in
     List.fold_right Set.remove ty_params fvs
 ;;
 
@@ -228,14 +227,14 @@ let _add_fvs_in_var_env (s : string Set.t) (var_env : (string, scheme) Map.t)
 ;;
 
 (* A helper for generalize 1 name in var_env *)
-let _generalize_typ_desc (typ_desc : Ast.typ_desc) (fvs_in_var_env : string Set.t)
+let _generalize_typ (typ : Ast.typ) (fvs_in_var_env : string Set.t)
   : scheme =
   let fvs = Set.empty String.compare in
-  let fvs = _add_fvs_in_typ_desc fvs typ_desc in
+  let fvs = _add_fvs_in_typ fvs typ in
   let fvs = Set.diff fvs fvs_in_var_env in
   let free_tyvars = Set.to_list fvs in
   (* INVARIANTS are preserved since we are adding more ty_params *)
-  Poly_typ (free_tyvars, typ_desc)
+  Poly_typ (free_tyvars, typ)
 ;;
 
 let generalize t names =
@@ -254,13 +253,13 @@ let generalize t names =
          failwith "[Typer_ctx.generalize] can't generalize name unbound in current scope"
        | Some (Poly_typ _) ->
          failwith "[Typer_ctx.generalize] can't generalize same name multiple times"
-       | Some (Mono_typ typ_desc) ->
-         let generalized = _generalize_typ_desc typ_desc fvs_in_var_env in
+       | Some (Mono_typ typ) ->
+         let generalized = _generalize_typ typ fvs_in_var_env in
          { t with cur_var_env = Map.add name generalized t.cur_var_env })
     t names
 ;;
 
 
-let update_typ_desc t desc =
-  Substs.apply_to_typ_desc t.substs desc
+let update_typ t desc =
+  Substs.apply_to_typ t.substs desc
 ;;

@@ -42,10 +42,10 @@ type ast_interp_error =
 type typer_error =
   | Typer_unbound_var of string * Span.t
         (* the unbound variable's name and span *)
-  | Typer_type_mismatch of Ast.typ_desc * Ast.typ_desc * Span.t
+  | Typer_type_mismatch of Ast.typ * Ast.typ * Span.t
         (* expected type, actual type, span of the faulty expression *)
   | Typer_illegal_letrec_rhs of Span.t
         (* where the illegal rhs expr is *)
   | Typer_tyvar_occurs of
-      Ast.typ_desc * Ast.typ_desc * Span.t * string * Ast.typ_desc
-        (* expect, actual, actual_span, tyvar, typ_desc that tyvar occurs in *)
+      Ast.typ * Ast.typ * Span.t * string * Ast.typ
+        (* expect, actual, actual_span, tyvar, the type that tyvar occurs in *)

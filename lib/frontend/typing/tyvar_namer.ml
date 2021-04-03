@@ -15,15 +15,15 @@ let _gen_new_tyvar_name t : (t * string) =
   (t, name)
 ;;
 
-let gen_new_tyvar t : (t * Ast.typ_desc) =
+let gen_new_tyvar t : (t * Ast.typ) =
   let t, name = _gen_new_tyvar_name t in
   let tyvar = Ast.Typ_var (Some name) in
   (t, tyvar)
 ;;
 
 
-let rec _rename_tyvars_in_typ_desc t (tv_map : (string, string) Map.t)
-    (desc : Ast.typ_desc) : (t * (string, string) Map.t * Ast.typ_desc) =
+let rec _rename_tyvars_in_typ t (tv_map : (string, string) Map.t)
+    (desc : Ast.typ) : (t * (string, string) Map.t * Ast.typ) =
   match desc with
   | Typ_const _ -> (t, tv_map, desc)
   | Typ_var None -> (* [_] becomes a unique new tyvar *)
@@ -42,8 +42,8 @@ let rec _rename_tyvars_in_typ_desc t (tv_map : (string, string) Map.t)
         (t, tv_map, desc)
     end
   | Typ_arrow (in_typ, out_typ) ->
-    let t, tv_map, in_typ = _rename_tyvars_in_typ_desc t tv_map in_typ in
-    let t, tv_map, out_typ = _rename_tyvars_in_typ_desc t tv_map out_typ in
+    let t, tv_map, in_typ = _rename_tyvars_in_typ t tv_map in_typ in
+    let t, tv_map, out_typ = _rename_tyvars_in_typ t tv_map out_typ in
     let desc = Ast.Typ_arrow (in_typ, out_typ) in
     (t, tv_map, desc)
 ;;
@@ -53,12 +53,10 @@ let _rename_tyvars_in_opt_typed_var t (tv_map : (string, string) Map.t)
   let t, typ, tv_map = match otv.typ with
     | None -> (* [x] becomes [(x : _)] *)
       let desc = Ast.Typ_var None in
-      let t, tv_map, typ_desc = _rename_tyvars_in_typ_desc t tv_map desc in
-      let typ = { Ast.typ_desc; typ_span = Span.dummy } in
+      let t, tv_map, typ = _rename_tyvars_in_typ t tv_map desc in
       (t, typ, tv_map)
     | Some typ -> 
-      let t, tv_map, typ_desc = _rename_tyvars_in_typ_desc t tv_map typ.typ_desc in
-      let typ = { typ with Ast.typ_desc; } in
+      let t, tv_map, typ = _rename_tyvars_in_typ t tv_map typ in
       (t, typ, tv_map)
   in
   let otv = { otv with typ = Some typ } in

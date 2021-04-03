@@ -13,11 +13,11 @@ let tests = OUnit2.(>:::) "substs_test" [
         (* X -> Y ==> int -> int*)
         let ty3 = Ast.Typ_arrow (Ast.Typ_var (Some "X"), Ast.Typ_var (Some "Y")) in
         OUnit2.assert_equal
-          (Substs.apply_to_typ_desc substs ty3)
+          (Substs.apply_to_typ substs ty3)
           (Ast.Typ_arrow (Ast.Typ_const "int", Ast.Typ_const "int"));
         (* A -> bool ==> A -> bool *)
         let ty4 = Ast.Typ_arrow (Ast.Typ_var (Some "A"), Ast.Typ_const "bool") in
-        OUnit2.assert_equal (Substs.apply_to_typ_desc substs ty4) ty4;
+        OUnit2.assert_equal (Substs.apply_to_typ substs ty4) ty4;
       );
 
     OUnit2.(>::) "test_unify_err" (fun _ ->
@@ -43,8 +43,8 @@ let tests = OUnit2.(>:::) "substs_test" [
         (* empty substitution has no effect *)
         let ty1 = Ast.Typ_arrow (Ast.Typ_var (Some "X"), Ast.Typ_const "int") in
         let ty2 = Ast.Typ_arrow (Ast.Typ_const "int", Ast.Typ_var (Some "Y")) in
-        OUnit2.assert_equal (Substs.apply_to_typ_desc substs ty1) ty1;
-        OUnit2.assert_equal (Substs.apply_to_typ_desc substs ty2) ty2;
+        OUnit2.assert_equal (Substs.apply_to_typ substs ty1) ty1;
+        OUnit2.assert_equal (Substs.apply_to_typ substs ty2) ty2;
         (* [X -> int = int -> Y], [Z = bool] *)
         let substs, opt_err = Substs.unify substs ty1 ty2 in
         OUnit2.assert_equal None opt_err;
@@ -57,7 +57,7 @@ let tests = OUnit2.(>:::) "substs_test" [
         let ty5 = Ast.Typ_arrow (ty3, ty4) in
         let to_ignore = ["X"; "Z"] in
         OUnit2.assert_equal
-          (Substs.apply_to_typ_desc_exclude substs ty5 to_ignore)
+          (Substs.apply_to_typ_exclude substs ty5 to_ignore)
           (Ast.Typ_arrow
              (ty3, Ast.Typ_arrow (Ast.Typ_const "int", Ast.Typ_var (Some "Z"))));
       );
