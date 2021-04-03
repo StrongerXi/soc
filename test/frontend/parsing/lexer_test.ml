@@ -11,7 +11,7 @@ let _lex_all_tokens (lexer : Lexer.t) : Token.t list =
 
 (** [filename] can assume CWD is where this file is *)
 let _get_full_path (filename : string) : string =
-  String.append "../../../test/frontend/lexer-resources/" filename
+  String.append "../../../test/frontend/parsing/lexer-resources/" filename
 ;;
 
 let _create_tok (* For convenience *)
