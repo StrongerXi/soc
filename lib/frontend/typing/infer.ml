@@ -280,6 +280,7 @@ let infer_struct strc =
   let ctx = Infer_ctx.create tv_namer in
   let (ctx, strc) = _infer_struct ctx strc in
   let strc = _update_tyvars_in_struct ctx strc in
+  Io.println (Frontend_pp.pp_ast_structure strc);
   match Infer_ctx.get_errors ctx with
   | [] -> Ok strc
   | errs -> Error errs
