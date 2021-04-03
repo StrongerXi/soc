@@ -19,9 +19,9 @@ let _check_infer_struct (filepath_no_suffix : string) : unit =
   let filepath = String.append filepath_no_suffix ".soml" in
   let ast = _parse_ast_exn filepath in
   let result =
-    match Infer.infer_struct ast with
+    match Typer.type_struct ast with
     | Error errs ->
-      String.join_with (List.map Frontend_pp.pp_infer_error errs) "\n"
+      String.join_with (List.map Frontend_pp.pp_typer_error errs) "\n"
     | Ok ast ->
       Frontend_pp.pp_ast_structure ast
   in

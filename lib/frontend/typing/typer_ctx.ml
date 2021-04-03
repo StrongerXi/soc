@@ -13,7 +13,7 @@ type t =
   { cur_typ_env   : (string, scheme) Map.t        (* var name to scheme *)
   ; prev_typ_envs : (string, scheme) Map.t list   (* previous scopes *)
   ; substs        : Substs.t
-  ; rev_errs      : Errors.infer_error list
+  ; rev_errs      : Errors.typer_error list
   ; tv_namer      : Tyvar_namer.t
   }
 
@@ -96,7 +96,7 @@ let open_scope t =
 
 let close_scope t =
   match t.prev_typ_envs with
-  | [] -> failwith "[Infer_ctx.close_scope] cannot close top level scope"
+  | [] -> failwith "[Typer_ctx.close_scope] cannot close top level scope"
   | last::rest ->
     { t with cur_typ_env = last; prev_typ_envs = rest }
 ;;
@@ -112,7 +112,7 @@ let get_type t name span =
   let rec go (scopes : (string, scheme) Map.t list) : (t * Ast.typ_desc) =
     match scopes with
     | [] -> 
-      let err = Errors.Infer_unbound_var (name, span) in
+      let err = Errors.Typer_unbound_var (name, span) in
       let t = add_error t err in
       let t, tyvar = _get_new_tyvar t in
       let t = add_type t name tyvar in
@@ -137,9 +137,9 @@ let unify t expect actual actual_span =
     let expect = Substs.apply_to_typ_desc substs expect in
     let err = match err with
       | Unify_mismatch ->
-        Errors.Infer_type_mismatch (expect, actual, actual_span)
+        Errors.Typer_type_mismatch (expect, actual, actual_span)
       | Unify_occurs (tv, occurree) ->
-        Errors.Infer_tyvar_occurs (expect, actual, actual_span, tv, occurree)
+        Errors.Typer_tyvar_occurs (expect, actual, actual_span, tv, occurree)
     in
     (* update types based on the information gathered before mismatch *)
     let t = { t with rev_errs = err::t.rev_errs } in
@@ -251,9 +251,9 @@ let generalize t names =
     (fun t name ->
        match Map.get name t.cur_typ_env with
        | None ->
-         failwith "[Infer_ctx.generalize] can't generalize name unbound in current scope"
+         failwith "[Typer_ctx.generalize] can't generalize name unbound in current scope"
        | Some (Poly_typ _) ->
-         failwith "[Infer_ctx.generalize] can't generalize same name multiple times"
+         failwith "[Typer_ctx.generalize] can't generalize same name multiple times"
        | Some (Mono_typ typ_desc) ->
          let generalized = _generalize_typ_desc typ_desc fvs_in_typ_env in
          { t with cur_typ_env = Map.add name generalized t.cur_typ_env })

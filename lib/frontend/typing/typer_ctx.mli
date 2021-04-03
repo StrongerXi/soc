@@ -11,11 +11,11 @@ type t
 val create : Tyvar_namer.t -> t
 
 (** [add_error t err] returns a new context that keeps track of [err] *)
-val add_error : t -> Errors.infer_error -> t
+val add_error : t -> Errors.typer_error -> t
 
 (** [get_errors t] returns a list of all errors obtained from [add_error],
     in ascending order of addition time *)
-val get_errors : t -> Errors.infer_error list
+val get_errors : t -> Errors.typer_error list
 
 (** [open_scope t] returns a context with a new scope opened *)
 val open_scope : t -> t

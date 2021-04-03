@@ -335,22 +335,22 @@ let pp_ast_structure (structure : Ast.structure) =
 ;;
 
 
-let pp_infer_error (err : Errors.infer_error) =
+let pp_typer_error (err : Errors.typer_error) =
   match err with
-  | Infer_unbound_var (name, span) ->
+  | Typer_unbound_var (name, span) ->
     String.join_with
-      [ "[Infer]: Unbound variable <"; name; "> at "; (_pp_span span); ]
+      [ "[Typer]: Unbound variable <"; name; "> at "; (_pp_span span); ]
       ""
-  | Infer_type_mismatch (expect, actual, span) ->
+  | Typer_type_mismatch (expect, actual, span) ->
     String.join_with
-      [ "[Infer]: Expected type <"; (pp_ast_typ_desc expect); ">";
+      [ "[Typer]: Expected type <"; (pp_ast_typ_desc expect); ">";
         " but got <"; (pp_ast_typ_desc actual); "> at "; (_pp_span span); ]
       ""
-  | Infer_illegal_letrec_rhs span ->
-    String.append "[Infer]: Illegal rhs of let rec binding at " (_pp_span span)
-  | Infer_tyvar_occurs (expect, actual, actual_span, tv_name, occurree) ->
+  | Typer_illegal_letrec_rhs span ->
+    String.append "[Typer]: Illegal rhs of let rec binding at " (_pp_span span)
+  | Typer_tyvar_occurs (expect, actual, actual_span, tv_name, occurree) ->
     String.join_with
-      [ "[Infer]: Expected type <"; (pp_ast_typ_desc expect); ">";
+      [ "[Typer]: Expected type <"; (pp_ast_typ_desc expect); ">";
         " but got <"; (pp_ast_typ_desc actual); "> at "; (_pp_span actual_span);
         ". The type variable '"; tv_name;
         " occurs within "; (pp_ast_typ_desc occurree) ]
