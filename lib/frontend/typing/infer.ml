@@ -4,6 +4,74 @@ open Pervasives
 type 'a ret = (Infer_ctx.t * Ast.typ_desc * 'a)
 
 
+(* The following group of functions update all type annotations using [ctx] *)
+let _update_tyvars_in_otv (ctx : Infer_ctx.t) (otv : Ast.opt_typed_var)
+  : Ast.opt_typed_var =
+  let name, span = otv.var.stuff, otv.var.span in
+  let _, typ_desc = Infer_ctx.get_type ctx name span in (* must be bound *)
+  let typ = { Ast.typ_desc; typ_span = Span.dummy } in
+  { otv with typ = Some typ }
+;;
+
+let rec _update_tyvars_in_expression (ctx : Infer_ctx.t) (expr : Ast.expression)
+  : Ast.expression =
+  let expr_desc = 
+    match expr.expr_desc with
+    | Exp_const _ | Exp_ident _ -> expr.expr_desc
+
+    | Exp_binop (binop, lhs, rhs) ->
+      let lhs = _update_tyvars_in_expression ctx lhs in
+      let rhs = _update_tyvars_in_expression ctx rhs in
+      Exp_binop (binop, lhs, rhs)
+
+    | Exp_if (cnd, thn, els) ->
+      let cnd = _update_tyvars_in_expression ctx cnd in
+      let thn = _update_tyvars_in_expression ctx thn in
+      let els = _update_tyvars_in_expression ctx els in
+      Exp_if (cnd, thn, els)
+
+    | Exp_apply (func, args) ->
+      let func = _update_tyvars_in_expression ctx func in
+      let args = List.map (_update_tyvars_in_expression ctx) args in
+      Exp_apply (func, args)
+
+    | Exp_fun (params, body) ->
+      let params = List.map (_update_tyvars_in_otv ctx) params in
+      let body = _update_tyvars_in_expression ctx body in
+      Exp_fun (params, body)
+
+    | Exp_let (rec_flag, bds, body) ->
+      let bds = List.map (_update_tyvars_in_let_binding ctx) bds in
+      let body = _update_tyvars_in_expression ctx body in
+      Exp_let (rec_flag, bds, body)
+  in
+  { expr with expr_desc }
+
+and _update_tyvars_in_let_binding (ctx : Infer_ctx.t) (binding : Ast.binding)
+  : Ast.binding =
+  let binding_lhs = _update_tyvars_in_otv ctx binding.binding_lhs in
+  let binding_rhs = _update_tyvars_in_expression ctx binding.binding_rhs in
+  { Ast.binding_lhs; binding_rhs }
+;;
+
+let _update_tyvars_in_struct_item (ctx : Infer_ctx.t) (item : Ast.struct_item)
+  : Ast.struct_item =
+  match item.struct_item_desc with
+  | Struct_eval expr ->
+    let expr = _update_tyvars_in_expression ctx expr in
+    { item with struct_item_desc = Struct_eval expr }
+
+  | Struct_bind (rec_flag, bds) ->
+    let bds = List.map (_update_tyvars_in_let_binding ctx) bds in
+    { item with struct_item_desc = Struct_bind (rec_flag, bds) }
+;;
+
+let _update_tyvars_in_struct (ctx : Infer_ctx.t) (structure : Ast.structure)
+  : Ast.structure =
+  List.map (_update_tyvars_in_struct_item ctx) structure
+;;
+
+
 let _is_legal_let_rhs (rec_flag : Ast.rec_flag) (rhs : Ast.expression) : bool =
   match rec_flag, rhs.expr_desc with
   | Nonrecursive, _ -> true
@@ -134,18 +202,8 @@ and _infer_let_bindings
          match rec_flag with
          | Recursive ->
            let ctx = Infer_ctx.generalize ctx name in
-           (* TODO an update binding abstraction, for here and [_infer_fun]
-            * update letrec at the end, since later generalization *)
-           let span = bd.binding_lhs.var.span in
-           let ctx, rhs_desc = Infer_ctx.get_type ctx name span in
-           let rhs_typ = { Ast.typ_desc = rhs_desc; typ_span = Span.dummy } in
-           let new_lhs = { bd.binding_lhs with typ = Some rhs_typ } in
-           let bd = { bd with binding_lhs = new_lhs } in
            (ctx, bd::rev_bds)
          | Nonrecursive -> 
-           let typ = { Ast.typ_desc = infer_typ; typ_span = Span.dummy } in
-           let new_lhs = { bd.binding_lhs with typ = Some typ } in
-           let bd = { bd with binding_lhs = new_lhs } in
            let ctx = Infer_ctx.add_type ctx name infer_typ in
            let ctx = Infer_ctx.generalize ctx name in
            (ctx, bd::rev_bds))
@@ -159,18 +217,13 @@ and _infer_fun_expr
   : Ast.expression ret =
   let ctx = _add_opt_typed_vars ctx params in
   let (ctx, body_typ, body) = _infer_expr ctx body in
-  let (ctx, params, ret_typ) = List.fold_right
-      (fun (otv : Ast.opt_typed_var) (ctx, params, ret_typ) ->
+  let (ctx, ret_typ) = List.fold_right
+      (fun (otv : Ast.opt_typed_var) (ctx, ret_typ) ->
          let name, span = otv.var.stuff, otv.var.span in
          let ctx, in_typ_desc = Infer_ctx.get_type ctx name span in
-         let in_typ = match otv.typ with
-           | None -> { Ast.typ_desc = in_typ_desc; typ_span = Span.dummy }
-           | Some in_typ -> { in_typ with typ_desc = in_typ_desc }
-         in
-         let otv = { otv with typ = Some in_typ } in
          let ret_typ = Ast.Typ_arrow (in_typ_desc, ret_typ) in
-         (ctx, otv::params, ret_typ))
-      params (ctx, [], body_typ)
+         (ctx, ret_typ))
+      params (ctx, body_typ)
   in
   let expr = { Ast.expr_desc = Exp_fun (params, body); expr_span } in
   (ctx, ret_typ, expr)
@@ -226,6 +279,7 @@ let infer_struct strc =
   let (tv_namer, strc) = Tyvar_namer.rename_struct Tyvar_namer.init strc in
   let ctx = Infer_ctx.create tv_namer in
   let (ctx, strc) = _infer_struct ctx strc in
+  let strc = _update_tyvars_in_struct ctx strc in
   match Infer_ctx.get_errors ctx with
   | [] -> Ok strc
   | errs -> Error errs
