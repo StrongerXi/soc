@@ -109,14 +109,8 @@ and _infer_let_bindings
           (Errors.Infer_illegal_letrec_rhs bd.binding_rhs.expr_span)
     in 
     let (ctx, rhs_typ, rhs) = _infer_expr ctx bd.binding_rhs in
-    let ctx = match rec_flag with
-      | Nonrecursive -> ctx
-      | Recursive ->
-        let name, span = bd.binding_lhs.var.stuff, bd.binding_lhs.var.span in
-        let ctx, lhs_typ = Infer_ctx.get_type ctx name span in
-        let ctx, _ = Infer_ctx.unify ctx lhs_typ rhs_typ rhs.expr_span in
-        ctx
-    in
+    let lhs_typ = _get_annotated_typ_desc bd.binding_lhs in
+    let ctx, _ = Infer_ctx.unify ctx lhs_typ rhs_typ rhs.expr_span in
     (ctx, ({ bd with binding_rhs = rhs }, rhs_typ))
   in
   let ctx = match rec_flag with
@@ -149,13 +143,10 @@ and _infer_let_bindings
            let bd = { bd with binding_lhs = new_lhs } in
            (ctx, bd::rev_bds)
          | Nonrecursive -> 
-           let rhs_span = bd.binding_rhs.expr_span in
-           let annot_typ = _get_annotated_typ_desc bd.binding_lhs in
-           let ctx, desc = Infer_ctx.unify ctx annot_typ infer_typ rhs_span in
-           let typ = { Ast.typ_desc = desc; typ_span = Span.dummy } in
+           let typ = { Ast.typ_desc = infer_typ; typ_span = Span.dummy } in
            let new_lhs = { bd.binding_lhs with typ = Some typ } in
            let bd = { bd with binding_lhs = new_lhs } in
-           let ctx = Infer_ctx.add_type ctx name desc in
+           let ctx = Infer_ctx.add_type ctx name infer_typ in
            let ctx = Infer_ctx.generalize ctx name in
            (ctx, bd::rev_bds))
         rev_bd_typ_pairs (ctx, [])
