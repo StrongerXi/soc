@@ -23,6 +23,8 @@ let tests = OUnit2.(>:::) "parser_test" [
     OUnit2.(>::) "test_integration" (fun _ ->
         let path = _get_full_path "parser_input_mixed" in
         _check_parser_pp_ast path;
+        let path = _get_full_path "parser_input_syntax_sugar" in
+        _check_parser_pp_ast path;
       );
   ]
 

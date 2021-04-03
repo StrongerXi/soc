@@ -1,0 +1,14 @@
+let x = 42
+;;
+
+let x : int = 42
+;;
+
+let (x : int) = 42
+;;
+
+let x (y : int) z = y + z
+;;
+
+let x (y : int) : int = y + z
+;;
