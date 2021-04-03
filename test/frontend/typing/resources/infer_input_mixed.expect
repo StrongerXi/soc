@@ -1,0 +1,9 @@
+[Infer]: Expected type <int -> ('X28 -> 'X27)> but got <int -> int> at <(21, 0)-(21, 0)>
+[Infer]: Illegal rhs of let rec binding at <(31, 12)-(31, 14)>
+[Infer]: Illegal rhs of let rec binding at <(34, 12)-(34, 16)>
+[Infer]: Expected type <'X36> but got <'X36 -> ('X35 -> 'X34)> at <(34, 14)-(34, 14)>. The type variable 'X36 occurs within 'X36 -> ('X35 -> 'X34)
+[Infer]: Expected type <'X36 -> (int -> 'X34)> but got <'X34> at <(34, 12)-(34, 16)>. The type variable 'X34 occurs within 'X36 -> (int -> 'X34)
+[Infer]: Expected type <int> but got <bool> at <(37, 8)-(37, 12)>
+[Infer]: Unbound variable <p> at <(42, 5)-(42, 5)>
+[Infer]: Expected type <int> but got <bool> at <(42, 9)-(42, 9)>
+[Infer]: Expected type <'X44 -> 'X43> but got <int> at <(42, 2)-(42, 2)>
