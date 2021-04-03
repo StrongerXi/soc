@@ -1,0 +1,15 @@
+let x = 42
+;;
+
+let (x : int) = 42
+;;
+
+let (x : int) = 42
+;;
+
+let (x : int -> _ -> _) = (fun (y : int) z -> y + z)
+;;
+
+let (x : int -> int) = (fun (y : int) -> y + z)
+;;
+

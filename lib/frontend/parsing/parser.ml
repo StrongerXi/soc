@@ -143,6 +143,15 @@ let rec _parse_opt_typed_var (s : _tok_stream) : Ast.opt_typed_var =
   | _ -> _error_unexpected_token tok expected
 ;;
 
+let rec _parse_opt_typed_vars (s : _tok_stream)
+  : Ast.opt_typed_var list =
+  match (_peek_token_exn s []).token_desc with
+  | Lparen | DecapIdent _ ->
+    let otv = _parse_opt_typed_var s in
+    otv::(_parse_opt_typed_vars s)
+  | _ -> []
+;;
+
 
 let rec _parse_expr (s : _tok_stream) : Ast.expression =
   let tok = _peek_token_exn s [Let; If; Fun] in
@@ -153,17 +162,11 @@ let rec _parse_expr (s : _tok_stream) : Ast.expression =
   | _ -> _parse_logical_or_expr s
 
 and _parse_fun_expr (s : _tok_stream) : Ast.expression =
-  let rec _parse_opt_typed_vars (rev_vars : Ast.opt_typed_var list) =
-    match (_peek_token_exn s []).token_desc with
-    | Rarrow -> List.rev rev_vars
-    | _ ->
-      let var = _parse_opt_typed_var s in
-      _parse_opt_typed_vars (var::rev_vars)
-  in
   let fun_tok = _get_next_token_expect s Fun in
-  let vars = _parse_opt_typed_vars [] in _skip_next_token_expect s Rarrow;
+  let otvs = _parse_opt_typed_vars s in
+  _skip_next_token_expect s Rarrow;
   let body_expr = _parse_expr s in
-  { Ast.expr_desc = Exp_fun (vars, body_expr);
+  { Ast.expr_desc = Exp_fun (otvs, body_expr);
     expr_span = (Span.merge fun_tok.token_span body_expr.expr_span) }
 
 and _parse_let_expr (s : _tok_stream) : Ast.expression =
@@ -181,18 +184,13 @@ and _parse_let_cont_on_body (s : _tok_stream) (* starting from [In] token *)
 
 and _parse_let_bindings (* returns the span of rhs in last binding (at least 1) *)
     (s : _tok_stream) : (Ast.binding list * Ast.rec_flag * Span.t) =
-  let parse_one_binding () =
-    let binding_lhs = _parse_opt_typed_var s in _skip_next_token_expect s Equal;
-    let binding_rhs = _parse_expr s in
-    { Ast.binding_lhs; binding_rhs }
-  in
   let parse_rec_flag () : Ast.rec_flag =
     match (_peek_token_exn s []).token_desc with
     | Rec -> s.skip (); Ast.Recursive
     | _ -> Ast.Nonrecursive
   in
   let rec parse_bindings rev_bindings =  (* assume there's 1 more binding *)
-    let last_binding = parse_one_binding () in
+    let last_binding = _parse_one_let_binding s in
     let rev_bindings = last_binding::rev_bindings in
     match s.peek () with
     | Some { token_desc = And; _ } -> s.skip (); parse_bindings rev_bindings
@@ -202,6 +200,58 @@ and _parse_let_bindings (* returns the span of rhs in last binding (at least 1) 
   let rec_flag = parse_rec_flag () in
   let bindings, last_rhs_span = parse_bindings [] in
   (bindings, rec_flag, last_rhs_span)
+
+and _parse_one_let_binding (s : _tok_stream) : Ast.binding =
+  let _parse_ident_or_otv s : (string, Ast.opt_typed_var) result =
+    match (_peek_token_exn s []).token_desc with
+    | DecapIdent name -> s.skip (); Ok name
+    | _ -> Error (_parse_opt_typed_var s)
+  in
+  let _parse_cont_on_non_func_rhs s (otv : Ast.opt_typed_var) : Ast.binding =
+    _skip_next_token_expect s Equal;
+    let binding_rhs = _parse_expr s in
+    { Ast.binding_lhs = otv; binding_rhs }
+  in
+  (* Handle syntax desugaring
+   * let f (x : int) y : bool = e 
+   * --->
+   * let (f : int -> _ -> bool) = (fun (x : int) y -> e) *)
+  let _parse_cont_on_func_args s (func_name : string) : Ast.binding =
+    let arg_otvs = _parse_opt_typed_vars s in
+    let arg_typs =
+      List.map (fun (otv : Ast.opt_typed_var) ->
+          Option.value otv.typ (Ast.Typ_var None))
+        arg_otvs
+    in
+    let expected = [Token.Colon; Equal] in
+    let tok = _peek_token_exn s expected in
+    let ret_typ =
+      match tok.token_desc with
+      | Equal -> Ast.Typ_var None 
+      | Colon -> s.skip (); _parse_typ s
+      | _ -> _error_unexpected_token tok expected
+    in
+    _skip_next_token_expect s Equal;
+    let func_typ = List.fold_right
+        (fun in_typ ret_typ ->
+           Ast.Typ_arrow (in_typ, ret_typ))
+        arg_typs ret_typ
+    in
+    let func_body = _parse_expr s in
+    let func_expr = { Ast.expr_desc = Exp_fun (arg_otvs, func_body)
+                    ; expr_span = func_body.expr_span } in
+    let binding_lhs = { Ast.var = func_name; typ = Some func_typ } in
+    { Ast.binding_lhs; binding_rhs = func_expr }
+  in
+  match _parse_ident_or_otv s with
+  | Error otv -> _parse_cont_on_non_func_rhs s otv
+  | Ok ident ->
+    match (_peek_token_exn s []).token_desc with
+    | Equal -> _parse_cont_on_non_func_rhs s { Ast.var = ident; typ = None }
+    | Colon -> s.skip ();
+      let otv = { Ast.var = ident; typ = Some (_parse_typ s) } in
+      _parse_cont_on_non_func_rhs s otv
+    | _ -> _parse_cont_on_func_args s ident
 
 and _parse_if_expr (s : _tok_stream) : Ast.expression =
   let if_tok = _get_next_token_expect s If in
