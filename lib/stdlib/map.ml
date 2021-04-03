@@ -71,6 +71,11 @@ let fold f t a =
   List.fold_right f unique_vals a
 ;;
 
+let foldi f t acc =
+  let unique_vals = List.remove_dups (_equal_by_cmp t.cmp) t.rep in
+  List.fold_left (fun acc (k, v) -> f k v acc) acc unique_vals
+;;
+
 let to_string f g t =
   let pair_to_str (k, v) =
     String.join_with ["("; (f k); ", "; (g v); ")"] ""

@@ -37,9 +37,13 @@ val map : ('v -> 'b) -> ('k, 'v) t -> ('k, 'b) t
     the value becomes [f k v] *)
 val mapi : ('k -> 'v -> 'b) -> ('k, 'v) t -> ('k, 'b) t
 
+(** [fold f t a] is (f vN ... (f v1 a)...), where v1 ... vN are all the value
+    in [t] *)
+val fold : ('v -> 'b -> 'b) -> ('k, 'v) t -> 'b -> 'b
+
 (** [fold f t a] is (f kN vN ... (f k1 v1 a)...), where (k1, v1) ... (kN vN) are
     all the keys value pairs in [t] *)
-val fold : ('v -> 'b -> 'b) -> ('k, 'v) t -> 'b -> 'b
+val foldi : ('k -> 'v -> 'b -> 'b) -> ('k, 'v) t -> 'b -> 'b
 
 (** [to_string f g t] returns a string representation of the [t], using [f] to
     format individual keys, and [g] for elements. *)
