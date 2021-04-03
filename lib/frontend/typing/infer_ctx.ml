@@ -259,3 +259,8 @@ let generalize t names =
          { t with cur_typ_env = Map.add name generalized t.cur_typ_env })
     t names
 ;;
+
+
+let update_typ_desc t desc =
+  Substs.apply_to_typ_desc t.substs desc
+;;

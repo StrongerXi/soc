@@ -4,11 +4,21 @@ open Pervasives
 type 'a ret = (Infer_ctx.t * Ast.typ_desc * 'a)
 
 
+let _get_annotated_typ_desc (otv : Ast.opt_typed_var) : Ast.typ_desc =
+  match otv.typ with
+  | None ->  
+    let msg = "[Infer._get_annotated_typ_desc]" in
+    let msg = String.append msg " all variables should have type annotations" in
+    failwith msg
+  | Some typ -> typ.typ_desc
+;;
+
+
 (* The following group of functions update all type annotations using [ctx] *)
 let _update_tyvars_in_otv (ctx : Infer_ctx.t) (otv : Ast.opt_typed_var)
   : Ast.opt_typed_var =
-  let name, span = otv.var.stuff, otv.var.span in
-  let _, typ_desc = Infer_ctx.get_type ctx name span in (* must be bound *)
+  let typ_desc = _get_annotated_typ_desc otv in
+  let typ_desc = Infer_ctx.update_typ_desc ctx typ_desc in
   let typ = { Ast.typ_desc; typ_span = Span.dummy } in
   { otv with typ = Some typ }
 ;;
@@ -77,15 +87,6 @@ let _is_legal_let_rhs (rec_flag : Ast.rec_flag) (rhs : Ast.expression) : bool =
   | Nonrecursive, _ -> true
   | Recursive, (Exp_const _ | Exp_fun _) -> true
   | _ -> false
-;;
-
-let _get_annotated_typ_desc (otv : Ast.opt_typed_var) : Ast.typ_desc =
-  match otv.typ with
-  | None ->  
-    let msg = "[Infer._get_annotated_typ_desc]" in
-    let msg = String.append msg " all variables should have type annotations" in
-    failwith msg
-  | Some typ -> typ.typ_desc
 ;;
 
 let _add_opt_typed_vars (ctx : Infer_ctx.t) (otvs : Ast.opt_typed_var list)

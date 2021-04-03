@@ -58,3 +58,8 @@ val unify_binop : t
     they might behave as polymorphic types.
     ASSUME [names] are bound in current scope of [t], not previous ones. *)
 val generalize : t -> string list -> t
+
+
+(** Some old typ_desc might be out of synch now (after some unification calls)
+    since they are immutable. This provides a way to "synch them up". *)
+val update_typ_desc : t -> Ast.typ_desc -> Ast.typ_desc
