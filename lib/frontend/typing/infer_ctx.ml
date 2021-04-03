@@ -7,6 +7,13 @@ type scheme = (* a variation of type scheme from Hindley-Milner *)
       (* tyvar params and body of the type scheme *)
 
 
+(* INVARIANTS:
+ * A. keys in [t.substs] never appear in values; graphically, this simulates a
+ *    union-find structure, with tyvars being intermediate nodes, and typ_descs
+ *    being root nodes (could itself be a tyvar, but can't appear in keys).
+ * B. keys in [t.substs] never appear in typ_desc of [t.typ_env] (unless the key
+ *    is one of tyvar params for the typ_desc); this means that types in the
+ *    environment are always updated with substitutions. *)
 type t =
   { typ_env  : (string, scheme) Map.t        (* var name to scheme or tyvar *)
   ; substs   : (string, Ast.typ_desc) Map.t  (* tyvar name to type *)
@@ -20,34 +27,27 @@ let _get_new_tyvar t =
   (t, tyvar)
 ;;
 
-let rec _map_typ_desc (* static map for each base case in [Ast.typ_desc] *)
-    (f : Ast.typ_desc -> Ast.typ_desc)
-    (desc : Ast.typ_desc) : Ast.typ_desc =
-  match desc with
-  | Typ_const _ -> f desc
-  | Typ_var _ -> f desc
-  | Typ_arrow (in_typ, out_typ) ->
-    let in_typ = _map_typ_desc f in_typ in
-    let out_typ = _map_typ_desc f out_typ in
-    Typ_arrow (in_typ, out_typ)
-;;
-
-let rec _subst_typ_desc
+(* ENSURE: (a) output doesn't contain keys of [substs] *)
+let rec _apply_substs_to_typ_desc
     (substs : (string, Ast.typ_desc) Map.t)  (desc : Ast.typ_desc)
   : Ast.typ_desc = 
-  match desc with (* TODO assume hitting non-tyvar is enough? *)
-  | Typ_const _ | Typ_arrow _ | Typ_var None -> desc
+  match desc with
+  | Typ_const _ | Typ_var None -> desc
+  | Typ_arrow (in_typ, out_typ) ->
+    let in_typ  = _apply_substs_to_typ_desc substs in_typ in
+    let out_typ = _apply_substs_to_typ_desc substs out_typ in
+    Typ_arrow (in_typ, out_typ)
   | Typ_var (Some tv_name) ->
-    match Map.get tv_name substs with
-    | None -> Ast.Typ_var (Some tv_name)
-    | Some desc -> _subst_typ_desc substs desc
+    let opt_desc = Map.get tv_name substs in (* Invariant (A) => (a) *)
+    Option.value opt_desc desc
 ;;
 
+(* replace each type param with unique tyvar, the source of polymorphism *)
 let _scheme_to_typ_desc t (s : scheme) : (t * Ast.typ_desc) =
   match s with
-  | Mono_typ typ_desc -> (t, _subst_typ_desc t.substs typ_desc)
+  | Mono_typ typ_desc -> (t, typ_desc)
   | Poly_typ (ty_params, typ_desc) ->
-    let t, (map : (string, Ast.typ_desc) Map.t) = List.fold_left
+    let t, substs = List.fold_left
         (fun (t, map) tyvar_param ->
            let t, tv_name = _get_new_tyvar t in
            let map = Map.add tyvar_param tv_name map in
@@ -55,43 +55,41 @@ let _scheme_to_typ_desc t (s : scheme) : (t * Ast.typ_desc) =
         (t, Map.empty String.compare)
         ty_params
     in
-    let f (desc : Ast.typ_desc) = match desc with
-      | Typ_const _ | Typ_arrow _ | Typ_var None -> desc
-      | Typ_var (Some tyvar) ->
-        match Map.get tyvar map with
-        | None -> desc
-        | Some desc -> desc
-    in
-    (t, _map_typ_desc f typ_desc)
+    let typ_desc = _apply_substs_to_typ_desc substs typ_desc in
+    (t, typ_desc)
 ;;
 
 
-let rec _apply_subst_to_typ_desc (tyvar : string) (typ : Ast.typ_desc)
-    (desc : Ast.typ_desc): Ast.typ_desc =
-  match desc with
-  | Typ_var (Some tv) when tv = tyvar -> typ
-  | Typ_const _ | Typ_var _ -> desc
-  | Typ_arrow (in_typ, out_typ) ->
-    let in_typ = _apply_subst_to_typ_desc tyvar typ in_typ in
-    let out_typ = _apply_subst_to_typ_desc tyvar typ out_typ in
-    Typ_arrow (in_typ, out_typ)
-;;
-
-let _apply_subst_to_scheme (tyvar : string) (typ : Ast.typ_desc)
-    (schm : scheme): scheme =
-  match schm with
-  | Mono_typ _ -> schm
-  | Poly_typ (ty_params, typ_desc) ->
-    if List.mem tyvar ty_params
-    then schm
-    else Poly_typ (ty_params, _apply_subst_to_typ_desc tyvar typ typ_desc)
-;;
-
-(* ASSUME [tyvar] and [typ] has been substituted into most specific form *)
-let _apply_subst t (tyvar : string) (typ : Ast.typ_desc) : t =
-  let substs = Map.map (_apply_subst_to_typ_desc tyvar typ) t.substs in
-  let typ_env = Map.map (_apply_subst_to_scheme tyvar typ) t.typ_env in
+(* ASSUME 
+ * 1. [tyvar] and [typ] has gone been applied to by [t.substs], i.e.,
+ *    (a). [tyvar] isn't a key of [t.substs] (['a : int] and ['a : bool] can't
+ *         both appear in a substitution set.
+ *    (b). [typ] doesn't contain keys of [t.substs]
+ * 2. [tyvar] doesn't occur in [typ]. *)
+let _add_subst t (tyvar : string) (typ : Ast.typ_desc) : t =
+  (* ENSURE (c). output doesn't contain [tyvar] *)
+  let rec _subst_typ_desc (desc : Ast.typ_desc): Ast.typ_desc =
+    match desc with
+    | Typ_var (Some tv) when tv = tyvar -> typ
+    | Typ_const _ | Typ_var _ -> desc
+    | Typ_arrow (in_typ, out_typ) ->
+      let in_typ = _subst_typ_desc in_typ in
+      let out_typ = _subst_typ_desc out_typ in
+      Typ_arrow (in_typ, out_typ)
+  in
+  (* ENSURE (d). typ_desc in output doesn't contain [tyvar],
+   *             unless [tyvar] ∈ [ty_params] *)
+  let _subst_scheme (schm : scheme): scheme =
+    match schm with
+    | Mono_typ typ_desc -> Mono_typ (_subst_typ_desc typ_desc)
+    | Poly_typ (ty_params, typ_desc) ->
+      if List.mem tyvar ty_params then schm (* ty_params are fixed *)
+      else Poly_typ (ty_params, _subst_typ_desc typ_desc)
+  in
+  let substs = Map.map _subst_typ_desc t.substs in
+  let typ_env = Map.map _subst_scheme t.typ_env in
   let substs = Map.add tyvar typ substs in
+  (* for invariants, (b) & (c) & (2) ==> (A); (b) & (d) & (2) ==> (B) *)
   { t with substs; typ_env }
 ;;
 
@@ -113,6 +111,7 @@ let get_errors t =
 ;;
 
 let add_type t name typ =
+  let typ = _apply_substs_to_typ_desc t.substs typ in
   let typ_env = Map.add name (Mono_typ typ) t.typ_env in
   { t with typ_env }
 ;;
@@ -149,8 +148,8 @@ let _unify_err t (err : _unify_error_reason) : 'a =
 
 (* ASSUME [expect] and [actual] has been substituted to most specific form *)
 let rec _unify t (expect : Ast.typ_desc) (actual : Ast.typ_desc) =
-  let expect = _subst_typ_desc t.substs expect in
-  let actual = _subst_typ_desc t.substs actual in
+  let expect = _apply_substs_to_typ_desc t.substs expect in
+  let actual = _apply_substs_to_typ_desc t.substs actual in
   match expect, actual with
   | Typ_var None, other | other, Typ_var None ->
     (t, other)
@@ -159,7 +158,7 @@ let rec _unify t (expect : Ast.typ_desc) (actual : Ast.typ_desc) =
   | Typ_var (Some tv), other | other, Typ_var (Some tv) ->
     if occurs tv other
     then _unify_err t (Unify_occurs (tv, other))
-    else _apply_subst t tv other, other
+    else _add_subst t tv other, other
   | Typ_const ex, Typ_const ac when ex = ac -> (t, actual)
   | Typ_arrow (ex_in, ex_out), Typ_arrow (ac_in, ac_out) ->
     let t, in_typ = _unify t ex_in ac_in in
@@ -172,8 +171,8 @@ let rec _unify t (expect : Ast.typ_desc) (actual : Ast.typ_desc) =
 let unify t expect actual actual_span =
   try _unify t expect actual
   with Unify_error (t, err) ->
-    let expect = _subst_typ_desc t.substs expect in
-    let actual = _subst_typ_desc t.substs actual in
+    let expect = _apply_substs_to_typ_desc t.substs expect in
+    let actual = _apply_substs_to_typ_desc t.substs actual in
     let err = match err with
       | Unify_mismatch ->
         Errors.Infer_type_mismatch (expect, actual, actual_span)
@@ -209,7 +208,7 @@ let unify_apply t func_typ func_span arg_typ_span_pairs =
          let t, _ = unify t expect_typ actual_typ actual_span in t)
       t (List.combine general_arg_typs arg_typ_span_pairs)
   in
-  let out_ty = _subst_typ_desc t.substs out_ty in
+  let out_ty = _apply_substs_to_typ_desc t.substs out_ty in
   (t, out_ty)
 ;;
 
@@ -232,7 +231,7 @@ let unify_binop t binop lhs_typ lhs_span rhs_typ rhs_span =
   let (t, lhs_expect, rhs_expect, out_ty) = _get_binop_typ t binop in
   let (t, _) = unify t lhs_expect lhs_typ lhs_span in
   let (t, _) = unify t rhs_expect rhs_typ rhs_span in
-  let out_ty = _subst_typ_desc t.substs out_ty in
+  let out_ty = _apply_substs_to_typ_desc t.substs out_ty in
   (t, out_ty)
 ;;
 
@@ -248,21 +247,20 @@ let rec _add_fv_in_typ_desc (s : string Set.t) (desc : Ast.typ_desc)
     _add_fv_in_typ_desc s out_typ
 ;;
 
-let _sub_fv_in_scheme t (s : string Set.t) (schm : scheme) : string Set.t =
+let _sub_fv_in_scheme (s : string Set.t) (schm : scheme) : string Set.t =
   match schm with
   | Mono_typ typ_desc ->
-    let typ_desc = _subst_typ_desc t.substs typ_desc in
     let fvs = _add_fv_in_typ_desc (Set.empty String.compare) typ_desc in
     Set.diff s fvs
-  | Poly_typ (ty_params, typ_desc) -> (* TODO need to subst typ_desc here? *)
+  | Poly_typ (ty_params, typ_desc) ->
     let fvs = _add_fv_in_typ_desc (Set.empty String.compare) typ_desc in
     let fvs = List.fold_right Set.remove ty_params fvs in
     Set.diff s fvs
 ;;
 
-let _sub_fv_in_typ_env t (s : string Set.t) (typ_env : (string, scheme) Map.t)
+let _sub_fv_in_typ_env (s : string Set.t) (typ_env : (string, scheme) Map.t)
   : string Set.t =
-  Map.fold (fun schm s -> _sub_fv_in_scheme t s schm) typ_env s
+  Map.fold (fun schm s -> _sub_fv_in_scheme s schm) typ_env s
 ;;
 
 let generalize t name =
@@ -271,12 +269,12 @@ let generalize t name =
   | Some (Poly_typ _) ->
     failwith "[Infer_ctx.generalize] can't generalize more than once"
   | Some (Mono_typ typ_desc) ->
-    let typ_desc = _subst_typ_desc t.substs typ_desc in
     let s = Set.empty String.compare in
     let s = _add_fv_in_typ_desc s typ_desc in
     let typ_env = Map.remove name t.typ_env in (* NOTE critical *)
-    let s = _sub_fv_in_typ_env t s typ_env in
+    let s = _sub_fv_in_typ_env s typ_env in
     let free_tyvars = Set.to_list s in
     let schm = Poly_typ (free_tyvars, typ_desc) in
+    (* INVARIANTS are preserved since we are adding more ty_params *)
     { t with typ_env = Map.add name schm typ_env }
 ;;
