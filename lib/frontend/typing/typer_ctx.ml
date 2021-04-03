@@ -10,8 +10,8 @@ type scheme = (* a variation of type scheme from Hindley-Milner *)
 (* INVARIANTS:
  * (A) The type environments are always updated with [t.substs] *)
 type t =
-  { cur_typ_env   : (string, scheme) Map.t        (* var name to scheme *)
-  ; prev_typ_envs : (string, scheme) Map.t list   (* previous scopes *)
+  { cur_var_env   : (string, scheme) Map.t        (* var name to scheme *)
+  ; prev_var_envs : (string, scheme) Map.t list   (* previous scopes *)
   ; substs        : Substs.t
   ; rev_errs      : Errors.typer_error list
   ; tv_namer      : Tyvar_namer.t
@@ -64,15 +64,15 @@ let _update_envs_with_substs t : t =
         Substs.apply_to_typ_desc_exclude t.substs typ_desc ty_params
       in Poly_typ (ty_params, substituted)
   in
-  let cur_typ_env = Map.map _subst_scheme t.cur_typ_env in
-  let prev_typ_envs = List.map (Map.map _subst_scheme) t.prev_typ_envs in
-  { t with cur_typ_env; prev_typ_envs }
+  let cur_var_env = Map.map _subst_scheme t.cur_var_env in
+  let prev_var_envs = List.map (Map.map _subst_scheme) t.prev_var_envs in
+  { t with cur_var_env; prev_var_envs }
 ;;
 
 
 let create tv_namer =
-  { cur_typ_env   = Map.empty String.compare
-  ; prev_typ_envs = []
+  { cur_var_env   = Map.empty String.compare
+  ; prev_var_envs = []
   ; substs        = Substs.empty
   ; rev_errs      = []
   ; tv_namer
@@ -90,22 +90,22 @@ let get_errors t =
 
 
 let open_scope t =
-  { t with cur_typ_env = Map.empty String.compare
-         ; prev_typ_envs = t.cur_typ_env::t.prev_typ_envs }
+  { t with cur_var_env = Map.empty String.compare
+         ; prev_var_envs = t.cur_var_env::t.prev_var_envs }
 ;;
 
 let close_scope t =
-  match t.prev_typ_envs with
+  match t.prev_var_envs with
   | [] -> failwith "[Typer_ctx.close_scope] cannot close top level scope"
   | last::rest ->
-    { t with cur_typ_env = last; prev_typ_envs = rest }
+    { t with cur_var_env = last; prev_var_envs = rest }
 ;;
 
 
 let add_type t name typ =
   let typ = Substs.apply_to_typ_desc t.substs typ in (* INVARIANT (A) *)
-  let cur_typ_env = Map.add name (Mono_typ typ) t.cur_typ_env in
-  { t with cur_typ_env }
+  let cur_var_env = Map.add name (Mono_typ typ) t.cur_var_env in
+  { t with cur_var_env }
 ;;
 
 let get_type t name span =
@@ -122,7 +122,7 @@ let get_type t name span =
       | None -> go rest_scopes
       | Some schm -> _scheme_to_typ_desc t schm
   in
-  go (t.cur_typ_env::t.prev_typ_envs)
+  go (t.cur_var_env::t.prev_var_envs)
 ;;
 
 
@@ -219,20 +219,20 @@ let _add_fvs_in_scheme (s : string Set.t) (schm : scheme) : string Set.t =
 ;;
 
 (* skip names in [names_to_ignore] *)
-let _add_fvs_in_typ_env (s : string Set.t) (typ_env : (string, scheme) Map.t)
+let _add_fvs_in_var_env (s : string Set.t) (var_env : (string, scheme) Map.t)
     (names_to_ignore : string Set.t) : string Set.t =
   Map.foldi (fun name schm s ->
       if Set.mem name names_to_ignore then s
       else _add_fvs_in_scheme s schm)
-    typ_env s
+    var_env s
 ;;
 
-(* A helper for generalize 1 name in typ_env *)
-let _generalize_typ_desc (typ_desc : Ast.typ_desc) (fvs_in_typ_env : string Set.t)
+(* A helper for generalize 1 name in var_env *)
+let _generalize_typ_desc (typ_desc : Ast.typ_desc) (fvs_in_var_env : string Set.t)
   : scheme =
   let fvs = Set.empty String.compare in
   let fvs = _add_fvs_in_typ_desc fvs typ_desc in
-  let fvs = Set.diff fvs fvs_in_typ_env in
+  let fvs = Set.diff fvs fvs_in_var_env in
   let free_tyvars = Set.to_list fvs in
   (* INVARIANTS are preserved since we are adding more ty_params *)
   Poly_typ (free_tyvars, typ_desc)
@@ -242,21 +242,21 @@ let generalize t names =
   (* ignore the names themselves in context, since their tyvars are not free *)
   let names_to_ignore =
     List.fold_right Set.add names (Set.empty String.compare) in
-  let fvs_in_typ_env =
+  let fvs_in_var_env =
     List.fold_left
-      (fun s typ_env -> _add_fvs_in_typ_env s typ_env names_to_ignore)
-      (Set.empty String.compare) (t.cur_typ_env::t.prev_typ_envs)
+      (fun s var_env -> _add_fvs_in_var_env s var_env names_to_ignore)
+      (Set.empty String.compare) (t.cur_var_env::t.prev_var_envs)
   in
   List.fold_left
     (fun t name ->
-       match Map.get name t.cur_typ_env with
+       match Map.get name t.cur_var_env with
        | None ->
          failwith "[Typer_ctx.generalize] can't generalize name unbound in current scope"
        | Some (Poly_typ _) ->
          failwith "[Typer_ctx.generalize] can't generalize same name multiple times"
        | Some (Mono_typ typ_desc) ->
-         let generalized = _generalize_typ_desc typ_desc fvs_in_typ_env in
-         { t with cur_typ_env = Map.add name generalized t.cur_typ_env })
+         let generalized = _generalize_typ_desc typ_desc fvs_in_var_env in
+         { t with cur_var_env = Map.add name generalized t.cur_var_env })
     t names
 ;;
 
