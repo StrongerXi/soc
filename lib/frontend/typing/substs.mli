@@ -24,25 +24,25 @@ type t
 (** A bare minimum substitution set *)
 val empty : t
 
-(** [apply_to_typ_desc t desc] applies the current substitutions to [desc] and
-    return the resulting typ_desc, e.g.,
+(** [apply_to_typ t desc] applies the current substitutions to [desc] and
+    return the resulting typ, e.g.,
         { X1 = int -> X3; X2 = bool; X4 = int } applied to [X1 -> X3] yields
         [(int -> X3) -> X3]
     ENSURE: output can't be changed via [t] anymore (it's canonicalized)
    *)
-val apply_to_typ_desc : t -> Ast.typ_desc -> Ast.typ_desc
+val apply_to_typ : t -> Ast.typ -> Ast.typ
 
-(** Similar to [apply_to_typ_desc], but the won't apply substitutions whose lhs
+(** Similar to [apply_to_typ], but the won't apply substitutions whose lhs
     is in the given string list *)
-val apply_to_typ_desc_exclude : t -> Ast.typ_desc -> string list -> Ast.typ_desc
+val apply_to_typ_exclude : t -> Ast.typ -> string list -> Ast.typ
 
 
 (* [unify_error] is used to convey error encountered during a [unify] attempt *)
 type unify_error =
   | Unify_mismatch                        (* the 2 types fail to match *)
-  | Unify_occurs of string * Ast.typ_desc (* tyvar and where it occurs in *)
+  | Unify_occurs of string * Ast.typ (* tyvar and where it occurs in *)
 
 (** [unify t typ1 typ2] tries to add [typ1 = typ2] as a constraint to [t].
     Regardless of whether an error is encountered, always return a [t] that
     contains any progress made through this call *)
-val unify : t -> Ast.typ_desc -> Ast.typ_desc -> t * unify_error option
+val unify : t -> Ast.typ -> Ast.typ -> t * unify_error option

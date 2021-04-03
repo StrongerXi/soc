@@ -1,11 +1,5 @@
 open Pervasives
 
-(* Used for attaching span to any type *)
-type 'a span =
-  { stuff : 'a
-  ; span : Span.t
-  }
-
 
 type constant =
   | Const_Int of int
@@ -21,16 +15,11 @@ type binary_op =
   | Binop_less
 
 type typ =
-  { typ_desc : typ_desc
-  ; typ_span : Span.t
-  }
-
-and typ_desc =
   | Typ_const of string
       (* int, foobar, ... *)
   | Typ_var of string option
       (* 'a, 'b, ... [None] for _ *)
-  | Typ_arrow of typ_desc * typ_desc
+  | Typ_arrow of typ * typ
       (* int -> (int -> int) ... *)
 
 type rec_flag =
@@ -38,7 +27,7 @@ type rec_flag =
   | Recursive
 
 type opt_typed_var =
-  { var : string span
+  { var : string
   ; typ : typ option
   } (* x : int *)
 

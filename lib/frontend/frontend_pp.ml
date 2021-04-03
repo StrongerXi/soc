@@ -195,13 +195,13 @@ let pp_ast_interp_error (err : Errors.ast_interp_error) =
 ;;
 
 
-let _is_atomic_typ_desc (desc : Ast.typ_desc) : bool =
+let _is_atomic_typ_desc (desc : Ast.typ) : bool =
   match desc with
   | Typ_const _ | Typ_var _ -> true
   | _ -> false
 ;;
 
-let rec _pp_ast_typ_desc (p : printer) (desc : Ast.typ_desc) : unit =
+let rec _pp_ast_typ_desc (p : printer) (desc : Ast.typ) : unit =
   match desc with
   | Typ_const name -> _print_str p name;
   | Typ_var None -> _print_str p "_";
@@ -209,16 +209,18 @@ let rec _pp_ast_typ_desc (p : printer) (desc : Ast.typ_desc) : unit =
   | Typ_arrow (in_ty, out_ty) ->
     _pp_ast_typ_parens_on_non_atomic p in_ty;
     _print_str p " -> ";
-    _pp_ast_typ_parens_on_non_atomic p out_ty;
+    match out_ty with (* arrow is right associative *)
+    | Typ_arrow _ -> _pp_ast_typ_desc p out_ty;
+    | _ -> _pp_ast_typ_parens_on_non_atomic p out_ty;
 
-and _pp_ast_typ_parens_on_non_atomic (p : printer) (typ : Ast.typ_desc)
+and _pp_ast_typ_parens_on_non_atomic (p : printer) (typ : Ast.typ)
   : unit =
   if _is_atomic_typ_desc typ
   then _pp_ast_typ_desc p typ
   else (_print_str p "("; _pp_ast_typ_desc p typ; _print_str p ")");
 ;;
 
-let pp_ast_typ_desc (desc : Ast.typ_desc) =
+let pp_ast_typ (desc : Ast.typ) =
   let p = _create_printer () in
   _pp_ast_typ_desc p desc;
   p.buffer
@@ -241,6 +243,12 @@ let _is_atomic_expr (expr : Ast.expression) : bool =
   | _ -> false
 ;;
 
+let _may_fit_on_oneline (expr : Ast.expression) : bool =
+  match expr.expr_desc with
+  | Exp_if _ | Exp_let _ -> false
+  | Exp_const _ | Exp_ident _ | Exp_binop _ | Exp_fun _ | Exp_apply _ -> true
+;;
+
 let rec _pp_ast_expr (p : printer) (expr : Ast.expression) : unit =
   match expr.expr_desc with
   | Exp_const const -> _pp_ast_const p const
@@ -256,10 +264,13 @@ let rec _pp_ast_expr (p : printer) (expr : Ast.expression) : unit =
   | Exp_fun (args, body) ->
     _print_str p "(fun";
     List.iter (fun v -> _print_str p " "; _pp_ast_opt_typ_var p v;) args;
-    _println_str p " -> ";
-    _inc_space p 2; _pp_ast_expr p body; _dec_space p 2;
-    _print_newline p;
-    _println_str p ")";
+    _print_str p " -> ";
+    if _may_fit_on_oneline body
+    then _pp_ast_expr p body
+    else (_print_newline p;
+          _inc_space p 2; _pp_ast_expr p body; _dec_space p 2;
+          _print_newline p;);
+    _print_str p ")";
   | Exp_apply (func, args) ->
     _pp_ast_expr p func;
     List.iter (fun arg ->
@@ -302,17 +313,21 @@ and _pp_ast_let_bindings
 and _pp_ast_binding (p : printer) (binding : Ast.binding) : unit =
   _pp_ast_opt_typ_var p binding.binding_lhs;
   _print_str p " = ";
-  _pp_ast_expr p binding.binding_rhs;
+  if _may_fit_on_oneline binding.binding_rhs
+  then _pp_ast_expr p binding.binding_rhs
+  else
+    (_print_newline p;
+     _inc_space p 2; _pp_ast_expr p binding.binding_rhs; _dec_space p 2;)
 
-and _pp_ast_opt_typ_var (p : printer) (var : Ast.opt_typed_var) : unit =
-  match var.typ with
-  | None -> _print_str p var.var.stuff;
+and _pp_ast_opt_typ_var (p : printer) (otv : Ast.opt_typed_var) : unit =
+  match otv.typ with
+  | None -> _print_str p otv.var;
   | Some typ ->
     begin
       _print_str p "(";
-      _print_str p var.var.stuff;
+      _print_str p otv.var;
       _print_str p " : ";
-      _pp_ast_typ_desc p typ.typ_desc;
+      _pp_ast_typ_desc p typ;
       _print_str p ")";
     end
 ;;
@@ -324,6 +339,7 @@ let _pp_ast_struct_item (p : printer) (item : Ast.struct_item) : unit =
     _print_newline p; _print_newline p;
   | Struct_bind (rec_flag, bindings) -> 
     _pp_ast_let_bindings p rec_flag bindings;
+    _print_newline p;
     _println_str p ";;";
     _print_newline p;
 ;;
@@ -335,24 +351,24 @@ let pp_ast_structure (structure : Ast.structure) =
 ;;
 
 
-let pp_infer_error (err : Errors.infer_error) =
+let pp_typer_error (err : Errors.typer_error) =
   match err with
-  | Infer_unbound_var (name, span) ->
+  | Typer_unbound_var (name, span) ->
     String.join_with
-      [ "[Infer]: Unbound variable <"; name; "> at "; (_pp_span span); ]
+      [ "[Typer]: Unbound variable <"; name; "> at "; (_pp_span span); ]
       ""
-  | Infer_type_mismatch (expect, actual, span) ->
+  | Typer_type_mismatch (expect, actual, span) ->
     String.join_with
-      [ "[Infer]: Expected type <"; (pp_ast_typ_desc expect); ">";
-        " but got <"; (pp_ast_typ_desc actual); "> at "; (_pp_span span); ]
+      [ "[Typer]: Expected type <"; (pp_ast_typ expect); ">";
+        " but got <"; (pp_ast_typ actual); "> at "; (_pp_span span); ]
       ""
-  | Infer_illegal_letrec_rhs span ->
-    String.append "[Infer]: Illegal rhs of let rec binding at " (_pp_span span)
-  | Infer_tyvar_occurs (expect, actual, actual_span, tv_name, occurree) ->
+  | Typer_illegal_letrec_rhs span ->
+    String.append "[Typer]: Illegal rhs of let rec binding at " (_pp_span span)
+  | Typer_tyvar_occurs (expect, actual, actual_span, tv_name, occurree) ->
     String.join_with
-      [ "[Infer]: Expected type <"; (pp_ast_typ_desc expect); ">";
-        " but got <"; (pp_ast_typ_desc actual); "> at "; (_pp_span actual_span);
+      [ "[Typer]: Expected type <"; (pp_ast_typ expect); ">";
+        " but got <"; (pp_ast_typ actual); "> at "; (_pp_span actual_span);
         ". The type variable '"; tv_name;
-        " occurs within "; (pp_ast_typ_desc occurree) ]
+        " occurs within "; (pp_ast_typ occurree) ]
       ""
 ;;

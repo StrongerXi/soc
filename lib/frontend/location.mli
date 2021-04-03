@@ -1,5 +1,6 @@
 
-(** A [t] represents a (row, column) location in some file *)
+(** A [t] represents a (row, column) location in some file
+    start with (1, 1), but not enforced during creation. *)
 type t
 
 (** [create row column] creates a (row, column) location *)

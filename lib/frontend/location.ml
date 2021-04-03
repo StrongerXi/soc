@@ -19,5 +19,5 @@ let advance t =
 ;;
 
 let skip_line t =
-  { row = t.row + 1; col = 0 }
+  { row = t.row + 1; col = 1 }
 ;;

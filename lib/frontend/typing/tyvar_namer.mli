@@ -14,4 +14,4 @@ val rename_struct : t -> Ast.structure -> (t * Ast.structure)
 
 (** [gen_new_tyvar t] creates type variable name which is guaranteed to be
     unique in a context whose type variables have been renamed with [t] *)
-val gen_new_tyvar : t -> (t * Ast.typ_desc)
+val gen_new_tyvar : t -> (t * Ast.typ)
