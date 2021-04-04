@@ -84,14 +84,15 @@ let _interp_const (const : Ast.constant) : value =
 ;;
 
 (* ASSUME [opstr] is a primitive operator *)
-let _interp_prim_op (ctx : context) (opstr : string) (where : Span.t) : value =
+let _interp_prim_op (ctx : context) (opstr : string) (expr_span : Span.t) : value =
   let args = ["a"; "b"] in  (* could cache this geneartion but whatever *)
-  let ident_expr = { Ast.expr_desc = Exp_ident opstr; expr_span = where } in
+  let expr_typ = None in
+  let ident_expr = { Ast.expr_desc = Exp_ident opstr; expr_span; expr_typ } in
   let arg_exprs = List.map
-      (fun str -> { Ast.expr_desc = Exp_ident str; expr_span = where }) args
+      (fun str -> { Ast.expr_desc = Exp_ident str; expr_span; expr_typ }) args
   in
-  let body_expr = { Ast.expr_desc = Exp_apply (ident_expr, arg_exprs)
-                  ; expr_span = where } in
+  let body_expr = { Ast.expr_desc = Exp_apply (ident_expr, arg_exprs);
+                    expr_span; expr_typ  } in
   Closure (["a"; "b"], body_expr, ref ctx)
 ;;
 
@@ -176,7 +177,7 @@ and _interp_apply (ctx : context)
   : value =
     (* inline primop application, or get stuck *)
   match func with
-  | { expr_desc = Exp_ident name; expr_span } ->
+  | { expr_desc = Exp_ident name; expr_span; expr_typ = None } ->
     _interp_potential_primop_apply ctx name expr_span args span
   | _ ->
     let func_value = _interp_expr ctx func in

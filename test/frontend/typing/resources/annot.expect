@@ -1,0 +1,14 @@
+let (-- : int -> int -> int) = ((fun (x : int) (y : int) -> ((- : int -> int -> int) (x : int) (y : int) : int)) : int -> int -> int)
+;;
+
+let (x : int) = ((-- : int -> int -> int) (88 : int) (99 : int) : int)
+and (y : int -> int -> int) = (-- : int -> int -> int)
+;;
+
+let rec (f : int -> 'X8) = ((fun (x : int) -> 
+  (if (true : bool)
+  then ((f : int -> 'X8) (x : int) : 'X8)
+  else ((f : int -> 'X8) (42 : int) : 'X8) : 'X8)
+) : int -> 'X8)
+;;
+

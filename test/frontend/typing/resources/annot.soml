@@ -1,0 +1,11 @@
+
+let (--) x y = x - y
+;;
+
+let x = (88 -- 99)
+and y = (--)
+;;
+
+let rec f x =
+  if true then f x else f 42
+;;

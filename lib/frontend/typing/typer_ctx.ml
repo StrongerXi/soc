@@ -108,7 +108,7 @@ let unify t expect actual actual_span =
   let actual = Substs.apply_to_typ substs actual in
   let t = { t with substs } in
   match err_opt with
-  | None -> let t = _update_envs_with_substs t in (t, actual)
+  | None -> let t = _update_envs_with_substs t in (t, expect)
   | Some err ->
     let expect = Substs.apply_to_typ substs expect in
     let err = match err with
@@ -119,7 +119,7 @@ let unify t expect actual actual_span =
     in
     (* update types based on the information gathered before mismatch *)
     let t = { t with rev_errs = err::t.rev_errs } in
-    (t, actual)
+    (t, expect)
 ;;
 
 let unify_apply t func_typ func_span arg_typ_span_pairs =

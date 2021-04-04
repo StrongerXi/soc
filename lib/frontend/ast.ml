@@ -25,6 +25,7 @@ type opt_typed_var =
 type expression =
   { expr_desc : expr_desc
   ; expr_span : Span.t
+  ; expr_typ  : typ option (* (e : T), or filled in by typer *)
   }
 
 and binding =

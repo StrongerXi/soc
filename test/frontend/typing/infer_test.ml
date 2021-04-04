@@ -10,7 +10,7 @@ let _check_infer_struct (filepath_no_suffix : string) : unit =
   let result =
     match Driver.type_file filepath with
     | Error msg -> msg
-    | Ok ast -> Frontend_pp.pp_ast_structure ast
+    | Ok ast -> Frontend_pp.pp_ast_structure_with_typ_annot ast
   in
   let expect_path = String.append filepath_no_suffix ".expect" in
   let actual_path = String.append filepath_no_suffix ".actual" in
@@ -21,8 +21,9 @@ let _check_infer_struct (filepath_no_suffix : string) : unit =
 let tests = OUnit2.(>:::) "infer_test" [
 
     OUnit2.(>::) "test_integration" (fun _ ->
-        let path = _get_full_path "infer_input_mixed" in
-        _check_infer_struct path;
+        _check_infer_struct (_get_full_path "infer_input_mixed");
+        _check_infer_struct (_get_full_path "annot");
+        _check_infer_struct (_get_full_path "annot_error");
       );
   ]
 
