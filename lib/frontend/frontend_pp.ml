@@ -335,6 +335,11 @@ let pp_ast_structure (structure : Ast.structure) =
   p.buffer
 ;;
 
+let pp_ast_expr (expr : Ast.expression) =
+  let p = _create_printer () in
+  _pp_ast_expr p expr;
+  p.buffer
+;;
 
 let pp_typer_error (err : Errors.typer_error) =
   match err with
