@@ -25,6 +25,8 @@ let tests = OUnit2.(>:::) "parser_test" [
         _check_parser_pp_ast path;
         let path = _get_full_path "parser_input_syntax_sugar" in
         _check_parser_pp_ast path;
+        let path = _get_full_path "parser_input_infix" in
+        _check_parser_pp_ast path;
       );
   ]
 

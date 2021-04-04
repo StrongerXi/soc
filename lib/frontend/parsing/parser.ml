@@ -215,9 +215,21 @@ and _parse_let_bindings (* returns the span of rhs in last binding (at least 1) 
   (bindings, rec_flag, last_rhs_span)
 
 and _parse_one_let_binding (s : _tok_stream) : Ast.binding =
+  let _parse_infix_or_opt_typepd_var s : (string, Ast.opt_typed_var) result =
+    let tok = _peek_token_exn s [] in
+    match tok.token_desc with
+    | Equal -> s.skip (); Ok _equal_opstr
+    | InfixOp0 opstr | InfixOp1 opstr | InfixOp2 opstr | InfixOp3 opstr -> s.skip ();
+      Ok opstr
+    | _ -> Error (_parse_opt_typed_var s)
+  in
   let _parse_ident_or_otv s : (string, Ast.opt_typed_var) result =
     match (_peek_token_exn s []).token_desc with
     | DecapIdent name -> s.skip (); Ok name
+    | Lparen -> s.skip ();
+      let res = _parse_infix_or_opt_typepd_var s in
+      _skip_next_token_expect s Rparen;
+      res
     | _ -> Error (_parse_opt_typed_var s)
   in
   let _parse_cont_on_non_func_rhs s (otv : Ast.opt_typed_var) : Ast.binding =
