@@ -1,11 +1,11 @@
 
-let x = (42 : bool)
+let (--) x y = x - y
 ;;
 
-let y =
-  (if (true : bool)
-   then let x = 42 in (x * x : int)
-   else x)
+let x = (88 -- 99)
+and y = (--)
 ;;
 
-(x && y : int)
+let rec f x =
+  if true then f x else f 42
+;;

@@ -3,13 +3,14 @@ open Pervasives
 (* Again, this deserves a module but to simplify self-compilation... TODO *)
 type printer = 
   { mutable space_level : int  (* # of spaces *)
-  ; mutable buffer       : string
-  ; mutable is_newline   : bool (* are we at beginning of a new line? *)
+  ; mutable buffer      : string
+  ; mutable is_newline  : bool (* are we at beginning of a new line? *)
+  ; print_typ_annot     : bool (* print type annotations? *)
   }
 
 
-let _create_printer () =
-  { space_level = 0; buffer = ""; is_newline = true
+let _create_printer () print_typ_annot =
+  { space_level = 0; buffer = ""; is_newline = true; print_typ_annot
   }
 ;;
 
@@ -221,7 +222,7 @@ and _pp_ast_typ_parens_on_non_atomic (p : printer) (typ : Ast.typ)
 ;;
 
 let pp_ast_typ (desc : Ast.typ) =
-  let p = _create_printer () in
+  let p = _create_printer () false in
   _pp_ast_typ_desc p desc;
   p.buffer
 ;;
@@ -238,7 +239,21 @@ let _may_fit_on_oneline (expr : Ast.expression) : bool =
   | Exp_const _ | Exp_ident _ | Exp_fun _ | Exp_apply _ -> true
 ;;
 
+(* e.g., " : int" *)
+let _pp_typ_annot (p : printer) (annot : Ast.typ option) : unit =
+  _print_str p " : ";
+  match annot with
+  | None -> _print_str p "_"
+  | Some typ -> _pp_ast_typ_desc p typ
+;;
+
 let rec _pp_ast_expr (p : printer) (expr : Ast.expression) : unit =
+  if p.print_typ_annot then _print_str p "(";
+  _pp_ast_expr_wo_typ_annot p expr;
+  if p.print_typ_annot
+  then (_pp_typ_annot p expr.expr_typ; _print_str p ")");
+
+and _pp_ast_expr_wo_typ_annot (p : printer) (expr : Ast.expression) : unit =
   match expr.expr_desc with
   | Exp_const const -> _pp_ast_const p const
   | Exp_ident name -> _print_str p name
@@ -330,13 +345,25 @@ let _pp_ast_struct_item (p : printer) (item : Ast.struct_item) : unit =
 ;;
 
 let pp_ast_structure (structure : Ast.structure) =
-  let p = _create_printer () in
+  let p = _create_printer () false in
   List.iter (_pp_ast_struct_item p) structure;
   p.buffer
 ;;
 
 let pp_ast_expr (expr : Ast.expression) =
-  let p = _create_printer () in
+  let p = _create_printer () false in
+  _pp_ast_expr p expr;
+  p.buffer
+;;
+
+let pp_ast_structure_with_typ_annot (structure : Ast.structure) =
+  let p = _create_printer () true in
+  List.iter (_pp_ast_struct_item p) structure;
+  p.buffer
+;;
+
+let pp_ast_expr_with_typ_annot (expr : Ast.expression) =
+  let p = _create_printer () true in
   _pp_ast_expr p expr;
   p.buffer
 ;;

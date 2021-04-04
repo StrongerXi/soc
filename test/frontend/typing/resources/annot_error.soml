@@ -1,0 +1,11 @@
+
+let x = (42 : bool)
+;;
+
+let y =
+  (if (true : bool)
+   then let x = 42 in (x * x : int)
+   else x)
+;;
+
+(x && y : int)
