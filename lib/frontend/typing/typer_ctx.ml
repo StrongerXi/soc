@@ -56,16 +56,6 @@ let _update_envs_with_substs t : t =
 ;;
 
 
-let create tv_namer =
-  { cur_var_env   = Map.empty String.compare
-  ; prev_var_envs = []
-  ; substs        = Substs.empty
-  ; rev_errs      = []
-  ; tv_namer
-  }
-;;
-
-
 let add_error t err =
   { t with rev_errs = err::t.rev_errs }
 ;;
@@ -160,30 +150,6 @@ let unify_apply t func_typ func_span arg_typ_span_pairs =
   (t, out_ty)
 ;;
 
-let _get_binop_typ (* returns the type of lhs, rhs, and output for [binop] *)
-    t (binop : Ast.binary_op)
-  : (t * Ast.typ * Ast.typ * Ast.typ) =
-  match binop with
-  | Binop_add | Binop_sub | Binop_mul ->
-    t, Builtin_types.int_typ, Builtin_types.int_typ, Builtin_types.int_typ
-  | Binop_and | Binop_or ->
-    t, Builtin_types.bool_typ, Builtin_types.bool_typ, Builtin_types.bool_typ
-  | Binop_less ->
-    t, Builtin_types.int_typ, Builtin_types.int_typ, Builtin_types.bool_typ
-  | Binop_eq ->
-    let (t, new_tyvar) = _get_new_tyvar t in
-    t, new_tyvar, new_tyvar, Builtin_types.bool_typ
-;;
-
-let unify_binop t binop lhs_typ lhs_span rhs_typ rhs_span =
-  let (t, lhs_expect, rhs_expect, out_ty) = _get_binop_typ t binop in
-  let (t, _) = unify t lhs_expect lhs_typ lhs_span in
-  let (t, _) = unify t rhs_expect rhs_typ rhs_span in
-  let out_ty = Substs.apply_to_typ t.substs out_ty in
-  (t, out_ty)
-;;
-
-
 
 (* Some helpers for computing free type variables *)
 let rec _add_fvs_in_typ (s : string Set.t) (desc : Ast.typ)
@@ -249,4 +215,21 @@ let generalize t names =
 
 let update_typ t desc =
   Substs.apply_to_typ t.substs desc
+;;
+
+
+(* Initialize with some built-in stuff, an ad hoc solution *)
+let create tv_namer =
+  let cur_var_env = List.fold_left
+      (fun env (info : Primops.op_info) ->
+         let schm = _generalize_typ info.typ (Set.empty String.compare) in
+         Map.add info.opstr schm env)
+      (Map.empty String.compare) Primops.all_op_infos
+  in
+  { cur_var_env
+  ; prev_var_envs = []
+  ; substs        = Substs.empty
+  ; rev_errs      = []
+  ; tv_namer
+  }
 ;;

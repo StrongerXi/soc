@@ -82,6 +82,14 @@ let rec _skip_zero_or_more (s : _tok_stream) (to_skip : Token.desc) : unit =
   | _ -> ()
 ;;
 
+let _make_expident (name : string) (span : Span.t) : Ast.expression =
+  { Ast.expr_desc = Exp_ident name; expr_span = span }
+;;
+
+(* single point of control *)
+let _equal_opstr = "="
+;;
+
 
 (* NOTE
    1. Should we pass along the peeked token?
@@ -269,59 +277,74 @@ and _parse_if_expr (s : _tok_stream) : Ast.expression =
 and _parse_logical_or_expr (s : _tok_stream) : Ast.expression =
   (* right-assoc to speed up short-circuit *)
   _parse_binary_expr_right_assoc s _parse_logical_and_expr
-    [ (Token.BarBar, Ast.Binop_or) ] 
+    (fun tok -> if tok = Token.AmperAmper then Some "&&" else None)
 
 and _parse_logical_and_expr (s : _tok_stream) : Ast.expression =
   (* right-assoc to speed up short-circuit *)
-  _parse_binary_expr_right_assoc s _parse_relational_expr
-    [ (Token.AmperAmper, Ast.Binop_and) ] 
+  _parse_binary_expr_right_assoc s _parse_infix0_expr
+    (fun tok -> if tok = Token.BarBar then Some "||" else None)
 
+and _parse_infix0_expr (s : _tok_stream) : Ast.expression =
+  _parse_binary_expr_left_assoc s _parse_infix1_expr
+    (fun tok -> match tok with
+       | Token.Equal -> Some _equal_opstr
+       | Token.InfixOp0 opstr -> Some opstr
+       | _ -> None)
+
+and _parse_infix1_expr (s : _tok_stream) : Ast.expression =
+  _parse_binary_expr_right_assoc s _parse_infix2_expr
+    (fun tok -> match tok with
+       | Token.InfixOp1 opstr -> Some opstr
+       | _ -> None)
+
+and _parse_infix2_expr (s : _tok_stream) : Ast.expression =
+  _parse_binary_expr_left_assoc s _parse_infix3_expr
+    (fun tok -> match tok with
+       | Token.InfixOp2 opstr -> Some opstr
+       | _ -> None)
+
+and _parse_infix3_expr (s : _tok_stream) : Ast.expression =
+  _parse_binary_expr_left_assoc s _parse_apply_expr
+    (fun tok -> match tok with
+       | Token.InfixOp3 opstr -> Some opstr
+       | _ -> None)
+
+(* [X op Y] is desugared into [op X Y], with op being an identifier *)
 and _parse_binary_expr_right_assoc
     (s : _tok_stream)
     (parse_subexpr : _tok_stream -> Ast.expression)
-    (ops : (Token.desc * Ast.binary_op) list)
+    (validator : Token.desc -> string option)
+    (* if it's a wanted operator, [validator] return its string form *)
   : Ast.expression =
   let lhs_expr = parse_subexpr s in
   match s.peek () with 
   | None -> lhs_expr
   | Some tok ->
-    match List.assoc_opt tok.token_desc ops with
+    match validator tok.token_desc with
     | None -> lhs_expr
-    | Some binop -> s.skip ();
+    | Some opstr -> s.skip ();
       (* this recursive call makes it right-assoc *)
-      let rhs_expr = _parse_binary_expr_right_assoc s parse_subexpr ops in
-      { Ast.expr_desc = Exp_binop (binop, lhs_expr, rhs_expr);
+      let ident_expr = _make_expident opstr tok.token_span in
+      let rhs_expr = _parse_binary_expr_right_assoc s parse_subexpr validator in
+      { Ast.expr_desc = Exp_apply (ident_expr, [lhs_expr; rhs_expr]);
         expr_span = (Span.merge lhs_expr.expr_span rhs_expr.expr_span) }
-
-and _parse_relational_expr (s : _tok_stream) : Ast.expression =
-  _parse_binary_expr_left_assoc s _parse_add_sub_expr
-    [ (Token.Equal, Ast.Binop_eq)
-    ; (Token.Less, Ast.Binop_less) ]
-
-and _parse_add_sub_expr (s : _tok_stream) : Ast.expression =
-  _parse_binary_expr_left_assoc s  _parse_mul_expr
-    [ (Token.Plus, Ast.Binop_add)
-    ; (Token.Minus, Ast.Binop_sub) ]
-
-and _parse_mul_expr (s : _tok_stream) : Ast.expression =
-  _parse_binary_expr_left_assoc s _parse_apply_expr
-    [ (Token.Asterisk, Ast.Binop_mul) ]
 
 and _parse_binary_expr_left_assoc
     (s : _tok_stream)
     (parse_subexpr : _tok_stream -> Ast.expression)
-    (ops : (Token.desc * Ast.binary_op) list)
+    (validator : Token.desc -> string option)
   : Ast.expression =
   let rec go lhs_expr =
     match s.peek () with 
     | None -> lhs_expr
     | Some tok ->
-      match List.assoc_opt tok.token_desc ops with
+      match validator tok.token_desc with
       | None -> lhs_expr
-      | Some binop -> s.skip ();
+      | Some opstr -> s.skip ();
+        let ident_expr = _make_expident opstr tok.token_span in
         let rhs_expr = parse_subexpr s in
         let lhs_expr = (* left-assoc *)
-          { Ast.expr_desc = Exp_binop (binop, lhs_expr, rhs_expr);
+          { Ast.expr_desc = Exp_apply (ident_expr, [lhs_expr; rhs_expr]);
             expr_span = (Span.merge lhs_expr.expr_span rhs_expr.expr_span) } in
         go lhs_expr
   in
@@ -356,11 +379,21 @@ and _parse_primary_expr (* e.g., constant, var, parenthesized expr *)
   match tok.token_desc with
   | Lparen -> 
     s.skip ();
-    let expr = _parse_expr s in
+    let expr = _parse_expr_or_infix s in
     let last = _get_next_token_expect s Rparen in
     { Ast.expr_desc = expr.expr_desc
     ; expr_span = (Span.merge tok.token_span last.token_span) }
   | _ -> _parse_constant_or_var s
+
+and _parse_expr_or_infix
+    (s : _tok_stream) : Ast.expression =
+  let tok = _peek_token_exn s [] in
+  match tok.token_desc with
+  | Equal -> s.skip ();
+    _make_expident _equal_opstr tok.token_span
+  | InfixOp0 opstr | InfixOp1 opstr | InfixOp2 opstr | InfixOp3 opstr -> s.skip ();
+    _make_expident opstr tok.token_span
+  | _ -> _parse_expr s
 
 and _parse_constant_or_var
     (s : _tok_stream) : Ast.expression =
@@ -381,8 +414,7 @@ and _parse_constant_or_var
   | False -> { Ast.expr_desc = Exp_const (Const_Bool false)
              ; expr_span = tok.token_span }
   | Int int_str -> parse_int_expr int_str tok.token_span
-  | DecapIdent str ->
-    { Ast.expr_desc = Ast.Exp_ident str; expr_span = tok.token_span }
+  | DecapIdent str -> _make_expident str tok.token_span
   | _ -> _error_unexpected_token tok expected
 ;;
 

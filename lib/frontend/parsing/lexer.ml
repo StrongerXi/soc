@@ -54,6 +54,12 @@ let _keyword_map : (string, Token.desc) Map.t =
     (Map.empty String.compare)
 ;;
 
+(* Used for lexing operators *)
+let _symbol_chars =
+  ['!'; '$'; '%'; '&'; '*'; '+'; '-'; '.'; '/'; ':'; '<'; '='; '>'; '?'; '@';
+   '^'; '|'; '~';]
+;;
+
 
 let _get_keywd_or_iden_token_desc (str : string) : Token.desc =
   match Map.get str _keyword_map with
@@ -146,12 +152,6 @@ let _cont_quote_ident t : Token.desc =
   | None -> _lexer_error_eof Errors.Lexing_identifier_or_keyword t
 ;;
 
-let _cont_minus_or_arrow t : Token.desc =
-  match _peek_ch t with
-  | Some '>' -> _increment_cur_pos t; Token.Rarrow
-  | _ -> Token.Minus
-;;
-
 (* The next char in [t] should be [expect], and it'll be lexed as [tok]. *)
 let _cont_expect_ch t (expect : char) (tok : Token.desc)
   : Token.desc =
@@ -162,6 +162,51 @@ let _cont_expect_ch t (expect : char) (tok : Token.desc)
   | None -> _lexer_error_eof (Errors.Lexing_expecting expect) t
 ;;
 
+let rec _consume_symbol_chars t : unit =
+  match _peek_ch t with
+  | Some ch when (List.mem ch _symbol_chars) ->
+    _increment_cur_pos t;
+    _consume_symbol_chars t
+  | _ -> ()
+;;
+
+let _cont_infix_helper t (infix_maker : string -> Token.desc) : Token.desc =
+  _consume_symbol_chars t;
+  infix_maker (_get_token_str t)
+;;
+
+let _cont_infix0 t = _cont_infix_helper t (fun s -> Token.InfixOp0 s)
+;;
+let _cont_infix1 t = _cont_infix_helper t (fun s -> Token.InfixOp1 s)
+;;
+let _cont_infix2 t = _cont_infix_helper t (fun s -> Token.InfixOp2 s)
+;;
+let _cont_infix3 t = _cont_infix_helper t (fun s -> Token.InfixOp3 s)
+;;
+  
+let _cont_equal_or_infix0 t : Token.desc =
+  match _peek_ch t with
+  | Some ch when List.mem ch _symbol_chars -> _cont_infix0 t
+  | _ -> Token.Equal
+;;
+
+let _cont_amperamper_or_infix0 t : Token.desc =
+  match _peek_ch t with
+  | Some '&' -> _increment_cur_pos t; Token.AmperAmper
+  | _ -> _cont_infix0 t
+;;
+
+let _cont_barbar_or_infix0 t : Token.desc =
+  match _peek_ch t with
+  | Some '|' -> _increment_cur_pos t; Token.BarBar
+  | _ -> _cont_infix0 t
+;;
+
+let _cont_or_arrow_or_infix2 t : Token.desc =
+  match _peek_ch t with
+  | Some '>' -> _increment_cur_pos t; Token.Rarrow
+  | _ -> _cont_infix2 t
+;;
 
 (* ASSUME 
  * 1. space has been skipped.
@@ -169,22 +214,24 @@ let _cont_expect_ch t (expect : char) (tok : Token.desc)
 let _lex_with_cur_ch t (cur_ch : char) : Token.desc =
   match cur_ch with
   | '_' -> _cont_underscore_or_ident t
-  | '-' -> _cont_minus_or_arrow t
   | '\'' -> _cont_quote_ident t
   | ';' -> _cont_expect_ch t cur_ch Token.SemiSemiColon
-  | '&' -> _cont_expect_ch t cur_ch Token.AmperAmper
-  | '|' -> _cont_expect_ch t cur_ch Token.BarBar
-  | '+' -> Token.Plus
-  | '*' -> Token.Asterisk
   | ':' -> Token.Colon
-  | '=' -> Token.Equal
   | '(' -> Token.Lparen
   | ')' -> Token.Rparen
-  | '<' -> Token.Less
+  | '='             -> _cont_equal_or_infix0 t
+  | '|'             -> _cont_amperamper_or_infix0 t
+  | '&'             -> _cont_barbar_or_infix0 t
+  | '<' | '>' | '$' -> _cont_infix0 t
+  | '@' | '^'       -> _cont_infix1 t
+  | '-'             -> _cont_or_arrow_or_infix2 t
+  | '+'             -> _cont_infix2 t
+  | '*' | '/' | '%' -> _cont_infix3 t
   | _ when (Char.is_num cur_ch) -> _cont_num t
   | _ when _can_be_ident_start cur_ch -> _cont_ident_or_keywd t
   | _ -> _lexer_error_invalid_start cur_ch t
 ;;
+
 
 (* ENSURE:
  * [t.bgn_idx] points to the 1st non-space;
