@@ -186,12 +186,12 @@ and _interp_potential_primop_apply (ctx : context)
     (func_ident : string) (func_span : Span.t) (args : Ast.expression list)
     (apply_span : Span.t)
   : value =
-  match Primops.get_kind func_ident with
+  match _context_lookup ctx func_ident with (* allow shadowing of built-in primops *)
+  | Some value -> _interp_apply_func_value ctx value func_span args apply_span
   | None ->
-    let func_value = _interp_name ctx func_ident func_span in
-    _interp_apply_func_value ctx func_value func_span args apply_span
-  | Some primop ->
-    _interp_primop ctx primop args apply_span
+    match Primops.get_kind func_ident with
+    | None -> _error_unbound_var func_ident func_span
+    | Some primop -> _interp_primop ctx primop args apply_span
 
 and _interp_primop (ctx : context)
     (primop : Primops.op_kind) (args : Ast.expression list) (apply_span : Span.t)
