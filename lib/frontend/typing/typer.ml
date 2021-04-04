@@ -49,7 +49,8 @@ let rec _update_tyvars_in_expression (ctx : Typer_ctx.t) (expr : Ast.expression)
       let body = _update_tyvars_in_expression ctx body in
       Exp_let (rec_flag, bds, body)
   in
-  { expr with expr_desc }
+  let expr_typ = Option.map (Typer_ctx.update_typ ctx) expr.expr_typ in
+  { expr with expr_desc; expr_typ }
 
 and _update_tyvars_in_let_binding (ctx : Typer_ctx.t) (binding : Ast.binding)
   : Ast.binding =
@@ -100,12 +101,31 @@ let _type_const (const : Ast.constant) : Ast.typ =
   | Const_Bool _ -> Builtin_types.bool_typ
 ;;
 
+(* If [expr] is annoated, unify [typ] with it and return result type.
+ * Annotate [expr] with returned type *)
+let _resolve_typ_annot
+    (ctx : Typer_ctx.t) (expr : Ast.expression) (typ : Ast.typ)
+  : Ast.expression ret =
+  let ctx, typ = match expr.expr_typ with
+    | None -> ctx, typ
+    | Some annot -> Typer_ctx.unify ctx annot typ expr.expr_span
+  in
+  let expr = { expr with expr_typ = Some typ } in
+  (ctx, typ, expr)
+;;
+
 let rec _type_expr
+    (ctx : Typer_ctx.t) (expr : Ast.expression) : Ast.expression ret =
+  let ctx, typ, expr = _type_expr_aux ctx expr in
+  _resolve_typ_annot ctx expr typ
+
+and _type_expr_aux (* type [expr] without touch ITS type annotation yet *)
     (ctx : Typer_ctx.t) (expr : Ast.expression) : Ast.expression ret =
   let expr_span = expr.expr_span in
   match expr.expr_desc with
   | Exp_const const ->
-    let typ = _type_const const in (ctx, typ, expr)
+    let typ = _type_const const in
+    (ctx, typ, expr)
 
   | Exp_ident name ->
     let (ctx, typ) = Typer_ctx.get_type ctx name expr_span in
@@ -119,7 +139,7 @@ let rec _type_expr
 
   | Exp_fun (params, body) ->
     _type_fun_expr ctx expr_span params body
-      
+
   | Exp_apply (func, args) ->
     _type_apply_expr ctx expr_span func args
 
@@ -132,7 +152,8 @@ and _type_if_expr
   let (ctx, thn_typ, thn) = _type_expr ctx thn in
   let (ctx, els_typ, els) = _type_expr ctx els in
   let ctx, typ = Typer_ctx.unify ctx thn_typ els_typ els.expr_span in
-  let expr = { Ast.expr_desc = Exp_if (cnd, thn, els); expr_span } in
+  let expr_typ = Some typ in
+  let expr = { Ast.expr_desc = Exp_if (cnd, thn, els); expr_span; expr_typ } in
   (ctx, typ, expr)
 
 and _type_let_expr 
@@ -143,7 +164,9 @@ and _type_let_expr
   let (ctx, bds) = _type_let_bindings ctx rec_flag bds in
   let (ctx, body_typ, body) = _type_expr ctx body in
   let ctx = Typer_ctx.close_scope ctx in
-  let expr = { Ast.expr_desc = Exp_let (rec_flag, bds, body); expr_span } in
+  let expr_typ = Some body_typ in
+  let expr =
+    { Ast.expr_desc = Exp_let (rec_flag, bds, body); expr_span; expr_typ } in
   (ctx, body_typ, expr)
 
 and _type_let_bindings
@@ -197,16 +220,17 @@ and _type_fun_expr
   let ctx = Typer_ctx.open_scope ctx in
   let ctx = _add_opt_typed_vars ctx params in
   let (ctx, body_typ, body) = _type_expr ctx body in
-  let (ctx, ret_typ) = List.fold_right
-      (fun (otv : Ast.opt_typed_var) (ctx, ret_typ) ->
+  let (ctx, final_typ) = List.fold_right
+      (fun (otv : Ast.opt_typed_var) (ctx, final_typ) ->
          let in_typ = _get_annotated_typ otv in
-         let ret_typ = Ast.Typ_arrow (in_typ, ret_typ) in
-         (ctx, ret_typ))
+         let final_typ = Ast.Typ_arrow (in_typ, final_typ) in
+         (ctx, final_typ))
       params (ctx, body_typ)
   in
   let ctx = Typer_ctx.close_scope ctx in
-  let expr = { Ast.expr_desc = Exp_fun (params, body); expr_span } in
-  (ctx, ret_typ, expr)
+  let expr_typ = Some final_typ in
+  let expr = { Ast.expr_desc = Exp_fun (params, body); expr_span; expr_typ } in
+  (ctx, final_typ, expr)
 
 and _type_apply_expr
     (ctx : Typer_ctx.t) (expr_span : Span.t)
@@ -224,7 +248,8 @@ and _type_apply_expr
   let arg_typ_span_pairs = List.combine arg_typs arg_spans in
   let ctx, ret_typ =
     Typer_ctx.unify_apply ctx func_typ func.expr_span arg_typ_span_pairs in
-  let expr = { Ast.expr_desc = Exp_apply (func, args); expr_span } in
+  let expr_typ = Some ret_typ in
+  let expr = { Ast.expr_desc = Exp_apply (func, args); expr_span; expr_typ } in
   (ctx, ret_typ, expr)
 ;;
 

@@ -83,7 +83,7 @@ let rec _skip_zero_or_more (s : _tok_stream) (to_skip : Token.desc) : unit =
 ;;
 
 let _make_expident (name : string) (span : Span.t) : Ast.expression =
-  { Ast.expr_desc = Exp_ident name; expr_span = span }
+  { Ast.expr_desc = Exp_ident name; expr_span = span; expr_typ = None }
 ;;
 
 (* single point of control *)
@@ -179,8 +179,9 @@ and _parse_fun_expr (s : _tok_stream) : Ast.expression =
   let otvs = _parse_opt_typed_vars s in
   _skip_next_token_expect s Rarrow;
   let body_expr = _parse_expr s in
-  { Ast.expr_desc = Exp_fun (otvs, body_expr);
-    expr_span = (Span.merge fun_tok.token_span body_expr.expr_span) }
+  { Ast.expr_desc = Exp_fun (otvs, body_expr)
+  ; expr_span = (Span.merge fun_tok.token_span body_expr.expr_span) 
+  ; expr_typ = None }
 
 and _parse_let_expr (s : _tok_stream) : Ast.expression =
   let let_tok = _peek_token_exn s [Let] in (* if it's not Let, it'll error later *)
@@ -192,8 +193,9 @@ and _parse_let_cont_on_body (s : _tok_stream) (* starting from [In] token *)
   : Ast.expression =
   _skip_next_token_expect s In;
   let body_expr = _parse_expr s in
-  { Ast.expr_desc = Exp_let (rec_flag, bindings, body_expr);
-    expr_span = (Span.merge let_tok.token_span body_expr.expr_span) }
+  { Ast.expr_desc = Exp_let (rec_flag, bindings, body_expr)
+  ; expr_span = (Span.merge let_tok.token_span body_expr.expr_span) 
+  ; expr_typ = None }
 
 and _parse_let_bindings (* returns the span of rhs in last binding (at least 1) *)
     (s : _tok_stream) : (Ast.binding list * Ast.rec_flag * Span.t) =
@@ -263,8 +265,8 @@ and _parse_one_let_binding (s : _tok_stream) : Ast.binding =
         arg_typs ret_typ
     in
     let func_body = _parse_expr s in
-    let func_expr = { Ast.expr_desc = Exp_fun (arg_otvs, func_body)
-                    ; expr_span = func_body.expr_span } in
+    let func_expr = { Ast.expr_desc = Exp_fun (arg_otvs, func_body);
+                      expr_span = func_body.expr_span; expr_typ = None } in
     let binding_lhs = { Ast.var = func_name; typ = Some func_typ } in
     { Ast.binding_lhs; binding_rhs = func_expr }
   in
@@ -283,8 +285,9 @@ and _parse_if_expr (s : _tok_stream) : Ast.expression =
   let cond_expr = _parse_expr s in _skip_next_token_expect s Then;
   let then_expr = _parse_expr s in _skip_next_token_expect s Else;
   let else_expr = _parse_expr s in
-  { Ast.expr_desc = Exp_if (cond_expr, then_expr, else_expr);
-    expr_span = (Span.merge if_tok.token_span else_expr.expr_span) }
+  { Ast.expr_desc = Exp_if (cond_expr, then_expr, else_expr)
+  ; expr_span = (Span.merge if_tok.token_span else_expr.expr_span) 
+  ; expr_typ = None }
 
 and _parse_logical_or_expr (s : _tok_stream) : Ast.expression =
   (* right-assoc to speed up short-circuit *)
@@ -338,8 +341,9 @@ and _parse_binary_expr_right_assoc
       (* this recursive call makes it right-assoc *)
       let ident_expr = _make_expident opstr tok.token_span in
       let rhs_expr = _parse_binary_expr_right_assoc s parse_subexpr validator in
-      { Ast.expr_desc = Exp_apply (ident_expr, [lhs_expr; rhs_expr]);
-        expr_span = (Span.merge lhs_expr.expr_span rhs_expr.expr_span) }
+      { Ast.expr_desc = Exp_apply (ident_expr, [lhs_expr; rhs_expr])
+      ; expr_span = (Span.merge lhs_expr.expr_span rhs_expr.expr_span)
+      ; expr_typ = None }
 
 and _parse_binary_expr_left_assoc
     (s : _tok_stream)
@@ -356,8 +360,9 @@ and _parse_binary_expr_left_assoc
         let ident_expr = _make_expident opstr tok.token_span in
         let rhs_expr = parse_subexpr s in
         let lhs_expr = (* left-assoc *)
-          { Ast.expr_desc = Exp_apply (ident_expr, [lhs_expr; rhs_expr]);
-            expr_span = (Span.merge lhs_expr.expr_span rhs_expr.expr_span) } in
+          { Ast.expr_desc = Exp_apply (ident_expr, [lhs_expr; rhs_expr])
+          ; expr_span = (Span.merge lhs_expr.expr_span rhs_expr.expr_span)
+          ; expr_typ = None } in
         go lhs_expr
   in
   go (parse_subexpr s)
@@ -370,8 +375,9 @@ and _parse_apply_expr (* > 1 consecutive primary expr *)
     | [] -> func_expr (* no args, not an application *)
     | last_arg::_ ->
       let arg_exprs = List.rev rev_args in
-      { Ast.expr_desc = Exp_apply (func_expr, arg_exprs);
-        expr_span = (Span.merge func_expr.expr_span last_arg.expr_span) }
+      { Ast.expr_desc = Exp_apply (func_expr, arg_exprs)
+      ; expr_span = (Span.merge func_expr.expr_span last_arg.expr_span) 
+      ; expr_typ = None }
   in
   let rec collect_args (rev_args : Ast.expression list) =
     match s.peek () with
@@ -391,28 +397,35 @@ and _parse_primary_expr (* e.g., constant, var, parenthesized expr *)
   match tok.token_desc with
   | Lparen -> 
     s.skip ();
-    let expr = _parse_expr_or_infix s in
+    let expr, expr_typ = _parse_expr_or_infix s in
     let last = _get_next_token_expect s Rparen in
-    { Ast.expr_desc = expr.expr_desc
-    ; expr_span = (Span.merge tok.token_span last.token_span) }
+    { Ast.expr_desc = expr.expr_desc;
+      expr_span = (Span.merge tok.token_span last.token_span); expr_typ }
   | _ -> _parse_constant_or_var s
 
-and _parse_expr_or_infix
-    (s : _tok_stream) : Ast.expression =
+and _parse_expr_or_infix (* possibily with type annotation *)
+    (s : _tok_stream) : (Ast.expression * Ast.typ option) =
   let tok = _peek_token_exn s [] in
   match tok.token_desc with
   | Equal -> s.skip ();
-    _make_expident _equal_opstr tok.token_span
+    (_make_expident _equal_opstr tok.token_span, None)
   | InfixOp0 opstr | InfixOp1 opstr | InfixOp2 opstr | InfixOp3 opstr -> s.skip ();
-    _make_expident opstr tok.token_span
-  | _ -> _parse_expr s
+    (_make_expident opstr tok.token_span, None)
+  | _ ->
+    let expr = _parse_expr s in
+    match (_peek_token_exn s []).token_desc with
+    | Colon -> s.skip ();
+      let typ = _parse_typ s in
+      (expr, Some typ)
+    | _ -> (expr, None)
 
 and _parse_constant_or_var
     (s : _tok_stream) : Ast.expression =
   let parse_int_expr (str : string) (where : Span.t) : Ast.expression =
     match Int.of_string_opt str with
     | None -> _error_invalid_int str where
-    | Some n -> { Ast.expr_desc = Exp_const (Const_Int n); expr_span = where }
+    | Some n -> { Ast.expr_desc = Exp_const (Const_Int n);
+                  expr_span = where; expr_typ = None }
   in
   (* NOTE stay synched! *)
   let expected = Token.[True; False; Int ""; DecapIdent "";] in 
@@ -422,9 +435,9 @@ and _parse_constant_or_var
    * FIRST set of this rule *)
   match tok.token_desc with
   | True -> { Ast.expr_desc = Exp_const (Const_Bool true)
-            ; expr_span = tok.token_span }
+            ; expr_span = tok.token_span; expr_typ = None }
   | False -> { Ast.expr_desc = Exp_const (Const_Bool false)
-             ; expr_span = tok.token_span }
+             ; expr_span = tok.token_span; expr_typ = None }
   | Int int_str -> parse_int_expr int_str tok.token_span
   | DecapIdent str -> _make_expident str tok.token_span
   | _ -> _error_unexpected_token tok expected
