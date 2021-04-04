@@ -5,15 +5,6 @@ type constant =
   | Const_Int of int
   | Const_Bool of bool
 
-type binary_op =
-  | Binop_add
-  | Binop_sub
-  | Binop_mul
-  | Binop_and
-  | Binop_or
-  | Binop_eq
-  | Binop_less
-
 type typ =
   | Typ_const of string
       (* int, foobar, ... *)
@@ -44,7 +35,6 @@ and binding =
 and expr_desc =
   | Exp_const of constant
   | Exp_ident of string
-  | Exp_binop of binary_op * expression * expression
   | Exp_let of rec_flag * binding list * expression
         (* let (rec)? x1 = e1 and ... and xn = en in ebody, n > = 1 *)
   | Exp_fun of opt_typed_var list * expression

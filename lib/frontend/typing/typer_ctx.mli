@@ -47,10 +47,6 @@ val unify : t -> Ast.typ -> Ast.typ -> Span.t -> (t * Ast.typ)
 val unify_apply : t
   -> Ast.typ -> Span.t -> (Ast.typ * Span.t) list -> (t * Ast.typ)
 
-(** [unify_binop binop lhs_typ lhs_span rhs_typ rhs_span] returns output type. *)
-val unify_binop : t
-  -> Ast.binary_op -> Ast.typ -> Span.t -> Ast.typ -> Span.t -> (t * Ast.typ)
-
 
 (** [generalize t names] generalizes the types bound to [names] in [t], so that
     they might behave as polymorphic types.

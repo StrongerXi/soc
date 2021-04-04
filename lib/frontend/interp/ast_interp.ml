@@ -83,10 +83,25 @@ let _interp_const (const : Ast.constant) : value =
   | Const_Bool b -> Bool b
 ;;
 
+(* ASSUME [opstr] is a primitive operator *)
+let _interp_prim_op (ctx : context) (opstr : string) (where : Span.t) : value =
+  let args = ["a"; "b"] in  (* could cache this geneartion but whatever *)
+  let ident_expr = { Ast.expr_desc = Exp_ident opstr; expr_span = where } in
+  let arg_exprs = List.map
+      (fun str -> { Ast.expr_desc = Exp_ident str; expr_span = where }) args
+  in
+  let body_expr = { Ast.expr_desc = Exp_apply (ident_expr, arg_exprs)
+                  ; expr_span = where } in
+  Closure (["a"; "b"], body_expr, ref ctx)
+;;
+
 let _interp_name (ctx : context) (name : string) (where : Span.t) : value =
   match _context_lookup ctx name with
-  | None -> _error_unbound_var name where
   | Some v -> v
+  | None ->
+    match Primops.get_kind name with
+    | None -> _error_unbound_var name where
+    | Some _ -> _interp_prim_op ctx name where
 ;;
 
 let rec _interp_expr (ctx : context) (expr : Ast.expression) : value =
@@ -97,29 +112,9 @@ let rec _interp_expr (ctx : context) (expr : Ast.expression) : value =
     let names =
       List.map (fun (x : Ast.opt_typed_var) -> x.var) arg_names in
     Closure (names, body, ref ctx)
-  | Exp_binop (binop, lhs, rhs)   -> _interp_binop_expr ctx binop lhs rhs
   | Exp_if (cnd, thn, els)        -> _interp_if_expr    ctx cnd thn els
   | Exp_let (rec_flag, bds, body) -> _interp_let_expr   ctx rec_flag bds body
   | Exp_apply (func, args)        -> _interp_apply      ctx func args expr.expr_span
-
-and _interp_binop_expr (ctx : context)
-    (op : Ast.binary_op) (lhs : Ast.expression) (rhs : Ast.expression) : value =
-  match op with
-  | Binop_and -> _interp_boolean_binop ctx lhs rhs SC_on_false
-  | Binop_or  -> _interp_boolean_binop ctx lhs rhs SC_on_true
-  | Binop_eq  ->
-    let lhs_v = _interp_expr ctx lhs in
-    let rhs_v = _interp_expr ctx rhs in
-    Bool (lhs_v = rhs_v)
-  | _ ->
-    let n1 = _interp_check_int ctx lhs in
-    let n2 = _interp_check_int ctx rhs in
-    match op with
-    | Binop_add -> Int (n1 + n2)
-    | Binop_sub -> Int (n1 - n2)
-    | Binop_mul -> Int (n1 * n2)
-    | Binop_less -> Bool (n1 < n2)
-    | _ -> assert false (* TODO, why does compiler complain w/o this case? *)
 
 and _interp_check_int (ctx :context) (expr : Ast.expression) : int =
   match _interp_expr ctx expr with
@@ -179,19 +174,69 @@ and _interp_let_bindings (ctx : context)
 and _interp_apply (ctx : context)
     (func : Ast.expression) (args : Ast.expression list) (span : Span.t)
   : value =
-  match _interp_expr ctx func with
+    (* inline primop application, or get stuck *)
+  match func with
+  | { expr_desc = Exp_ident name; expr_span } ->
+    _interp_potential_primop_apply ctx name expr_span args span
+  | _ ->
+    let func_value = _interp_expr ctx func in
+    _interp_apply_func_value ctx func_value func.expr_span args span
+
+and _interp_potential_primop_apply (ctx : context)
+    (func_ident : string) (func_span : Span.t) (args : Ast.expression list)
+    (apply_span : Span.t)
+  : value =
+  match _context_lookup ctx func_ident with (* allow shadowing of built-in primops *)
+  | Some value -> _interp_apply_func_value ctx value func_span args apply_span
+  | None ->
+    match Primops.get_kind func_ident with
+    | None -> _error_unbound_var func_ident func_span
+    | Some primop -> _interp_primop ctx primop args apply_span
+
+and _interp_primop (ctx : context)
+    (primop : Primops.op_kind) (args : Ast.expression list) (apply_span : Span.t)
+  : value =
+  match args with
+  | lhs::rhs::[] -> _interp_binary_primop ctx primop lhs rhs
+  | _ -> _error_arity_mismatch 2 (List.length args) apply_span
+
+and _interp_binary_primop (ctx : context)
+    (primop : Primops.op_kind) (lhs : Ast.expression) (rhs : Ast.expression)
+  : value =
+  match primop with
+  | LogicAnd -> _interp_boolean_binop ctx lhs rhs SC_on_false
+  | LogicOr  -> _interp_boolean_binop ctx lhs rhs SC_on_true
+  | Equal  ->
+    let lhs_v = _interp_expr ctx lhs in
+    let rhs_v = _interp_expr ctx rhs in
+    Bool (lhs_v = rhs_v)
+  | _ ->
+    let n1 = _interp_check_int ctx lhs in
+    let n2 = _interp_check_int ctx rhs in
+    match primop with
+    | AddInt -> Int (n1 + n2)
+    | SubInt -> Int (n1 - n2)
+    | MulInt -> Int (n1 * n2)
+    | LtInt  -> Bool (n1 < n2)
+    (* TODO, why does compiler complain w/o this case? *)
+    | _ -> failwith "[Ast_interp] unreachablle match case"
+
+and _interp_apply_func_value (ctx : context)
+    (func : value) (func_span : Span.t) (args : Ast.expression list)
+    (apply_span : Span.t) : value =
+  match func with
   | Closure (names, body, func_ctx) ->
     let argvs = List.map (_interp_expr ctx) args in
     let len_expect = List.length names in
     let len_actual = List.length argvs in
     if len_expect <> len_actual
-    then _error_arity_mismatch len_expect len_actual span
+    then _error_arity_mismatch len_expect len_actual apply_span
     else
       let name_arg_pairs = List.combine names argvs in
       let ctx = _context_insert_pairs !func_ctx name_arg_pairs in
       _interp_expr ctx body
-  | Native func -> _interp_native_apply ctx func args span
-  | _ as v -> _error_type_mismatch _function_type (_type_of v) func.expr_span
+  | Native func -> _interp_native_apply ctx func args apply_span
+  | _ as v -> _error_type_mismatch _function_type (_type_of v) func_span
 
 and _interp_native_apply (ctx : context)
     (func : builtin_func) (args : Ast.expression list) (span : Span.t) : value =

@@ -28,11 +28,6 @@ let rec _update_tyvars_in_expression (ctx : Typer_ctx.t) (expr : Ast.expression)
     match expr.expr_desc with
     | Exp_const _ | Exp_ident _ -> expr.expr_desc
 
-    | Exp_binop (binop, lhs, rhs) ->
-      let lhs = _update_tyvars_in_expression ctx lhs in
-      let rhs = _update_tyvars_in_expression ctx rhs in
-      Exp_binop (binop, lhs, rhs)
-
     | Exp_if (cnd, thn, els) ->
       let cnd = _update_tyvars_in_expression ctx cnd in
       let thn = _update_tyvars_in_expression ctx thn in
@@ -116,9 +111,6 @@ let rec _type_expr
     let (ctx, typ) = Typer_ctx.get_type ctx name expr_span in
     (ctx, typ, expr)
 
-  | Exp_binop (binop, lhs, rhs) ->
-    _type_binop_expr ctx expr_span binop lhs rhs
-
   | Exp_if (cnd, thn, els) ->
     _type_if_expr ctx expr_span cnd thn els
 
@@ -130,17 +122,6 @@ let rec _type_expr
       
   | Exp_apply (func, args) ->
     _type_apply_expr ctx expr_span func args
-
-and _type_binop_expr
-    (ctx : Typer_ctx.t) (expr_span : Span.t) (binop : Ast.binary_op)
-    (lhs : Ast.expression) (rhs : Ast.expression) : Ast.expression ret =
-  let (ctx, lhs_typ, lhs) = _type_expr ctx lhs in
-  let (ctx, rhs_typ, rhs) = _type_expr ctx rhs in
-  let (lhs_span, rhs_span) = (lhs.expr_span, rhs.expr_span) in
-  let (ctx, out_ty) =
-    Typer_ctx.unify_binop ctx binop lhs_typ lhs_span rhs_typ rhs_span in
-  let expr = { Ast.expr_desc = Exp_binop (binop, lhs, rhs); expr_span } in
-  (ctx, out_ty, expr)
 
 and _type_if_expr
     (ctx : Typer_ctx.t) (expr_span : Span.t) (cnd : Ast.expression)

@@ -102,38 +102,38 @@ type token_desc_visibility =
   | Hide_content
 
 let _pp_token_desc_impl desc (visibility : token_desc_visibility) =
-  match desc, visibility with
-  | Token.Plus, _ -> "<Plus>"
-  | Token.Minus, _ -> "<Minus>"
-  | Token.Asterisk, _ -> "<Asterisk>"
-  | Token.AmperAmper, _ -> "<AmperAmper>"
-  | Token.BarBar, _ -> "<BarBar>"
-  | Token.If, _ -> "<If>"
-  | Token.Then, _ -> "<Then>"
-  | Token.Else, _ -> "<Else>"
-  | Token.Let, _ -> "<Let>"
-  | Token.Rec, _ -> "<Rec>"
-  | Token.Colon, _ -> "<Colon>"
-  | Token.Underscore, _ -> "<Underscore>"
-  | Token.Equal, _ -> "<Equal>"
-  | Token.And, _ -> "<And>"
-  | Token.In, _ -> "<In>"
-  | Token.Lparen, _ -> "<Lparen>"
-  | Token.Rparen, _ -> "<Rparen>"
-  | Token.Rarrow, _ -> "<Rarrow>"
-  | Token.Fun, _ -> "<Fun>"
-  | Token.Less, _ -> "<Less>"
-  | Token.True, _ -> "<True>"
-  | Token.False, _ -> "<False>"
-  | Token.Int _, Hide_content -> "<Int>"
-  | Token.Int s, Show_content -> String.join_with ["<Int ("; s; ")>"] ""
-  | Token.DecapIdent _, Hide_content -> "<DecapIdent>"
-  | Token.DecapIdent s, Show_content ->
-    String.join_with ["<DecapIdent ("; s; ")>"] ""
-  | Token.QuoteIdent _, Hide_content -> "<QuoteIdent>"
-  | Token.QuoteIdent s, Show_content ->
-    String.join_with ["<QuoteIdent ("; s; ")>"] ""
-  | Token.SemiSemiColon, _ -> "<SemiSemiColon>"
+  let pp_tok_with_content (tok : string) (content : string) =
+    match visibility with
+    | Hide_content -> String.join_with ["<"; tok; ">"] ""
+    | Show_content -> String.join_with ["<"; tok; " ("; content; ")>"] ""
+  in
+  match desc with
+  | Token.AmperAmper -> "<AmperAmper>"
+  | Token.BarBar -> "<BarBar>"
+  | Token.If -> "<If>"
+  | Token.Then -> "<Then>"
+  | Token.Else -> "<Else>"
+  | Token.Let -> "<Let>"
+  | Token.Rec -> "<Rec>"
+  | Token.Colon -> "<Colon>"
+  | Token.Underscore -> "<Underscore>"
+  | Token.Equal -> "<Equal>"
+  | Token.And -> "<And>"
+  | Token.In -> "<In>"
+  | Token.Lparen -> "<Lparen>"
+  | Token.Rparen -> "<Rparen>"
+  | Token.Rarrow -> "<Rarrow>"
+  | Token.Fun -> "<Fun>"
+  | Token.True -> "<True>"
+  | Token.False -> "<False>"
+  | Token.Int s        -> pp_tok_with_content "Int" s
+  | Token.DecapIdent s -> pp_tok_with_content "DecapIdent" s
+  | Token.QuoteIdent s -> pp_tok_with_content "QuoteIdent" s
+  | Token.InfixOp0 s   -> pp_tok_with_content "InfixOp0" s
+  | Token.InfixOp1 s   -> pp_tok_with_content "InfixOp1" s
+  | Token.InfixOp2 s   -> pp_tok_with_content "InfixOp2" s
+  | Token.InfixOp3 s   -> pp_tok_with_content "InfixOp3" s
+  | Token.SemiSemiColon -> "<SemiSemiColon>"
 ;;
 
 let pp_token_desc desc =
@@ -226,17 +226,6 @@ let pp_ast_typ (desc : Ast.typ) =
   p.buffer
 ;;
 
-let _binop_to_str (binop : Ast.binary_op) : string =
-  match binop with
-  | Binop_add  -> "+"
-  | Binop_sub  -> "-"
-  | Binop_mul  -> "*"
-  | Binop_and  -> "&&"
-  | Binop_or   -> "||"
-  | Binop_eq   -> "="
-  | Binop_less -> "<"
-;;
-
 let _is_atomic_expr (expr : Ast.expression) : bool =
   match expr.expr_desc with
   | Exp_const _ | Exp_ident _ -> true
@@ -246,17 +235,13 @@ let _is_atomic_expr (expr : Ast.expression) : bool =
 let _may_fit_on_oneline (expr : Ast.expression) : bool =
   match expr.expr_desc with
   | Exp_if _ | Exp_let _ -> false
-  | Exp_const _ | Exp_ident _ | Exp_binop _ | Exp_fun _ | Exp_apply _ -> true
+  | Exp_const _ | Exp_ident _ | Exp_fun _ | Exp_apply _ -> true
 ;;
 
 let rec _pp_ast_expr (p : printer) (expr : Ast.expression) : unit =
   match expr.expr_desc with
   | Exp_const const -> _pp_ast_const p const
   | Exp_ident name -> _print_str p name
-  | Exp_binop (binop, lhs, rhs) ->
-    _pp_ast_expr_parens_on_non_atomic p lhs;
-    _print_strs p [" "; (_binop_to_str binop); " ";];
-    _pp_ast_expr_parens_on_non_atomic p rhs
   | Exp_let (rec_flag, bindings, body) ->
     _pp_ast_let_bindings p rec_flag bindings;
     _println_str p " in";

@@ -48,6 +48,7 @@ let tests = OUnit2.(>:::) "ast_interp_test" [
     OUnit2.(>::) "test_integration" (fun _ ->
         _check_ast_interp (_get_full_path "fac");
         _check_ast_interp (_get_full_path "short_circuit");
+        _check_ast_interp (_get_full_path "infix");
       );
   ]
 

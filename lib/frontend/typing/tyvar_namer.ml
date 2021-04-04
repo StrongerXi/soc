@@ -79,11 +79,6 @@ let rec _rename_tyvars_in_expr t (tv_map : (string, string) Map.t)
     let t, body = _rename_tyvars_in_expr t tv_map body in
     let expr = { expr with expr_desc = Exp_fun (names, body) } in
     (t, expr)
-  | Exp_binop (binop, lhs, rhs) ->
-    let t, lhs = _rename_tyvars_in_expr t tv_map lhs in
-    let t, rhs = _rename_tyvars_in_expr t tv_map rhs in
-    let expr = { expr with expr_desc = Exp_binop (binop, lhs, rhs) } in
-    (t, expr)
   | Exp_if (cnd, thn, els) ->
     let t, cnd = _rename_tyvars_in_expr t tv_map cnd in
     let t, thn = _rename_tyvars_in_expr t tv_map thn in
