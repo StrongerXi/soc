@@ -1,0 +1,3 @@
+[Typer]: Expected type <bool> but got <int> at <(2, 9)-(2, 19)>
+[Typer]: Expected type <int> but got <bool> at <(8, 9)-(8, 9)>
+[Typer]: Expected type <bool> but got <int> at <(11, 7)-(11, 7)>

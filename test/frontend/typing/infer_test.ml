@@ -21,8 +21,8 @@ let _check_infer_struct (filepath_no_suffix : string) : unit =
 let tests = OUnit2.(>:::) "infer_test" [
 
     OUnit2.(>::) "test_integration" (fun _ ->
-        let path = _get_full_path "infer_input_mixed" in
-        _check_infer_struct path;
+        _check_infer_struct (_get_full_path "infer_input_mixed");
+        _check_infer_struct (_get_full_path "annot");
       );
   ]
 
