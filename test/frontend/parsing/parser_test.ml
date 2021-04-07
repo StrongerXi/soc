@@ -10,7 +10,7 @@ let _check_parser_pp_ast (filepath_no_suffix : string) : unit =
   let result =
     match Driver.parse_file filepath with
     | Error msg -> msg
-    | Ok ast -> Frontend_pp.pp_ast_structure ast
+    | Ok ast -> Pretty.pp_ast_structure ast
   in
   let expect_path = String.append filepath_no_suffix ".expect" in
   let actual_path = String.append filepath_no_suffix ".actual" in
