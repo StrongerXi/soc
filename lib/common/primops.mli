@@ -32,3 +32,6 @@ val get_type : string -> Ast.typ option
 (** [get_op s] returns the primitive op associated with [s],
     or [None] if [s] is not a primitive op. *)
 val get_kind : string -> op_kind option
+
+(** [get_opstr op_kind] returns the opstr associated with [op_kind]. *)
+val get_opstr : op_kind -> string
