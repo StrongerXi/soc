@@ -1,0 +1,8 @@
+
+let add = (+) 
+and pl = println
+and add1 = (+) 1;;
+
+pl (add1 41);;
+
+pl (add 1 2);;

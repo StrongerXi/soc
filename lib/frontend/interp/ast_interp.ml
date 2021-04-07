@@ -1,18 +1,22 @@
 open Pervasives
 
-type builtin_func =
+type native_func =
   | Builtin_println
 
 (** Result of evaluating an AST expression *)
 type value =
   | Int of int
   | Bool of bool
-  | Native of builtin_func
   | Closure of string list * Ast.expression * (context ref)
                (* arg names, body expr, enclosing context *)
 
+and ident_desc =
+  | Value of value
+  | Native of native_func
+  | Primop of Primops.op_kind
+                
 (** A [context] is an immutable execution context for the interpreter *)
-and context = (string, value) Map.t
+and context = (string, ident_desc) Map.t
 
 let _int_type = "int"
 and _bool_type = "bool"
@@ -25,7 +29,6 @@ let _println_val (v : value) : unit =
   | Bool true  -> Io.println "true"
   | Bool false -> Io.println "false"
   | Closure _  -> Io.println "<function>"
-  | Native _   -> Io.println "<builtin-function>"
 ;;
 
 let _type_of (v : value) : string = (* TODO better type representation *)
@@ -33,20 +36,19 @@ let _type_of (v : value) : string = (* TODO better type representation *)
   | Int _     -> _int_type
   | Bool _    -> _bool_type
   | Closure _ -> _function_type
-  | Native _  -> _function_type
 ;;
 
-let _context_lookup (ctx : context) (name : string) : value option =
+let _context_lookup (ctx : context) (name : string) : ident_desc option =
   Map.get name ctx
 ;;
 
-let _context_insert (ctx : context) (name : string) (v : value) : context =
-  Map.add name v ctx
+let _context_insert (ctx : context) (name : string) (desc : ident_desc) : context =
+  Map.add name desc ctx
 ;;
 
 let _context_insert_pairs (ctx : context) (pairs : (string * value) list)
   : context =
-  List.fold_left (fun ctx (n, v) -> _context_insert ctx n v) ctx pairs
+  List.fold_left (fun ctx (n, v) -> _context_insert ctx n (Value v)) ctx pairs
 ;;
 
 
@@ -83,28 +85,6 @@ let _interp_const (const : Ast.constant) : value =
   | Const_Bool b -> Bool b
 ;;
 
-(* ASSUME [opstr] is a primitive operator *)
-let _interp_prim_op (ctx : context) (opstr : string) (expr_span : Span.t) : value =
-  let args = ["a"; "b"] in  (* could cache this geneartion but whatever *)
-  let expr_typ = None in
-  let ident_expr = { Ast.expr_desc = Exp_ident opstr; expr_span; expr_typ } in
-  let arg_exprs = List.map
-      (fun str -> { Ast.expr_desc = Exp_ident str; expr_span; expr_typ }) args
-  in
-  let body_expr = { Ast.expr_desc = Exp_apply (ident_expr, arg_exprs);
-                    expr_span; expr_typ  } in
-  Closure (["a"; "b"], body_expr, ref ctx)
-;;
-
-let _interp_name (ctx : context) (name : string) (where : Span.t) : value =
-  match _context_lookup ctx name with
-  | Some v -> v
-  | None ->
-    match Primops.get_kind name with
-    | None -> _error_unbound_var name where
-    | Some _ -> _interp_prim_op ctx name where
-;;
-
 let rec _interp_expr (ctx : context) (expr : Ast.expression) : value =
   match expr.expr_desc with
   | Exp_const const -> _interp_const const
@@ -116,6 +96,22 @@ let rec _interp_expr (ctx : context) (expr : Ast.expression) : value =
   | Exp_if (cnd, thn, els)        -> _interp_if_expr    ctx cnd thn els
   | Exp_let (rec_flag, bds, body) -> _interp_let_expr   ctx rec_flag bds body
   | Exp_apply (func, args)        -> _interp_apply      ctx func args expr.expr_span
+
+and _interp_name (ctx : context) (name : string) (where : Span.t) : value =
+  let make_closure_for_primop (op_kind : Primops.op_kind) : value =
+    match op_kind with
+    | AddInt | SubInt | MulInt | LogicAnd | LogicOr | Equal | LtInt ->
+      _curry_apply ctx (Primop op_kind) [] 2
+  in
+  let make_closure_for_native (func : native_func) : value =
+    match func with
+    | Builtin_println -> _curry_apply ctx (Native func) [] 1
+  in
+  match _context_lookup ctx name with
+  | None -> _error_unbound_var name where
+  | Some (Value v) -> v
+  | Some (Primop op_kind) -> make_closure_for_primop op_kind
+  | Some (Native func) -> make_closure_for_native func
 
 and _interp_check_int (ctx :context) (expr : Ast.expression) : int =
   match _interp_expr ctx expr with
@@ -172,34 +168,40 @@ and _interp_let_bindings (ctx : context)
   | Nonrecursive -> ());
   ctx
 
+(* - handle primitive op and native functions
+ * - handle currying *)
 and _interp_apply (ctx : context)
     (func : Ast.expression) (args : Ast.expression list) (span : Span.t)
   : value =
-    (* inline primop application, or get stuck *)
+    (* inline application for non-value func, or get stuck *)
   match func with
   | { expr_desc = Exp_ident name; expr_span; expr_typ = None } ->
-    _interp_potential_primop_apply ctx name expr_span args span
+    _interp_ident_apply ctx name expr_span args span
   | _ ->
     let func_value = _interp_expr ctx func in
     _interp_apply_func_value ctx func_value func.expr_span args span
 
-and _interp_potential_primop_apply (ctx : context)
+and _interp_ident_apply (ctx : context)
     (func_ident : string) (func_span : Span.t) (args : Ast.expression list)
     (apply_span : Span.t)
   : value =
-  match _context_lookup ctx func_ident with (* allow shadowing of built-in primops *)
-  | Some value -> _interp_apply_func_value ctx value func_span args apply_span
-  | None ->
-    match Primops.get_kind func_ident with
-    | None -> _error_unbound_var func_ident func_span
-    | Some primop -> _interp_primop ctx primop args apply_span
+  (* NOTE this should synch with _intern_ident (not exactly tho) *)
+  match _context_lookup ctx func_ident with
+  | None -> _error_unbound_var func_ident func_span
+  | Some (Value v) -> _interp_apply_func_value ctx v func_span args apply_span
+  | Some (Primop op_kind) -> _interp_primop ctx op_kind func_span args apply_span
+  | Some (Native func) -> _interp_native_apply ctx func func_span args apply_span
 
 and _interp_primop (ctx : context)
-    (primop : Primops.op_kind) (args : Ast.expression list) (apply_span : Span.t)
+    (op_kind : Primops.op_kind) (op_span : Span.t) (args : Ast.expression list)
+    (apply_span : Span.t)
   : value =
   match args with
-  | lhs::rhs::[] -> _interp_binary_primop ctx primop lhs rhs
-  | _ -> _error_arity_mismatch 2 (List.length args) apply_span
+  | lhs::rhs::more_args ->
+    let op_res = _interp_binary_primop ctx op_kind lhs rhs in
+    let func_span = Span.merge op_span rhs.expr_span in
+    _apply_if_any_args ctx op_res func_span more_args apply_span
+  | _ -> _curry_apply ctx (Primop op_kind) args 2
 
 and _interp_binary_primop (ctx : context)
     (primop : Primops.op_kind) (lhs : Ast.expression) (rhs : Ast.expression)
@@ -223,32 +225,111 @@ and _interp_binary_primop (ctx : context)
     | _ -> failwith "[Ast_interp] unreachablle match case"
 
 and _interp_apply_func_value (ctx : context)
-    (func : value) (func_span : Span.t) (args : Ast.expression list)
+    (func_val : value) (func_span : Span.t) (args : Ast.expression list)
     (apply_span : Span.t) : value =
-  match func with
+  let _bind_args (names : string list) (args : Ast.expression list)
+    : (((string * Ast.expression) list) * Span.t * Ast.expression list) option =
+    (* Some (name_arg_pairs, span of last arg expr, more arg exprs);
+     * Error --> missing >= 1 args *)
+    let rec go names args
+        (name_arg_pairs : (string * Ast.expression) list)
+        (last_arg_expr : Span.t) =
+      match names, args with
+      | [], args -> Some(name_arg_pairs, last_arg_expr, args)
+      | _, [] -> None
+      | name::more_names, arg::more_args ->
+        go more_names more_args ((name, arg)::name_arg_pairs) arg.expr_span
+    in
+    match names, args with
+    | name::more_names, arg::more_args ->
+      go more_names more_args [(name, arg)] arg.expr_span
+    | _ -> failwith "[Ast_interp._internp_apply_func_value] expect >= 1 args"
+  in
+  match func_val with
   | Closure (names, body, func_ctx) ->
-    let argvs = List.map (_interp_expr ctx) args in
-    let len_expect = List.length names in
-    let len_actual = List.length argvs in
-    if len_expect <> len_actual
-    then _error_arity_mismatch len_expect len_actual apply_span
-    else
-      let name_arg_pairs = List.combine names argvs in
-      let ctx = _context_insert_pairs !func_ctx name_arg_pairs in
-      _interp_expr ctx body
-  | Native func -> _interp_native_apply ctx func args apply_span
-  | _ as v -> _error_type_mismatch _function_type (_type_of v) func_span
+    begin
+      match _bind_args names args with
+      | Some (name_arg_pairs, last_arg_span, more_args) ->
+        let name_arg_val_pairs =
+          List.map (fun (name, arg) -> (name, _interp_expr ctx arg))
+            name_arg_pairs
+        in
+        let ctx = _context_insert_pairs !func_ctx name_arg_val_pairs in
+        let apply_res = _interp_expr ctx body in
+        let res_span = Span.merge func_span last_arg_span in
+        _apply_if_any_args ctx apply_res res_span more_args apply_span
+      | None ->
+        let expected_args_num = List.length names in
+        _curry_apply ctx (Value func_val) args expected_args_num
+    end
+  | _ -> _error_type_mismatch _function_type (_type_of func_val) func_span
 
 and _interp_native_apply (ctx : context)
-    (func : builtin_func) (args : Ast.expression list) (span : Span.t) : value =
+    (func : native_func) (func_span : Span.t) (args : Ast.expression list)
+    (apply_span : Span.t) : value =
   match func with
   | Builtin_println ->
     match args with
-    | [arg_e] ->
+    | arg_e::more_args ->
       let arg_v = _interp_expr ctx arg_e in
+      let func_span = Span.merge func_span arg_e.expr_span in
       _println_val arg_v;
-      arg_v
-    | _ -> _error_arity_mismatch 1 (List.length args) span
+      _apply_if_any_args ctx arg_v func_span more_args apply_span
+    | _ -> _curry_apply ctx (Native func) args 1
+
+(* TODO unsure about the semantics of such eval, I know order is
+ * unspecified, but do extra args get evaled eagerly? Well typechecking ensures
+ * no extra args... So I get to decide here:) *)
+and _apply_if_any_args (ctx :context)
+    (func_val : value) (func_span : Span.t) (args : Ast.expression list)
+    (apply_span : Span.t) : value =
+  match args with
+  | [] -> func_val
+  | args -> _interp_apply_func_value ctx func_val func_span args apply_span
+
+(* let f x y = x + y;;
+ * f x 
+ * ---->
+ * let f = f
+ * and x = x
+ * in (fun y -> f x y) *)
+and _curry_apply (original_ctx : context)
+    (func_desc : ident_desc) (args : Ast.expression list)
+    (expected_args_num : int) : value =
+  let provided_args_num = List.length args in
+  let extra_args_needed = expected_args_num - provided_args_num in
+  if extra_args_needed <= 0
+  then failwith "[Ast_interp._curry_apply] application already has enough args";
+  let provided_arg_names =
+    List.init provided_args_num
+      (fun n -> String.append "provided_" (Int.to_string n))
+  in
+  let ctx_with_provided_args =
+    List.fold_left (* evalaute left to right, my choice *)
+      (fun ctx (name, arg_e) -> 
+         _context_insert ctx name (Value (_interp_expr original_ctx arg_e)))
+      original_ctx
+      (List.combine provided_arg_names args)
+  in
+  let func_name = "f_curry" in
+  let ctx_with_everything =
+    _context_insert ctx_with_provided_args func_name func_desc in
+  let extra_arg_names = 
+    List.init extra_args_needed
+      (fun n -> String.append "extra_" (Int.to_string n))
+  in
+  let make_dummy_expr (expr_desc : Ast.expr_desc) : Ast.expression =
+    { Ast.expr_desc (* NOTE I don't think the span info will be used, ba. *)
+    ; expr_span = Span.create (Location.create 0 0) (Location.create 0 0)
+    ; expr_typ = None }
+  in
+  let func_ident_e = make_dummy_expr (Exp_ident func_name) in
+  let arg_ident_es = List.map
+      (fun arg_name -> make_dummy_expr (Exp_ident arg_name))
+      (List.append provided_arg_names extra_arg_names)
+  in
+  let body_e = make_dummy_expr (Exp_apply (func_ident_e, arg_ident_es)) in
+  Closure(extra_arg_names, body_e, ref ctx_with_everything)
 ;;
 
 let _interp_struct_item (ctx : context) (item : Ast.struct_item) : context =
@@ -260,6 +341,12 @@ let _interp_struct_item (ctx : context) (item : Ast.struct_item) : context =
 let _interp_struct_impl items =
   let init_ctx = Map.empty String.compare in
   let init_ctx = Map.add "println" (Native Builtin_println) init_ctx in
+  let init_ctx =
+    List.fold_left
+      (fun ctx (info : Primops.op_info) ->
+         Map.add info.opstr (Primop info.kind) ctx)
+      init_ctx Primops.all_op_infos
+  in
   let _ = List.fold_left _interp_struct_item init_ctx items in
   ()
 ;;
