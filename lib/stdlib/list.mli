@@ -73,3 +73,6 @@ val split : ('a * 'b) list -> 'a list * 'b list
 (** [combine [([a1; ...; am], [b1; ...; bn])]] is [(a1,b1); ...; (ak,bk)]. 
     where k = min(m, n) *)
 val combine : 'a list -> 'b list -> ('a * 'b) list
+
+(** [init len f] is [f 0; f 1; ...; f (len-1)], evaluated left to right. *)
+val init : int -> (int -> 'a) -> 'a list

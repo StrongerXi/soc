@@ -130,3 +130,14 @@ let rec combine xs ys =
     (x, y)::xys
   | _ -> []
 ;;
+
+let init size f =
+  let rec go n =
+    if n = size then []
+    else
+      let x = f n in
+      let xs = go (n + 1)
+      in x::xs
+  in
+  go 0
+;;
