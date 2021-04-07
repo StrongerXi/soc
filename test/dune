@@ -8,6 +8,9 @@
    location_test span_test lexer_test parser_test ast_interp_test typer_test
    substs_test
 
+   ; backend
+   cir_test
+
    ; helper functions
    test_aux
   )

@@ -29,3 +29,7 @@ let type_file filepath =
   in
   Result.bind (parse_file filepath) type_ast
 ;;
+
+let cir_file filepath =
+  Result.map Cir.from_ast_struct (type_file filepath)
+;;

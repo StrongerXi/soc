@@ -389,3 +389,108 @@ let pp_typer_error (err : Errors.typer_error) =
         " occurs within "; (pp_ast_typ occurree) ]
       ""
 ;;
+
+
+let rec _pp_cir_expr (p : printer) (e : Cir.expr) : unit =
+  match e with
+  | Cconst const -> _pp_cir_const p const
+  | Cident name -> _print_str p name
+  | Cmk_closure mkcls -> _pp_cir_mk_closure p mkcls
+                           
+  | Clet (bds, body) ->
+    _print_str p "let ";
+    _inc_space p 4;
+    List.iter
+      (fun (name, rhs_e) ->
+         _print_strs p [name; " = "];
+         let spaces = (String.length name) + (String.length " = ") in
+         _inc_space p spaces; _pp_cir_expr p rhs_e; _dec_space p spaces;
+         _print_newline p;)
+      bds;
+    _dec_space p 4;
+    _print_str p "in ";
+    _inc_space p 3; _pp_cir_expr p body;_dec_space p 3;
+
+  | Cletrec (bds, body) ->
+    _print_str p "let rec ";
+    _inc_space p 8;
+    List.iter
+      (fun (name, (rhs_e : Cir.letrec_rhs)) ->
+         _print_strs p [name; " = "];
+         let spaces = (String.length name) + (String.length " = ") in
+         _inc_space p spaces; _pp_cir_letrec_rhs p rhs_e; _dec_space p spaces;
+         _print_newline p;)
+      bds;
+    _dec_space p 8;
+    _print_str p "in ";
+    _inc_space p 3; _pp_cir_expr p body;_dec_space p 3;
+
+  | Cif (cnd, thn, els) ->
+    _print_str p "if "; _pp_cir_expr p cnd;
+    _print_newline p;
+    _print_str p "then "; _inc_space p 5; _pp_cir_expr p thn; _dec_space p 5;
+    _print_newline p;
+    _print_str p "else "; _inc_space p 5; _pp_cir_expr p els; _dec_space p 5;
+
+  | Cprimop (op_kind, args) ->
+    _print_str p "(";
+    _print_str p (Primops.get_opstr op_kind);
+    List.iter (fun arg ->
+        _print_str p " "; (* first space separates func and arg *)
+        _pp_cir_expr p arg;)
+      args;
+    _print_str p ")";
+
+  | Capply (func, args) ->
+    _print_str p "(";
+    _pp_cir_expr p func;
+    List.iter (fun arg ->
+        _print_str p " "; (* first space separates func and arg *)
+        _pp_cir_expr p arg;)
+      args;
+    _print_str p ")";
+
+and _pp_cir_const (p : printer) (const : Cir.constant) : unit =
+  match const with
+  | CInt n  -> _print_str p (Int.to_string n)
+  | CBool b -> _print_str p (Bool.to_string b)
+
+and _pp_cir_mk_closure (p : printer) (mkcls : Cir.mk_closure) : unit =
+  _print_strs p ["(MK_CLOSURE <"; mkcls.func_name; "> "];
+  _print_str p (String.join_with mkcls.free_vars " ");
+  _print_str p ")";
+
+and _pp_cir_letrec_rhs (p : printer) (rhs : Cir.letrec_rhs) : unit =
+  match rhs with
+  | Rhs_const const -> _pp_cir_const p const
+  | Rhs_mkcls mkcls -> _pp_cir_mk_closure p mkcls
+
+let _pp_cir_funcs (p : printer) (funcs : (string, Cir.closure) Map.t) : unit =
+  let _pp_one_func (name : string) (cls : Cir.closure) : unit =
+    _print_strs p ["closure <"; name; "> = {"]; _print_newline p;
+    _inc_space p 2;
+    _print_strs p ["args = ("; String.join_with cls.args ", "; ")"];
+    _print_newline p;
+    _print_strs p ["free_vars = ("; String.join_with cls.free_vars ", "; ")"];
+    _print_newline p;
+    _println_str p "body = {";
+    _inc_space p 2;
+    _pp_cir_expr p cls.body; _print_newline p;
+    _dec_space p 2; _println_str p "}";
+    _dec_space p 2; _println_str p "}"
+  in
+  let _ = Map.mapi _pp_one_func funcs in
+  ()
+;;
+
+let _pp_cir (p : printer) (cir : Cir.t) : unit =
+  _pp_cir_funcs p cir.funcs;
+  _pp_cir_expr p cir.expr;
+;;
+
+let pp_cir cir =
+  let p = _create_printer () true in
+  _pp_cir p cir;
+  p.buffer
+;;
+

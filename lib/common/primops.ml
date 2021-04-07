@@ -1,5 +1,7 @@
 open Pervasives
 
+(* NOTE
+ * To add another primop, just modify [all_op_infos] and [get_opstr] *)
 type op_kind =
   | AddInt
   | SubInt
@@ -16,6 +18,17 @@ type op_info =
   }
 
 
+let get_opstr op_kind =
+  match op_kind with
+  | AddInt   -> "+"
+  | SubInt   -> "-"
+  | MulInt   -> "*"
+  | LogicAnd -> "&&"
+  | LogicOr  -> "||"
+  | Equal    -> "="
+  | LtInt    -> "<"
+;;
+
 let all_op_infos =
   let _make_binop_type (lhs : Ast.typ) (rhs : Ast.typ) (out : Ast.typ)
     : Ast.typ =
@@ -29,14 +42,16 @@ let all_op_infos =
   let int_int_bool = _make_binop_type int_typ int_typ bool_typ in
   let bool_bool_bool = _make_binop_type bool_typ bool_typ bool_typ in
 
+  List.map
+    (fun (kind, typ) -> { kind; typ; opstr = get_opstr kind })
   [ 
-    { opstr = "+"; kind = AddInt; typ = int_int_int }
-  ; { opstr = "-";  typ = int_int_int; kind = SubInt }
-  ; { opstr = "*";  typ = int_int_int; kind = MulInt }
-  ; { opstr = "<";  typ = int_int_bool; kind = LtInt }
-  ; { opstr = "||"; typ = bool_bool_bool; kind = LogicOr }
-  ; { opstr = "&&"; typ = bool_bool_bool; kind = LogicAnd }
-  ; { opstr = "=";  typ = _make_binop_type tyvar tyvar bool_typ; kind = Equal }
+    (AddInt, int_int_int);
+    (SubInt, int_int_int);
+    (MulInt, int_int_int);
+    (LtInt, int_int_bool);
+    (LogicOr, bool_bool_bool);
+    (LogicAnd, bool_bool_bool);
+    (Equal, _make_binop_type tyvar tyvar bool_typ);
   ]
 ;;
 
