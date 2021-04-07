@@ -36,4 +36,6 @@ type t =
   ; expr : expr
   }
 
+(** [from_ast_struct struct] returns a CIR representation of [struct].
+    ASSUME [struct] is well-typed based on Typer. *)
 val from_ast_struct : Ast.structure -> t
