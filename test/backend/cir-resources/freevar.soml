@@ -1,0 +1,9 @@
+
+let rec f x = g x
+and g x = f x;;
+
+let f1 x y z =
+  (fun x ->
+     (fun a b c ->
+        x + a + y))
+;;
