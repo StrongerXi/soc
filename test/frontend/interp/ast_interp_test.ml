@@ -12,7 +12,7 @@ let _interp_file (filepath : string) : unit =
   | Ok ast ->
     match Ast_interp.interp_struct ast with
     | Ok _ -> ()
-    | Error err -> Io.println (Frontend_pp.pp_ast_interp_error err);
+    | Error err -> Io.println (Pretty.pp_ast_interp_error err);
 ;;
 
 (* Temporarily redirect stdout to [filepath] while running [thunk ()] *)

@@ -10,7 +10,7 @@ let _check_lexer_pp_ast (filepath_no_suffix : string) : unit =
   let result =
     match Driver.lex_file filepath with
     | Error msg -> msg
-    | Ok ast -> String.join_with (List.map Frontend_pp.pp_token ast) "\n"
+    | Ok ast -> String.join_with (List.map Pretty.pp_token ast) "\n"
   in
   let expect_path = String.append filepath_no_suffix ".expect" in
   let actual_path = String.append filepath_no_suffix ".actual" in

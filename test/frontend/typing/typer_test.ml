@@ -10,7 +10,7 @@ let _check_typer_struct (filepath_no_suffix : string) : unit =
   let result =
     match Driver.type_file filepath with
     | Error msg -> msg
-    | Ok ast -> Frontend_pp.pp_ast_structure_with_typ_annot ast
+    | Ok ast -> Pretty.pp_ast_structure_with_typ_annot ast
   in
   let expect_path = String.append filepath_no_suffix ".expect" in
   let actual_path = String.append filepath_no_suffix ".actual" in
