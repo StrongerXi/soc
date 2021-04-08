@@ -42,10 +42,8 @@ type context =
   ; namer : Var_namer.t
   }
 
-let _init_ctx =
-  { funcs = Map.empty String.compare
-  ; namer = Var_namer.init
-  }
+let _init_ctx namer =
+  { funcs = Map.empty String.compare; namer }
 ;;
 
 let _gen_new_var_name (ctx : context) (prefix : string) : (context * string) =
@@ -309,15 +307,16 @@ let _add_primop_closures (ctx : context) : (context * (string * expr) list) =
        let ctx = _add_closure ctx func_name cls in
        let mkcls = { func_name; free_vars = [] } in (* primop has no freevars *)
        let bd = (info.opstr, Cmk_closure mkcls) in
-       (ctx, bd::bds)
-    )
+       (ctx, bd::bds))
     Primops.all_op_infos (ctx, [])
 ;;
 
 (* NOTE ASSUME the translation order is irrelevant.
  * This makes translation easier for the let bindings *)
 let from_ast_struct structure =
-  let ctx = _init_ctx in
+  let namer = Var_namer.init in
+  let namer, structure = Var_namer.rename_struct namer structure in
+  let ctx = _init_ctx namer in
   let dummy_body = Cconst (CInt 42) in (* no effect, simplifies code *)
   let ctx, final_ce =
     List.fold_right

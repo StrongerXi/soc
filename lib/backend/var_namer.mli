@@ -5,8 +5,10 @@ type t
 (** [init] is a bare minimum instance of t. *)
 val init : t
 
-(** [rename_struct t s] returns a new structure where all identifiers are
-    consistenly renamed to some unique name (i.e., binding and usage synch) *)
+(** [rename_struct t s] returns a new structure where all bound identifiers are
+    consistenly renamed to some unique name (i.e., binding and usage synch).
+    NOTE unbound variables are left untouched. At this stage (after typing) we
+    assume they are built-in vars. *)
 val rename_struct : t -> Ast.structure -> (t * Ast.structure)
 
 (** [gen_new_var_with_prefix t prefix] creates a variable name starting with

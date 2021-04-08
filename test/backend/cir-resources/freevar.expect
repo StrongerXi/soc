@@ -1,95 +1,95 @@
-closure <+_23> = {
+closure <+_35> = {
+  args = (prim_arg_37, prim_arg_36)
+  free_vars = ()
+  body = {
+    (+ prim_arg_37 prim_arg_36)
+  }
+}
+closure <-_32> = {
+  args = (prim_arg_34, prim_arg_33)
+  free_vars = ()
+  body = {
+    (- prim_arg_34 prim_arg_33)
+  }
+}
+closure <*_29> = {
+  args = (prim_arg_31, prim_arg_30)
+  free_vars = ()
+  body = {
+    (* prim_arg_31 prim_arg_30)
+  }
+}
+closure <<_26> = {
+  args = (prim_arg_28, prim_arg_27)
+  free_vars = ()
+  body = {
+    (< prim_arg_28 prim_arg_27)
+  }
+}
+closure <||_23> = {
   args = (prim_arg_25, prim_arg_24)
   free_vars = ()
   body = {
-    (+ prim_arg_25 prim_arg_24)
+    (|| prim_arg_25 prim_arg_24)
   }
 }
-closure <-_20> = {
+closure <&&_20> = {
   args = (prim_arg_22, prim_arg_21)
   free_vars = ()
   body = {
-    (- prim_arg_22 prim_arg_21)
+    (&& prim_arg_22 prim_arg_21)
   }
 }
-closure <*_17> = {
+closure <=_17> = {
   args = (prim_arg_19, prim_arg_18)
   free_vars = ()
   body = {
-    (* prim_arg_19 prim_arg_18)
+    (= prim_arg_19 prim_arg_18)
   }
 }
-closure <<_14> = {
-  args = (prim_arg_16, prim_arg_15)
-  free_vars = ()
+closure <closure_16> = {
+  args = (x_2)
+  free_vars = (g_0)
   body = {
-    (< prim_arg_16 prim_arg_15)
+    (g_0 x_2)
   }
 }
-closure <||_11> = {
-  args = (prim_arg_13, prim_arg_12)
-  free_vars = ()
+closure <closure_15> = {
+  args = (x_3)
+  free_vars = (f_1)
   body = {
-    (|| prim_arg_13 prim_arg_12)
+    (f_1 x_3)
   }
 }
-closure <&&_8> = {
-  args = (prim_arg_10, prim_arg_9)
-  free_vars = ()
-  body = {
-    (&& prim_arg_10 prim_arg_9)
-  }
-}
-closure <=_5> = {
-  args = (prim_arg_7, prim_arg_6)
-  free_vars = ()
-  body = {
-    (= prim_arg_7 prim_arg_6)
-  }
-}
-closure <closure_4> = {
-  args = (x)
-  free_vars = (g)
-  body = {
-    (g x)
-  }
-}
-closure <closure_3> = {
-  args = (x)
-  free_vars = (f)
-  body = {
-    (f x)
-  }
-}
-closure <closure_0> = {
-  args = (x, y, z)
+closure <closure_12> = {
+  args = (x_5, y_6, z_7)
   free_vars = (+)
   body = {
-    (MK_CLOSURE <closure_1> y +)
+    (MK_CLOSURE <closure_13> y_6 +)
   }
 }
-closure <closure_1> = {
-  args = (x)
-  free_vars = (y, +)
+closure <closure_13> = {
+  args = (x_8)
+  free_vars = (y_6, +)
   body = {
-    (MK_CLOSURE <closure_2> y x +)
+    (MK_CLOSURE <closure_14> y_6 x_8 +)
   }
 }
-closure <closure_2> = {
-  args = (a, b, c)
-  free_vars = (y, x, +)
+closure <closure_14> = {
+  args = (a_9, b_10, c_11)
+  free_vars = (y_6, x_8, +)
   body = {
-    (+ (+ x a) y)
+    (+ (+ x_8 a_9) y_6)
   }
 }
-let + = (MK_CLOSURE <+_23> )
-    - = (MK_CLOSURE <-_20> )
-    * = (MK_CLOSURE <*_17> )
-    < = (MK_CLOSURE <<_14> )
-    || = (MK_CLOSURE <||_11> )
-    && = (MK_CLOSURE <&&_8> )
-    = = (MK_CLOSURE <=_5> )
-in let rec f = (MK_CLOSURE <closure_4> g)
-           g = (MK_CLOSURE <closure_3> f)
-   in let f1 = (MK_CLOSURE <closure_0> +)
+let + = (MK_CLOSURE <+_35> )
+    - = (MK_CLOSURE <-_32> )
+    * = (MK_CLOSURE <*_29> )
+    < = (MK_CLOSURE <<_26> )
+    || = (MK_CLOSURE <||_23> )
+    && = (MK_CLOSURE <&&_20> )
+    = = (MK_CLOSURE <=_17> )
+in let rec f_1 = (MK_CLOSURE <closure_16> g_0)
+           g_0 = (MK_CLOSURE <closure_15> f_1)
+   in let f1_4 = (MK_CLOSURE <closure_12> +)
       in 42
