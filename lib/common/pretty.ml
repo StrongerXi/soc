@@ -483,7 +483,7 @@ let _pp_cir_funcs (p : printer) (funcs : (string, Cir.closure) Map.t) : unit =
   ()
 ;;
 
-let _pp_cir (p : printer) (cir : Cir.t) : unit =
+let _pp_cir (p : printer) (cir : Cir.prog) : unit =
   _pp_cir_funcs p cir.funcs;
   _pp_cir_expr p cir.expr;
 ;;

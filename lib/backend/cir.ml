@@ -29,7 +29,7 @@ type closure =
   ; body : expr
   }
 
-type t =
+type prog =
   { funcs : (string, closure) Map.t
   ; expr : expr
   }

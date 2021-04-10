@@ -17,4 +17,4 @@ val pp_ast_interp_error : Errors.ast_interp_error -> string
 val pp_typer_error      : Errors.typer_error -> string
 
 (* Backend stuff *)
-val pp_cir : Cir.t -> string
+val pp_cir : Cir.prog -> string

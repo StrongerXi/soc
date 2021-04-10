@@ -9,4 +9,4 @@ open Pervasives
 val lex_file : string -> (Token.t list, string) result
 val parse_file : string -> (Ast.structure, string) result
 val type_file  : string -> (Ast.structure, string) result
-val cir_file  : string -> (Cir.t, string) result
+val cir_file  : string -> (Cir.prog, string) result
