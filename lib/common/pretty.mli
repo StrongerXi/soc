@@ -18,3 +18,4 @@ val pp_typer_error      : Errors.typer_error -> string
 
 (* Backend stuff *)
 val pp_cir : Cir.prog -> string
+val pp_lir_prog : Lir.prog -> string
