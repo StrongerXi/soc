@@ -391,7 +391,7 @@ let _emit_cls_prelude (ctx : context) (cls : Cir.closure)
   : (context * Temp.t list) =
   let ctx, cls_temp = _ctx_gen_temp ctx in
   let ctx, arg_temps =
-    List.fold_right (* order matters *)
+    List.fold_right
       (fun arg_name (ctx, arg_temps) ->
          let ctx, arg_temp = _ctx_gen_and_bind_temp ctx arg_name in
          (ctx, arg_temp::arg_temps))
@@ -399,7 +399,7 @@ let _emit_cls_prelude (ctx : context) (cls : Cir.closure)
       (ctx, [])
   in
   let ctx, _ = (* emit code for loading freevars *)
-    List.fold_left
+    List.fold_left (* start with first freevar *)
       (fun (ctx, word_offset) fv_name ->
          (* fv_temp = *[cls_temp + word_offset] *)
          let ctx, fv_temp = _ctx_gen_and_bind_temp ctx fv_name in

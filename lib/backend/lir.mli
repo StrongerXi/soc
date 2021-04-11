@@ -46,7 +46,7 @@ type instr =
 type func =
   { name     : Label.t
   ; args     : Temp.t list
-  ; body     : instr list     (* always starts with [name] label *)
+  ; body     : instr list  (* NOTE doesn't start with [name] label *)
   }
 
 
