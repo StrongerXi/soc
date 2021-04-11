@@ -206,7 +206,7 @@ and _from_ast_let_bindings (ctx : context) (rec_flag : Ast.rec_flag)
     let c_let = Cletrec (c_bds, c_body) in
     (ctx, c_let)
 
-(* handle currying *)
+(* handle partial application too *)
 and _from_ast_apply (ctx : context)
     (func : Ast.expression) (args : Ast.expression list)
   : (context * expr) =
@@ -229,8 +229,8 @@ and _from_ast_apply (ctx : context)
   in
   if extra_args_needed = 0
   then (ctx, Capply (c_func, c_args))
-  else (* extra_args_needed > 0, can't apply the function without currying *)
-    _curry_apply ctx c_func c_args extra_args_needed
+  else (* extra_args_needed > 0 *)
+    _partial_apply ctx c_func c_args extra_args_needed
 
 (* (* ASSUME e1 takes 3 args *)
  * e1 e2
@@ -238,21 +238,21 @@ and _from_ast_apply (ctx : context)
  * let f = e1
  * and x = e2
  * in (fun a1 a2 -> f x a1 a2) *)
-and _curry_apply (ctx : context)
+and _partial_apply (ctx : context)
     (c_func : expr) (c_args : expr list) (extra_args_needed : int)
   : (context * expr) =
-  let ctx, func_bind_name = _gen_new_var_name ctx "curried_func" in
+  let ctx, func_bind_name = _gen_new_var_name ctx "partial_applied_func" in
   let func_bind = (func_bind_name, c_func) in
   let ctx, provided_arg_bds =
     List.fold_right (* binding order matters for making Capply below *)
       (fun c_arg (ctx, provided_arg_bds) ->
-         let ctx, arg_name = _gen_new_var_name ctx "curried_func_free_arg" in
+         let ctx, arg_name = _gen_new_var_name ctx "provided_arg" in
          let provided_arg_bds = (arg_name, c_arg)::provided_arg_bds in
          (ctx, provided_arg_bds))
       c_args (ctx, [])
   in
   let ctx, extra_arg_names =
-    _gen_new_var_names ctx "curried_func_arg" extra_args_needed
+    _gen_new_var_names ctx "extra_arg" extra_args_needed
   in
   let provided_arg_names = List.map (fun (var, _) -> var) provided_arg_bds in
   let all_arg_names = List.append provided_arg_names extra_arg_names in
