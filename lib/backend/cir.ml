@@ -13,6 +13,7 @@ type expr =
   | Cif of expr * expr * expr
   | Cprimop of Primops.op_kind * expr list
   | Capply of expr * expr list
+  | Cnative_apply of string * expr list
 
 and mk_closure =
   { func_name : string
@@ -285,11 +286,11 @@ let _from_ast_struct_item (ctx : context) (body_ce : expr)
     _from_ast_let_bindings ctx rec_flag bds body_ce
 ;;
 
-(* Manually add all primitive operators into the cir closure context and create
+(* Manually add all primitives/natives into the cir closure context and create
  * bindings for them. NOTE `external` syntax would move this to source *)
-let _add_primop_closures (ctx : context) : (context * (string * expr) list) =
+let _add_primops_closures (ctx : context) : (context * (string * expr) list) =
 
-  let make_primop_closure (ctx : context) (info :Primops.op_info)
+  let make_primop_closure (ctx : context) (info : Primops.op_info)
     : (context * closure) =
     let arg_count = _count_args_in_typ info.typ in
     let ctx, args = _gen_new_var_names ctx "prim_arg" arg_count in
@@ -299,16 +300,45 @@ let _add_primop_closures (ctx : context) : (context * (string * expr) list) =
     let cls = { args; free_vars; body } in
     (ctx, cls)
   in
-  (* e.g., <closure> (+) x y = (AddInt, [x; y]) *)
+  (* e.g.,
+   * <closure> (addInt) x y = (AddInt, [x; y]) 
+   * ...
+   * let (+) = mkcls (addInt ...) in ... *)
   List.fold_right
     (fun (info : Primops.op_info) (ctx, bds) ->
-       let ctx, func_name = _gen_new_var_name ctx info.opstr in
+       (* This is where we really need [ctx]: make unique name for closure *)
+       let ctx, func_name = _gen_new_var_name ctx info.label in
        let ctx, cls = make_primop_closure ctx info in
        let ctx = _add_closure ctx func_name cls in
        let mkcls = { func_name; free_vars = [] } in (* primop has no freevars *)
        let bd = (info.opstr, Cmk_closure mkcls) in
        (ctx, bd::bds))
     Primops.all_op_infos (ctx, [])
+;;
+
+let _add_natives_closures (ctx : context) : (context * (string * expr) list) =
+  (* name, label_str, arity *)
+  let natives = [("=", "equal", 2)] in
+
+  let make_native_closure (ctx : context) (label_str : string) (arity : int)
+    : (context * closure) =
+    let ctx, args = _gen_new_var_names ctx "native_arg" arity in
+    let free_vars = [] in
+    let arg_idents = List.map (fun id -> Cident id) args in
+    let body = Cnative_apply (label_str, arg_idents) in
+    let cls = { args; free_vars; body } in
+    (ctx, cls)
+  in
+  List.fold_right
+    (fun (name, label_str, arity) (ctx, bds) ->
+       (* This is where we really need [ctx]: make unique name for closure *)
+       let ctx, func_name = _gen_new_var_name ctx label_str in
+       let ctx, cls = make_native_closure ctx label_str arity in
+       let ctx = _add_closure ctx func_name cls in
+       let mkcls = { func_name; free_vars = [] } in (* primop has no freevars *)
+       let bd = (name, Cmk_closure mkcls) in
+       (ctx, bd::bds))
+    natives (ctx, [])
 ;;
 
 (* NOTE ASSUME the translation order is irrelevant.
@@ -324,8 +354,10 @@ let from_ast_struct structure =
          _from_ast_struct_item ctx final_ce item)
       structure (ctx, dummy_body)
   in
-  let ctx, bds = _add_primop_closures ctx in
+  let ctx, primop_bds = _add_primops_closures ctx in
+  let ctx, native_bds = _add_natives_closures ctx in
+  let builtin_bds = List.append primop_bds native_bds in
   { funcs = _get_all_closures ctx
-  ; expr = Clet (bds, final_ce)
+  ; expr = Clet (builtin_bds, final_ce)
   }
 ;;

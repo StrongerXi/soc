@@ -2,6 +2,7 @@ open Pervasives
 
 type native_func =
   | Builtin_println
+  | Builtin_equal
 
 (** Result of evaluating an AST expression *)
 type value =
@@ -100,12 +101,13 @@ let rec _interp_expr (ctx : context) (expr : Ast.expression) : value =
 and _interp_name (ctx : context) (name : string) (where : Span.t) : value =
   let make_closure_for_primop (op_kind : Primops.op_kind) : value =
     match op_kind with
-    | AddInt | SubInt | MulInt | LogicAnd | LogicOr | Equal | LtInt ->
+    | AddInt | SubInt | MulInt | LogicAnd | LogicOr | LtInt ->
       _curry_apply ctx (Primop op_kind) [] 2
   in
   let make_closure_for_native (func : native_func) : value =
     match func with
     | Builtin_println -> _curry_apply ctx (Native func) [] 1
+    | Builtin_equal -> _curry_apply ctx (Native func) [] 2
   in
   match _context_lookup ctx name with
   | None -> _error_unbound_var name where
@@ -209,10 +211,6 @@ and _interp_binary_primop (ctx : context)
   match primop with
   | LogicAnd -> _interp_boolean_binop ctx lhs rhs SC_on_false
   | LogicOr  -> _interp_boolean_binop ctx lhs rhs SC_on_true
-  | Equal  ->
-    let lhs_v = _interp_expr ctx lhs in
-    let rhs_v = _interp_expr ctx rhs in
-    Bool (lhs_v = rhs_v)
   | _ ->
     let n1 = _interp_check_int ctx lhs in
     let n2 = _interp_check_int ctx rhs in
@@ -268,6 +266,18 @@ and _interp_native_apply (ctx : context)
     (func : native_func) (func_span : Span.t) (args : Ast.expression list)
     (apply_span : Span.t) : value =
   match func with
+  | Builtin_equal ->
+    begin
+      match args with
+      | lhs_e::rhs_e::more_args ->
+        let lhs_v = _interp_expr ctx lhs_e in
+        let rhs_v = _interp_expr ctx rhs_e in
+        let func_span = Span.merge func_span rhs_e.expr_span in
+        let result_v = Bool (lhs_v = rhs_v) in
+        _apply_if_any_args ctx result_v func_span more_args apply_span
+      | _ -> _curry_apply ctx (Native func) args 2
+    end
+
   | Builtin_println ->
     match args with
     | arg_e::more_args ->
@@ -341,6 +351,7 @@ let _interp_struct_item (ctx : context) (item : Ast.struct_item) : context =
 let _interp_struct_impl items =
   let init_ctx = Map.empty String.compare in
   let init_ctx = Map.add "println" (Native Builtin_println) init_ctx in
+  let init_ctx = Map.add "=" (Native Builtin_equal) init_ctx in
   let init_ctx =
     List.fold_left
       (fun ctx (info : Primops.op_info) ->

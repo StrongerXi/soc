@@ -13,6 +13,7 @@ type expr =
   | Cif of expr * expr * expr
   | Cprimop of Primops.op_kind * expr list
   | Capply of expr * expr list
+  | Cnative_apply of string * expr list
 
 (** Creates a closure object while passing in [free_vars] as free variables
     required by the closure *)
@@ -42,5 +43,6 @@ type prog =
   }
 
 (** [from_ast_struct struct] returns a CIR representation of [struct].
-    ASSUME [struct] is well-typed based on Typer. *)
+    ASSUME [struct] is well-typed based on Typer. 
+    ENSURE All identifiers are bound at use site. *)
 val from_ast_struct : Ast.structure -> prog

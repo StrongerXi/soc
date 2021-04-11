@@ -7,14 +7,14 @@ type op_kind =
   | MulInt
   | LogicAnd
   | LogicOr
-  | Equal
   | LtInt
 
 (** A [op_info] is all the information associated with a primitive operator *)
 type op_info =
   { kind  : op_kind 
   ; typ   : Ast.typ
-  ; opstr : string   (* its string representation *)
+  ; opstr : string  (* its string representation as an operator *)
+  ; label : string  (* unique label representation, no special symbols *)
   }
 
 

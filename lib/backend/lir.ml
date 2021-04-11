@@ -130,12 +130,13 @@ let rec _transl_cir_expr_tailpos (ctx : context) (ce : Cir.expr) : context =
 
 and _transl_cir_expr (ctx : context) (ce : Cir.expr) : (context * expr) =
   match ce with
-  | Cconst const            -> (ctx, _transl_cir_const const)
-  | Cident name             -> (ctx, Tmp (_ctx_get_temp ctx name))
-  | Cmk_closure mkcls       -> _transl_cir_mk_closure ctx mkcls
-  | Cprimop (op_kind, args) -> _transl_cir_primop ctx op_kind args
-  | Cif (cnd, thn, els)     -> _transl_cir_if ctx cnd thn els
-  | Capply (func, args)     -> _transl_cir_apply ctx func args
+  | Cconst const               -> (ctx, _transl_cir_const const)
+  | Cident name                -> (ctx, Tmp (_ctx_get_temp ctx name))
+  | Cmk_closure mkcls          -> _transl_cir_mk_closure ctx mkcls
+  | Cprimop (op_kind, args)    -> _transl_cir_primop ctx op_kind args
+  | Cif (cnd, thn, els)        -> _transl_cir_if ctx cnd thn els
+  | Capply (func, args)        -> _transl_cir_apply ctx func args
+  | Cnative_apply (func, args) -> _transl_cir_native_apply ctx func args
 
   | Clet (bds, body) ->
     let ctx = _transl_cir_let_bindings ctx bds in
@@ -189,13 +190,6 @@ and _transl_cir_primop (ctx : context)
 
   | LogicOr ->
     _transl_binop_with_short_circuit ctx lhs_e rhs_ce _true_e "or"
-
-  | Equal ->
-    let ctx, rhs_e = _transl_cir_expr ctx rhs_ce in
-    (* NOTE this label must synch with the external function name *)
-    let label = Label.create_native "equal" in
-    let call_e = NativeCall (label, [lhs_e; rhs_e]) in
-    (ctx, call_e)
 
   | LtInt ->
     let ctx, rhs_e = _transl_cir_expr ctx rhs_ce in
@@ -275,18 +269,29 @@ and _transl_cir_apply
     (ctx : context) (func_ce : Cir.expr) (arg_ces : Cir.expr list)
   : (context * expr) =
   let ctx, func_e = _transl_cir_expr ctx func_ce in
-  let ctx, arg_es = (* NOTE technically the order can be arbitrary :) *)
-    List.fold_left 
-      (fun (ctx, rev_arg_es) arg_ce ->
-         let ctx, arg_e = _transl_cir_expr ctx arg_ce in
-         (ctx, arg_e::rev_arg_es))
-      (ctx, []) arg_ces
-    |> (fun (ctx, rev_arg_es) -> (ctx, List.rev rev_arg_es))
-  in
+  let ctx, arg_es = _transl_cir_apply_args ctx arg_ces in
   let ctx, label_temp = _ctx_gen_temp ctx in
   let ctx = _ctx_add_instr ctx (LoadMem (func_e, label_temp)) in
   let call_e = Call (label_temp, func_e::arg_es) in
   (ctx, call_e)
+
+and _transl_cir_native_apply
+    (ctx : context) (name : string) (arg_ces : Cir.expr list)
+  : (context * expr) =
+  let native_label = Label.create_native name in
+  let ctx, arg_es = _transl_cir_apply_args ctx arg_ces in
+  let call_e = NativeCall (native_label, arg_es) in
+  (ctx, call_e)
+
+and _transl_cir_apply_args (ctx : context) (arg_ces : Cir.expr list)
+  : (context * expr list) =
+  (* NOTE technically the order can be arbitrary :) *)
+  List.fold_left 
+    (fun (ctx, rev_arg_es) arg_ce ->
+       let ctx, arg_e = _transl_cir_expr ctx arg_ce in
+       (ctx, arg_e::rev_arg_es))
+    (ctx, []) arg_ces
+  |> (fun (ctx, rev_arg_es) -> (ctx, List.rev rev_arg_es))
 
 (* [...translate bd_rhs_0...]
  * result_temp_0 := bd_rhs_0

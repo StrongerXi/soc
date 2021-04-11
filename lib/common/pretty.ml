@@ -450,6 +450,14 @@ let rec _pp_cir_expr (p : printer) (e : Cir.expr) : unit =
       args;
     _print_str p ")";
 
+  | Cnative_apply (name, args) ->
+    _print_strs p ["(<native:" ;name; ">"];
+    List.iter (fun arg ->
+        _print_str p " "; (* first space separates func and arg *)
+        _pp_cir_expr p arg;)
+      args;
+    _print_str p ")";
+
 and _pp_cir_const (p : printer) (const : Cir.constant) : unit =
   match const with
   | CInt n  -> _print_str p (Int.to_string n)

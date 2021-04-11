@@ -1,50 +1,50 @@
-closure <+_35> = {
-  args = (prim_arg_37, prim_arg_36)
+closure <equal_35> = {
+  args = (native_arg_37, native_arg_36)
   free_vars = ()
   body = {
-    (+ prim_arg_37 prim_arg_36)
+    (<native:equal> native_arg_37 native_arg_36)
   }
 }
-closure <-_32> = {
+closure <addInt_32> = {
   args = (prim_arg_34, prim_arg_33)
   free_vars = ()
   body = {
-    (- prim_arg_34 prim_arg_33)
+    (+ prim_arg_34 prim_arg_33)
   }
 }
-closure <*_29> = {
+closure <subInt_29> = {
   args = (prim_arg_31, prim_arg_30)
   free_vars = ()
   body = {
-    (* prim_arg_31 prim_arg_30)
+    (- prim_arg_31 prim_arg_30)
   }
 }
-closure <<_26> = {
+closure <mulInt_26> = {
   args = (prim_arg_28, prim_arg_27)
   free_vars = ()
   body = {
-    (< prim_arg_28 prim_arg_27)
+    (* prim_arg_28 prim_arg_27)
   }
 }
-closure <||_23> = {
+closure <ltInt_23> = {
   args = (prim_arg_25, prim_arg_24)
   free_vars = ()
   body = {
-    (|| prim_arg_25 prim_arg_24)
+    (< prim_arg_25 prim_arg_24)
   }
 }
-closure <&&_20> = {
+closure <logicOr_20> = {
   args = (prim_arg_22, prim_arg_21)
   free_vars = ()
   body = {
-    (&& prim_arg_22 prim_arg_21)
+    (|| prim_arg_22 prim_arg_21)
   }
 }
-closure <=_17> = {
+closure <logicAnd_17> = {
   args = (prim_arg_19, prim_arg_18)
   free_vars = ()
   body = {
-    (= prim_arg_19 prim_arg_18)
+    (&& prim_arg_19 prim_arg_18)
   }
 }
 closure <closure_16> = {
@@ -82,13 +82,13 @@ closure <closure_14> = {
     (+ (+ x_8 a_9) y_6)
   }
 }
-let + = (MK_CLOSURE <+_35> )
-    - = (MK_CLOSURE <-_32> )
-    * = (MK_CLOSURE <*_29> )
-    < = (MK_CLOSURE <<_26> )
-    || = (MK_CLOSURE <||_23> )
-    && = (MK_CLOSURE <&&_20> )
-    = = (MK_CLOSURE <=_17> )
+let + = (MK_CLOSURE <addInt_32> )
+    - = (MK_CLOSURE <subInt_29> )
+    * = (MK_CLOSURE <mulInt_26> )
+    < = (MK_CLOSURE <ltInt_23> )
+    || = (MK_CLOSURE <logicOr_20> )
+    && = (MK_CLOSURE <logicAnd_17> )
+    = = (MK_CLOSURE <equal_35> )
 in let rec f_1 = (MK_CLOSURE <closure_16> g_0)
            g_0 = (MK_CLOSURE <closure_15> f_1)
    in let f1_4 = (MK_CLOSURE <closure_12> +)
