@@ -1,50 +1,50 @@
-closure <equal_35> = {
-  args = (native_arg_37, native_arg_36)
+closure <closure_37> = {
+  args = (native_arg_36, native_arg_35)
   free_vars = ()
   body = {
-    (<native:equal> native_arg_37 native_arg_36)
+    (<native:equal> native_arg_36 native_arg_35)
   }
 }
-closure <addInt_32> = {
-  args = (prim_arg_34, prim_arg_33)
+closure <closure_34> = {
+  args = (prim_arg_33, prim_arg_32)
   free_vars = ()
   body = {
-    (+ prim_arg_34 prim_arg_33)
+    (+ prim_arg_33 prim_arg_32)
   }
 }
-closure <subInt_29> = {
-  args = (prim_arg_31, prim_arg_30)
+closure <closure_31> = {
+  args = (prim_arg_30, prim_arg_29)
   free_vars = ()
   body = {
-    (- prim_arg_31 prim_arg_30)
+    (- prim_arg_30 prim_arg_29)
   }
 }
-closure <mulInt_26> = {
-  args = (prim_arg_28, prim_arg_27)
+closure <closure_28> = {
+  args = (prim_arg_27, prim_arg_26)
   free_vars = ()
   body = {
-    (* prim_arg_28 prim_arg_27)
+    (* prim_arg_27 prim_arg_26)
   }
 }
-closure <ltInt_23> = {
-  args = (prim_arg_25, prim_arg_24)
+closure <closure_25> = {
+  args = (prim_arg_24, prim_arg_23)
   free_vars = ()
   body = {
-    (< prim_arg_25 prim_arg_24)
+    (< prim_arg_24 prim_arg_23)
   }
 }
-closure <logicOr_20> = {
-  args = (prim_arg_22, prim_arg_21)
+closure <closure_22> = {
+  args = (prim_arg_21, prim_arg_20)
   free_vars = ()
   body = {
-    (|| prim_arg_22 prim_arg_21)
+    (|| prim_arg_21 prim_arg_20)
   }
 }
-closure <logicAnd_17> = {
-  args = (prim_arg_19, prim_arg_18)
+closure <closure_19> = {
+  args = (prim_arg_18, prim_arg_17)
   free_vars = ()
   body = {
-    (&& prim_arg_19 prim_arg_18)
+    (&& prim_arg_18 prim_arg_17)
   }
 }
 closure <closure_16> = {
@@ -61,7 +61,7 @@ closure <closure_15> = {
     (f_1 x_3)
   }
 }
-closure <closure_12> = {
+closure <closure_14> = {
   args = (x_5, y_6, z_7)
   free_vars = (+)
   body = {
@@ -72,24 +72,24 @@ closure <closure_13> = {
   args = (x_8)
   free_vars = (y_6, +)
   body = {
-    (MK_CLOSURE <closure_14> y_6 x_8 +)
+    (MK_CLOSURE <closure_12> y_6 x_8 +)
   }
 }
-closure <closure_14> = {
+closure <closure_12> = {
   args = (a_9, b_10, c_11)
   free_vars = (y_6, x_8, +)
   body = {
     (+ (+ x_8 a_9) y_6)
   }
 }
-let + = (MK_CLOSURE <addInt_32> )
-    - = (MK_CLOSURE <subInt_29> )
-    * = (MK_CLOSURE <mulInt_26> )
-    < = (MK_CLOSURE <ltInt_23> )
-    || = (MK_CLOSURE <logicOr_20> )
-    && = (MK_CLOSURE <logicAnd_17> )
-    = = (MK_CLOSURE <equal_35> )
+let + = (MK_CLOSURE <closure_34> )
+    - = (MK_CLOSURE <closure_31> )
+    * = (MK_CLOSURE <closure_28> )
+    < = (MK_CLOSURE <closure_25> )
+    || = (MK_CLOSURE <closure_22> )
+    && = (MK_CLOSURE <closure_19> )
+    = = (MK_CLOSURE <closure_37> )
 in let rec f_1 = (MK_CLOSURE <closure_16> g_0)
            g_0 = (MK_CLOSURE <closure_15> f_1)
-   in let f1_4 = (MK_CLOSURE <closure_12> +)
+   in let f1_4 = (MK_CLOSURE <closure_14> +)
       in 42

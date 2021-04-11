@@ -14,7 +14,6 @@ type op_info =
   { kind  : op_kind 
   ; typ   : Ast.typ
   ; opstr : string  (* its string representation as an operator *)
-  ; label : string  (* unique label representation, no special symbols *)
   }
 
 

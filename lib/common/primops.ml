@@ -14,7 +14,6 @@ type op_info =
   { kind  : op_kind 
   ; typ   : Ast.typ
   ; opstr : string 
-  ; label : string
   }
 
 
@@ -41,14 +40,14 @@ let all_op_infos =
   let bool_bool_bool = _make_binop_type bool_typ bool_typ bool_typ in
 
   List.map
-    (fun (kind, typ, label) -> { kind; typ; opstr = get_opstr kind; label })
+    (fun (kind, typ) -> { kind; typ; opstr = get_opstr kind })
   [ 
-    (AddInt, int_int_int, "addInt");
-    (SubInt, int_int_int, "subInt");
-    (MulInt, int_int_int, "mulInt");
-    (LtInt, int_int_bool, "ltInt");
-    (LogicOr, bool_bool_bool, "logicOr");
-    (LogicAnd, bool_bool_bool, "logicAnd");
+    (AddInt, int_int_int);
+    (SubInt, int_int_int);
+    (MulInt, int_int_int);
+    (LtInt, int_int_bool);
+    (LogicOr, bool_bool_bool);
+    (LogicAnd, bool_bool_bool);
   ]
 ;;
 
