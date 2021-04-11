@@ -33,3 +33,7 @@ let type_file filepath =
 let cir_file filepath =
   Result.map Cir.from_ast_struct (type_file filepath)
 ;;
+
+let lir_file filepath =
+  Result.map Lir.from_cir_prog (cir_file filepath)
+;;

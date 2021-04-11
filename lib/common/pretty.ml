@@ -494,3 +494,151 @@ let pp_cir cir =
   p.buffer
 ;;
 
+
+let _pp_lir_op (p : printer) (op : Lir.op) : unit =
+  match op with
+  | Add -> _print_str p "+"
+  | Sub -> _print_str p "-"
+  | Mul -> _print_str p "*"
+;;
+
+let rec _pp_lir_expr (p : printer) (expr : Lir.expr) : unit =
+  match expr with
+  | Imm n ->
+    _print_str p (Int.to_string n);
+
+  | Tmp temp ->
+    _print_str p (Temp.to_string temp);
+
+  | Op (op, lhs_e, rhs_e) ->
+    _print_str p "(";
+    _pp_lir_expr p lhs_e;
+    _print_str p ") ";
+    _pp_lir_op p op;
+    _print_str p " (";
+    _pp_lir_expr p rhs_e;
+    _print_str p ")"
+
+  | Call (label_temp, arg_es) ->
+    _print_str p "CALL ";
+    _print_str p (Temp.to_string label_temp);
+    _print_str p " WITH (";
+    List.iter 
+      (fun arg_e ->
+         _pp_lir_expr p arg_e;
+         _print_str p ", ")
+      arg_es;
+    _print_str p ")"
+
+  | NativeCall (label, arg_es) ->
+    _print_str p "CALL <";
+    _print_str p (Label.to_string label);
+    _print_str p "> WITH (";
+    List.iter 
+      (fun arg_e ->
+         _pp_lir_expr p arg_e;
+         _print_str p ", ")
+      arg_es;
+    _print_str p ")"
+
+  | Mem_alloc nbytes ->
+    _print_strs p ["ALLOC "; Int.to_string nbytes; " BYTES"];
+
+and _pp_lir_cond (p : printer) (cond : Lir.cond) : unit =
+  match cond with
+  | True -> _print_str p "TRUE"
+  | Less (lhs_e, rhs_e) -> 
+    _print_str p "(";
+    _pp_lir_expr p lhs_e;
+    _print_str p ") < (";
+    _pp_lir_expr p rhs_e;
+    _print_str p ")"
+  | Equal (lhs_e, rhs_e) ->
+    _print_str p "(";
+    _pp_lir_expr p lhs_e;
+    _print_str p ") == (";
+    _pp_lir_expr p rhs_e;
+    _print_str p ")"
+;;
+
+let _pp_lir_deref_expr (p : printer) (expr : Lir.expr) : unit =
+  _print_str p "*(";
+  _pp_lir_expr p expr;
+  _print_str p ")";
+;;
+
+let _pp_lir_instr (p : printer) (instr : Lir.instr) : unit =
+  match instr with
+  | Label label ->
+    _dec_space p 2;
+    _println_str p (Label.to_string label);
+    _inc_space p 2;
+
+  | Load (expr, temp) ->
+    _print_strs p [Temp.to_string temp; " := "];
+    _pp_lir_expr p expr;
+    _print_newline p;
+
+  | LoadMem (expr, temp) ->
+    _print_strs p [Temp.to_string temp; " := "];
+    _pp_lir_deref_expr p expr;
+    _print_newline p;
+
+  | Store (src_e, dst_e) ->
+    _pp_lir_deref_expr p dst_e;
+    _print_str p " := ";
+    _pp_lir_expr p src_e;
+    _print_newline p;
+
+  | Store_label (label, dst_e) ->
+    _pp_lir_deref_expr p dst_e;
+    _print_strs p [" := <"; (Label.to_string label); ">"];
+    _print_newline p;
+
+  | Jump (cond, label) ->
+    _print_strs p ["JUMP TO <"; (Label.to_string label); "> IF "];
+    _pp_lir_cond p cond;
+    _print_newline p;
+
+  | Set (cond, temp) ->
+    _print_strs p ["SET "; Temp.to_string temp; " BASED ON "];
+    _pp_lir_cond p cond;
+    _print_newline p;
+
+  | Ret expr ->
+    _print_str p "RET ";
+    _pp_lir_expr p expr;
+    _print_newline p;
+;;
+
+let _pp_lir_instrs (p : printer) (instrs : Lir.instr list) : unit =
+  List.iter (_pp_lir_instr p) instrs
+;;
+
+let _pp_lir_func (p : printer) (func : Lir.func) : unit =
+  _print_strs p ["<"; Label.to_string func.name; ">:"]; _print_newline p;
+  let arg_strs = List.map Temp.to_string func.args in
+  _print_strs p ["args: ["; String.join_with arg_strs ", "; "]"]; _print_newline p;
+  _println_str p "body:";
+  _inc_space p 2;
+  _pp_lir_instrs p func.body;
+  _dec_space p 2;
+;;
+
+let _pp_lir_prog (p : printer) (prog : Lir.prog) : unit =
+  List.iter 
+    (fun func ->
+       _pp_lir_func p func;
+       _print_newline p)
+    prog.funcs;
+  _println_str p "|<MAIN_ENTRY>|:";
+  _inc_space p 2;
+  _pp_lir_instrs p prog.entry;
+  _dec_space p 2;
+;;
+
+let pp_lir_prog prog =
+  let p = _create_printer () true in
+  _pp_lir_prog p prog;
+  p.buffer
+;;
