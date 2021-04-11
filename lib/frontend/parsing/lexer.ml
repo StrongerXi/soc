@@ -26,8 +26,8 @@ let _lexer_error_expect_ch (expected : char) t : 'a =
   _error (Errors.Lexer_unexpected_char (expected, cur_ch, t.cur_loc))
 ;;
 
-let _lexer_error_eof (what : Errors.lexer_action) t : 'a =
-  _error (Errors.Lexer_unexpected_eof (t.cur_loc, what))
+let _lexer_error_eof (expected : char) t : 'a =
+  _error (Errors.Lexer_unexpected_eof (t.cur_loc, expected))
 ;;
 
 let _lexer_error_invalid_start (start : char) t : 'a =
@@ -123,16 +123,12 @@ let rec _consume_ident t : unit =
  * unique start of [X] so we "continue" to lex [X] *)
 let _cont_num t : Token.desc =
   _consume_num t;
-  match _peek_ch t with
-  | Some _ -> Token.Int (_get_token_str t)
-  | None -> _lexer_error_eof Errors.Lexing_number t
+  Token.Int (_get_token_str t)
 ;;
 
 let _cont_ident_or_keywd t : Token.desc =
   _consume_ident t;
-  match _peek_ch t with
-  | Some _ -> _get_keywd_or_iden_token_desc (_get_token_str t)
-  | None -> _lexer_error_eof Errors.Lexing_identifier_or_keyword t
+  _get_keywd_or_iden_token_desc (_get_token_str t)
 ;;
 
 let _cont_underscore_or_ident t : Token.desc =
@@ -144,12 +140,9 @@ let _cont_underscore_or_ident t : Token.desc =
 let _cont_quote_ident t : Token.desc =
   _increment_cur_pos t; (* skip the quote *)
   _consume_ident t;
-  match _peek_ch t with
-  | Some _ ->
-    let name = _get_token_str t in
-    let name_wo_quote = String.sub name 1 ((String.length name) - 1) in
-    Token.QuoteIdent name_wo_quote
-  | None -> _lexer_error_eof Errors.Lexing_identifier_or_keyword t
+  let name = _get_token_str t in
+  let name_wo_quote = String.sub name 1 ((String.length name) - 1) in
+  Token.QuoteIdent name_wo_quote
 ;;
 
 (* The next char in [t] should be [expect], and it'll be lexed as [tok]. *)
@@ -159,7 +152,7 @@ let _cont_expect_ch t (expect : char) (tok : Token.desc)
   | Some ch ->
     if ch = expect then tok
     else _lexer_error_expect_ch expect t
-  | None -> _lexer_error_eof (Errors.Lexing_expecting expect) t
+  | None -> _lexer_error_eof expect t
 ;;
 
 let rec _consume_symbol_chars t : unit =

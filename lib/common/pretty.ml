@@ -61,14 +61,6 @@ let _print_newline (p : printer) : unit =
 (* Again, this deserves a module but to simplify self-compilation... TODO *)
 
 
-let _pp_lexer_action (what : Errors.lexer_action) : string =
-  match what with
-  | Lexing_expecting expect ->
-    String.join_with [ "expecting '"; (Char.to_string expect); "'" ] ""
-  | Lexing_number -> "lexing a number"
-  | Lexing_identifier_or_keyword -> "lexing an identifier or keyword"
-;;
-
 let pp_lexer_error (err : Errors.lexer_error) : string =
   match err with
   | Lexer_unexpected_char (expect, actual, loc) ->
@@ -77,9 +69,9 @@ let pp_lexer_error (err : Errors.lexer_error) : string =
         "', but got '"; (Char.to_string actual); "'";
         " at "; (Location.to_string loc); ]
       ""
-  | Lexer_unexpected_eof (where, action) ->
+  | Lexer_unexpected_eof (where, expected) ->
     String.join_with
-      [ "[Lexer] Unexpected EOF while "; (_pp_lexer_action action);
+      [ "[Lexer] Unexpected EOF while expecting "; (Char.to_string expected);
         " at "; (Location.to_string where); ]
       ""
   | Lexer_invalid_start (start, loc) ->
