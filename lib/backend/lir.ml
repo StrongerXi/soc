@@ -359,17 +359,17 @@ and _transl_cir_mkcls_skip_alloc (ctx : context)
   : (context * expr) =
   let entry_label = _ctx_get_label ctx mkcls.func_name in
   let ctx = _ctx_add_instr ctx (Store_label (entry_label, cls_addr_e)) in
-  let ctx, _ =
-    List.fold_left (* store each free variable to their slot *)
-      (fun (ctx, word_offset) fv_name ->
+  let instrs =
+    List.mapi 
+      (fun n fv_name -> (* store each free variable to their slot *)
+         let word_offset = n + 1 in (* start at 1 *)
          let fv_e = Tmp (_ctx_get_temp ctx fv_name) in
          let slot_addr_e =
            Op (Add, cls_addr_e, Imm (word_offset * _word_size)) in
-         let ctx = _ctx_add_instr ctx (Store (fv_e, slot_addr_e)) in
-         (ctx, word_offset + 1))
-      (ctx, 1)
+         Store (fv_e, slot_addr_e))
       mkcls.free_vars
   in
+  let ctx = _ctx_add_instrs ctx instrs in
   (ctx, cls_addr_e)
 
 and _transl_cir_mk_closure (ctx : context) (mkcls : Cir.mk_closure)
