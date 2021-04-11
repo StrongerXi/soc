@@ -362,7 +362,7 @@ and _transl_cir_mkcls_alloc_space (free_vars : string list) : expr =
 and _transl_cir_mkcls_skip_alloc (ctx : context)
     (cls_addr_e : expr) (mkcls : Cir.mk_closure)
   : (context * expr) =
-  let entry_label = _ctx_get_label ctx mkcls.func_name in
+  let entry_label = _ctx_get_label ctx mkcls.cls_name in
   let ctx = _ctx_add_instr ctx (Store_label (entry_label, cls_addr_e)) in
   let instrs =
     List.mapi 
@@ -440,14 +440,14 @@ let from_cir_prog (cir_prog : Cir.prog) =
       (fun name _ label_manager ->
          let label_manager, _ = Label.gen_and_bind label_manager name in
          label_manager)
-      cir_prog.funcs label_manager
+      cir_prog.closures label_manager
   in
   let label_manager, funcs =
     Map.foldi
       (fun name cls (label_manager, funcs) ->
          let label_manager, func = _from_closure label_manager name cls in
          (label_manager, func::funcs))
-      cir_prog.funcs (label_manager, [])
+      cir_prog.closures (label_manager, [])
   in
   let ctx = _ctx_init label_manager in
   let ctx = _transl_cir_expr_tailpos ctx cir_prog.expr in

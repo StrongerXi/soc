@@ -18,7 +18,7 @@ type expr =
 (** Creates a closure object while passing in [free_vars] as free variables
     required by the closure *)
 and mk_closure =
-  { func_name : string
+  { cls_name  : string
   ; free_vars : string list
   }
 
@@ -38,8 +38,8 @@ type closure =
 (** A [prog] is the entire program at Cir level, which is represented as a
     single expression with functions as evaluation context. *)
 type prog =
-  { funcs : (string, closure) Map.t
-  ; expr : expr
+  { closures : (string, closure) Map.t
+  ; expr     : expr
   }
 
 (** [from_ast_struct struct] returns a CIR representation of [struct].
