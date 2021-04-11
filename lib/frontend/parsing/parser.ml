@@ -5,14 +5,15 @@ open Pervasives
 type _tok_stream =
   { skip  : unit -> unit           (* skips peeked token *)
   ; peek  : unit -> Token.t option (* [None] = EOF *)
-  ; last_loc : unit -> Location.t  (* end location of last skipped token *)
+  ; last_loc : unit -> Location.t  (* end location of last peeked token *)
   }
 
+(* Creates a tok stream where [first_tok] was peeked *)
 let _create_tok_stream (first_tok : Token.t) (rest_tokens : Token.t list)
   : _tok_stream =
   (* [None] -> haven't peeked or skipped, [Some None] -> EOF *)
   let peeked = ref (Some (Some first_tok)) in
-  let last_pos = ref first_tok.token_span.final in
+  let peeked_pos = ref first_tok.token_span.final in
   let tokens = ref rest_tokens in
   let skip () =
     peeked := None
@@ -23,11 +24,14 @@ let _create_tok_stream (first_tok : Token.t) (rest_tokens : Token.t list)
     | None ->
       let opt_tok = match !tokens with
         | [] -> None
-        | tok::rest -> tokens := rest; Some tok
+        | tok::rest ->
+          tokens := rest;
+          peeked_pos := tok.token_span.final;
+          Some tok
       in
       peeked := Some opt_tok; opt_tok
   in
-  let last_loc () = !last_pos in
+  let last_loc () = !peeked_pos in
   { skip; peek; last_loc }
 ;;
 (* Ideally _tok_stream should go in a module, but I want to make self-compilation
