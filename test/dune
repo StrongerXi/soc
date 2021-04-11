@@ -9,7 +9,7 @@
    substs_test
 
    ; backend
-   cir_test
+   cir_test temp_test
 
    ; helper functions
    test_aux

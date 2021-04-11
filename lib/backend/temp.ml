@@ -1,0 +1,43 @@
+
+type t = int
+
+let _init_t = 0
+;;
+
+let _get_next_t t =
+  t + 1
+;;
+
+
+type manager =
+  { next_t     : t
+  ; name_cache : (string, t) Map.t
+  }
+
+let init_manager =
+  { next_t     = _init_t
+  ; name_cache = Map.empty String.compare
+  }
+;;
+
+let gen manager = 
+  let t = manager.next_t in
+  let next_t = _get_next_t t in
+  let manager = { manager with next_t } in
+  (manager, t)
+;;
+
+let gen_and_bind manager (s : string) : (manager * t) =
+  let manager, t = gen manager in
+  let name_cache = Map.add s t manager.name_cache in
+  let manager = { manager with name_cache } in
+  (manager, t)
+;;
+
+let get manager s =
+  Map.get s manager.name_cache
+;;
+
+let to_string t =
+  String.append "T" (Int.to_string t)
+;;
