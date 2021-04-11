@@ -21,12 +21,10 @@ let _check_parser_pp_ast (filepath_no_suffix : string) : unit =
 let tests = OUnit2.(>:::) "parser_test" [
 
     OUnit2.(>::) "test_integration" (fun _ ->
-        let path = _get_full_path "parser_input_mixed" in
-        _check_parser_pp_ast path;
-        let path = _get_full_path "parser_input_syntax_sugar" in
-        _check_parser_pp_ast path;
-        let path = _get_full_path "parser_input_infix" in
-        _check_parser_pp_ast path;
+        _check_parser_pp_ast (_get_full_path "parser_input_mixed");
+        _check_parser_pp_ast (_get_full_path "parser_input_syntax_sugar");
+        _check_parser_pp_ast (_get_full_path "parser_input_infix");
+        _check_parser_pp_ast (_get_full_path "eof");
       );
   ]
 

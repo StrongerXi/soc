@@ -13,9 +13,10 @@ type expr =
   | Cif of expr * expr * expr
   | Cprimop of Primops.op_kind * expr list
   | Capply of expr * expr list
+  | Cnative_apply of string * expr list
 
 and mk_closure =
-  { func_name : string
+  { cls_name  : string
   ; free_vars : string list
   }
 
@@ -30,20 +31,20 @@ type closure =
   }
 
 type prog =
-  { funcs : (string, closure) Map.t
-  ; expr : expr
+  { closures : (string, closure) Map.t
+  ; expr     : expr
   }
 
 
 (* Context for the translation process from AST to CIR.
  * I decided not to make a new module for this since it's pretty simplistic *)
 type context =
-  { funcs : (string, closure) Map.t
-  ; namer : Var_namer.t
+  { closures : (string, closure) Map.t
+  ; namer    : Var_namer.t
   }
 
 let _init_ctx namer =
-  { funcs = Map.empty String.compare; namer }
+  { closures = Map.empty String.compare; namer }
 ;;
 
 let _gen_new_var_name (ctx : context) (prefix : string) : (context * string) =
@@ -63,11 +64,11 @@ let _gen_new_var_names (ctx : context) (prefix : string) (count : int)
 ;;
 
 let _add_closure (ctx : context) (name : string) (cls : closure) : context =
-  { ctx with funcs = Map.add name cls ctx.funcs }
+  { ctx with closures = Map.add name cls ctx.closures }
 ;;
 
 let _get_all_closures (ctx : context) : (string, closure) Map.t =
-  ctx.funcs
+  ctx.closures
 ;;
 
 (* NOTE We can optimize free_var compuation by caching free_vars of last
@@ -108,6 +109,16 @@ let rec _count_args_in_typ (typ : Ast.typ) : int =
   | _ -> 0
 ;;
 
+(* We always generate a new closure when we create a mk_closure *)
+let _add_and_mk_closure (ctx : context)
+    (args : string list) (free_vars : string list) (body : expr)
+  : (context * mk_closure) =
+  let ctx, cls_name = _gen_new_var_name ctx "closure" in
+  let cls = { args; free_vars; body } in
+  let ctx = _add_closure ctx cls_name cls in
+  let mk_cls = { cls_name; free_vars } in
+  (ctx, mk_cls)
+;;
 
 (* Translate AST expression to CIR expression *)
 let rec _from_ast_expr (ctx : context) (expr : Ast.expression)
@@ -142,15 +153,11 @@ and _from_ast_func (ctx : context)
     (otvs : Ast.opt_typed_var list) (body : Ast.expression)
   : (context * mk_closure) =
   let arg_names = List.map (fun (otv : Ast.opt_typed_var) -> otv.var) otvs in
-  let ctx, func_name = _gen_new_var_name ctx "closure" in
   let ctx, cls_body = _from_ast_expr ctx body in
   let free_vars = _free_vars_in_expr body
                   |> List.fold_right Set.remove arg_names
                   |> Set.to_list in
-  let cls = { args = arg_names; free_vars; body = cls_body } in
-  let ctx = _add_closure ctx func_name cls in
-  let mk_cls = { func_name; free_vars } in
-  (ctx, mk_cls)
+  _add_and_mk_closure ctx arg_names free_vars cls_body
 
 (* Use [c_body] as the body of translated let *)
 and _from_ast_let_bindings (ctx : context) (rec_flag : Ast.rec_flag)
@@ -199,7 +206,7 @@ and _from_ast_let_bindings (ctx : context) (rec_flag : Ast.rec_flag)
     let c_let = Cletrec (c_bds, c_body) in
     (ctx, c_let)
 
-(* handle currying *)
+(* handle partial application too *)
 and _from_ast_apply (ctx : context)
     (func : Ast.expression) (args : Ast.expression list)
   : (context * expr) =
@@ -222,41 +229,39 @@ and _from_ast_apply (ctx : context)
   in
   if extra_args_needed = 0
   then (ctx, Capply (c_func, c_args))
-  else (* extra_args_needed > 0, can't apply the function without currying *)
-    _curry_apply ctx c_func c_args extra_args_needed
+  else (* extra_args_needed > 0 *)
+    _partial_apply ctx c_func c_args extra_args_needed
 
 (* (* ASSUME e1 takes 3 args *)
  * e1 e2
  * ----->
  * let f = e1
- * and x = e2 *)
-and _curry_apply (ctx : context)
+ * and x = e2
+ * in (fun a1 a2 -> f x a1 a2) *)
+and _partial_apply (ctx : context)
     (c_func : expr) (c_args : expr list) (extra_args_needed : int)
   : (context * expr) =
-  let ctx, func_name = _gen_new_var_name ctx "curried_func" in
-  let func_bind = (func_name, c_func) in
+  let ctx, func_bind_name = _gen_new_var_name ctx "partial_applied_func" in
+  let func_bind = (func_bind_name, c_func) in
   let ctx, provided_arg_bds =
     List.fold_right (* binding order matters for making Capply below *)
       (fun c_arg (ctx, provided_arg_bds) ->
-         let ctx, arg_name = _gen_new_var_name ctx "curried_func_free_arg" in
+         let ctx, arg_name = _gen_new_var_name ctx "provided_arg" in
          let provided_arg_bds = (arg_name, c_arg)::provided_arg_bds in
          (ctx, provided_arg_bds))
       c_args (ctx, [])
   in
   let ctx, extra_arg_names =
-    _gen_new_var_names ctx "curried_func_arg" extra_args_needed
+    _gen_new_var_names ctx "extra_arg" extra_args_needed
   in
   let provided_arg_names = List.map (fun (var, _) -> var) provided_arg_bds in
   let all_arg_names = List.append provided_arg_names extra_arg_names in
-  let cls_body = Capply (Cident func_name,
+  let cls_body = Capply (Cident func_bind_name,
                          List.map (fun name -> Cident name) all_arg_names) in
-  let cls = { args = extra_arg_names
-            ; free_vars = provided_arg_names
-            ; body = cls_body } in
-  let ctx = _add_closure ctx func_name cls in
-  let mk_cls = { func_name; free_vars = provided_arg_names } in
+  let ctx, mkcls =
+    _add_and_mk_closure ctx extra_arg_names provided_arg_names cls_body in
   let let_binds = func_bind::provided_arg_bds in
-  let c_let = Clet (let_binds, Cmk_closure mk_cls) in
+  let c_let = Clet (let_binds, Cmk_closure mkcls) in
   (ctx, c_let)
 ;;
 
@@ -285,30 +290,51 @@ let _from_ast_struct_item (ctx : context) (body_ce : expr)
     _from_ast_let_bindings ctx rec_flag bds body_ce
 ;;
 
-(* Manually add all primitive operators into the cir closure context and create
+(* Manually add all primitives/natives into the cir closure context and create
  * bindings for them. NOTE `external` syntax would move this to source *)
-let _add_primop_closures (ctx : context) : (context * (string * expr) list) =
+let _add_primops_closures (ctx : context) : (context * (string * expr) list) =
 
-  let make_primop_closure (ctx : context) (info :Primops.op_info)
-    : (context * closure) =
+  let add_and_make_primop_closure (ctx : context) (info : Primops.op_info)
+    : (context * mk_closure) =
     let arg_count = _count_args_in_typ info.typ in
-    let ctx, args = _gen_new_var_names ctx "prim_arg" arg_count in
+    let ctx, arg_names = _gen_new_var_names ctx "prim_arg" arg_count in
     let free_vars = [] in
-    let arg_idents = List.map (fun id -> Cident id) args in
+    let arg_idents = List.map (fun id -> Cident id) arg_names in
     let body = Cprimop (info.kind, arg_idents) in
-    let cls = { args; free_vars; body } in
-    (ctx, cls)
+    (* This is where we really need [ctx]: make unique name for closure *)
+    _add_and_mk_closure ctx arg_names free_vars body
   in
-  (* e.g., <closure> (+) x y = (AddInt, [x; y]) *)
+  (* e.g.,
+   * <closure> (addInt) x y = (AddInt, [x; y]) 
+   * ...
+   * let (+) = mkcls (addInt ...) in ... *)
   List.fold_right
     (fun (info : Primops.op_info) (ctx, bds) ->
-       let ctx, func_name = _gen_new_var_name ctx info.opstr in
-       let ctx, cls = make_primop_closure ctx info in
-       let ctx = _add_closure ctx func_name cls in
-       let mkcls = { func_name; free_vars = [] } in (* primop has no freevars *)
+       let ctx, mkcls = add_and_make_primop_closure ctx info in
        let bd = (info.opstr, Cmk_closure mkcls) in
        (ctx, bd::bds))
     Primops.all_op_infos (ctx, [])
+;;
+
+let _add_natives_closures (ctx : context) : (context * (string * expr) list) =
+  (* name, label_str, arity *)
+  let natives = [("=", "equal", 2)] in
+
+  let add_and_make_native_closure
+      (ctx : context) (label_str : string) (arity : int)
+    : (context * mk_closure) =
+    let ctx, args = _gen_new_var_names ctx "native_arg" arity in
+    let free_vars = [] in
+    let arg_idents = List.map (fun id -> Cident id) args in
+    let body = Cnative_apply (label_str, arg_idents) in
+    _add_and_mk_closure ctx args free_vars body
+  in
+  List.fold_right
+    (fun (name, label_str, arity) (ctx, bds) ->
+       let ctx, mkcls = add_and_make_native_closure ctx label_str arity in
+       let bd = (name, Cmk_closure mkcls) in
+       (ctx, bd::bds))
+    natives (ctx, [])
 ;;
 
 (* NOTE ASSUME the translation order is irrelevant.
@@ -324,8 +350,10 @@ let from_ast_struct structure =
          _from_ast_struct_item ctx final_ce item)
       structure (ctx, dummy_body)
   in
-  let ctx, bds = _add_primop_closures ctx in
-  { funcs = _get_all_closures ctx
-  ; expr = Clet (bds, final_ce)
+  let ctx, primop_bds = _add_primops_closures ctx in
+  let ctx, native_bds = _add_natives_closures ctx in
+  let builtin_bds = List.append primop_bds native_bds in
+  { closures = _get_all_closures ctx
+  ; expr = Clet (builtin_bds, final_ce)
   }
 ;;

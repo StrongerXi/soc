@@ -49,7 +49,7 @@ let tests = OUnit2.(>:::) "ast_interp_test" [
         _check_ast_interp (_get_full_path "fac");
         _check_ast_interp (_get_full_path "short_circuit");
         _check_ast_interp (_get_full_path "infix");
-        _check_ast_interp (_get_full_path "currying");
+        _check_ast_interp (_get_full_path "partial_apply");
       );
   ]
 

@@ -40,6 +40,17 @@ let rec map f xs =
   | x::xs -> let y = f x in y::(map f xs)
 ;;
 
+let mapi f xs =
+  let rec go f xs n =
+    match xs with
+    | []    -> []
+    | x::xs ->
+      let y = f n x in
+      y::(go f xs (n + 1))
+  in
+  go f xs 0
+;;
+
 let iter f xs =
   let _ = map f xs in ()
 ;;

@@ -21,6 +21,9 @@ val flatten : 'a list list -> 'a list
 (** [map f [a1; ...; an]] is [f a1; ...; f an] *)
 val map : ('a -> 'b) -> 'a list -> 'b list
 
+(** [mapi f [a0; ...; an]] is [f 0 a0; ...; f n an] *)
+val mapi : (int -> 'a -> 'b) -> 'a list -> 'b list
+
 (** [iter f [a1; ...; an]] is [map f xs] with result ignored *)
 val iter : ('a -> unit) -> 'a list -> unit
 

@@ -2,6 +2,7 @@ open Pervasives
 
 type native_func =
   | Builtin_println
+  | Builtin_equal
 
 (** Result of evaluating an AST expression *)
 type value =
@@ -100,12 +101,13 @@ let rec _interp_expr (ctx : context) (expr : Ast.expression) : value =
 and _interp_name (ctx : context) (name : string) (where : Span.t) : value =
   let make_closure_for_primop (op_kind : Primops.op_kind) : value =
     match op_kind with
-    | AddInt | SubInt | MulInt | LogicAnd | LogicOr | Equal | LtInt ->
-      _curry_apply ctx (Primop op_kind) [] 2
+    | AddInt | SubInt | MulInt | LogicAnd | LogicOr | LtInt ->
+      _partial_apply ctx (Primop op_kind) [] 2
   in
   let make_closure_for_native (func : native_func) : value =
     match func with
-    | Builtin_println -> _curry_apply ctx (Native func) [] 1
+    | Builtin_println -> _partial_apply ctx (Native func) [] 1
+    | Builtin_equal -> _partial_apply ctx (Native func) [] 2
   in
   match _context_lookup ctx name with
   | None -> _error_unbound_var name where
@@ -169,7 +171,7 @@ and _interp_let_bindings (ctx : context)
   ctx
 
 (* - handle primitive op and native functions
- * - handle currying *)
+ * - handle partial application *)
 and _interp_apply (ctx : context)
     (func : Ast.expression) (args : Ast.expression list) (span : Span.t)
   : value =
@@ -201,7 +203,7 @@ and _interp_primop (ctx : context)
     let op_res = _interp_binary_primop ctx op_kind lhs rhs in
     let func_span = Span.merge op_span rhs.expr_span in
     _apply_if_any_args ctx op_res func_span more_args apply_span
-  | _ -> _curry_apply ctx (Primop op_kind) args 2
+  | _ -> _partial_apply ctx (Primop op_kind) args 2
 
 and _interp_binary_primop (ctx : context)
     (primop : Primops.op_kind) (lhs : Ast.expression) (rhs : Ast.expression)
@@ -209,10 +211,6 @@ and _interp_binary_primop (ctx : context)
   match primop with
   | LogicAnd -> _interp_boolean_binop ctx lhs rhs SC_on_false
   | LogicOr  -> _interp_boolean_binop ctx lhs rhs SC_on_true
-  | Equal  ->
-    let lhs_v = _interp_expr ctx lhs in
-    let rhs_v = _interp_expr ctx rhs in
-    Bool (lhs_v = rhs_v)
   | _ ->
     let n1 = _interp_check_int ctx lhs in
     let n2 = _interp_check_int ctx rhs in
@@ -260,7 +258,7 @@ and _interp_apply_func_value (ctx : context)
         _apply_if_any_args ctx apply_res res_span more_args apply_span
       | None ->
         let expected_args_num = List.length names in
-        _curry_apply ctx (Value func_val) args expected_args_num
+        _partial_apply ctx (Value func_val) args expected_args_num
     end
   | _ -> _error_type_mismatch _function_type (_type_of func_val) func_span
 
@@ -268,6 +266,18 @@ and _interp_native_apply (ctx : context)
     (func : native_func) (func_span : Span.t) (args : Ast.expression list)
     (apply_span : Span.t) : value =
   match func with
+  | Builtin_equal ->
+    begin
+      match args with
+      | lhs_e::rhs_e::more_args ->
+        let lhs_v = _interp_expr ctx lhs_e in
+        let rhs_v = _interp_expr ctx rhs_e in
+        let func_span = Span.merge func_span rhs_e.expr_span in
+        let result_v = Bool (lhs_v = rhs_v) in
+        _apply_if_any_args ctx result_v func_span more_args apply_span
+      | _ -> _partial_apply ctx (Native func) args 2
+    end
+
   | Builtin_println ->
     match args with
     | arg_e::more_args ->
@@ -275,7 +285,7 @@ and _interp_native_apply (ctx : context)
       let func_span = Span.merge func_span arg_e.expr_span in
       _println_val arg_v;
       _apply_if_any_args ctx arg_v func_span more_args apply_span
-    | _ -> _curry_apply ctx (Native func) args 1
+    | _ -> _partial_apply ctx (Native func) args 1
 
 (* TODO unsure about the semantics of such eval, I know order is
  * unspecified, but do extra args get evaled eagerly? Well typechecking ensures
@@ -293,13 +303,13 @@ and _apply_if_any_args (ctx :context)
  * let f = f
  * and x = x
  * in (fun y -> f x y) *)
-and _curry_apply (original_ctx : context)
+and _partial_apply (original_ctx : context)
     (func_desc : ident_desc) (args : Ast.expression list)
     (expected_args_num : int) : value =
   let provided_args_num = List.length args in
   let extra_args_needed = expected_args_num - provided_args_num in
   if extra_args_needed <= 0
-  then failwith "[Ast_interp._curry_apply] application already has enough args";
+  then failwith "[Ast_interp._partial_apply] application already has enough args";
   let provided_arg_names =
     List.init provided_args_num
       (fun n -> String.append "provided_" (Int.to_string n))
@@ -311,7 +321,7 @@ and _curry_apply (original_ctx : context)
       original_ctx
       (List.combine provided_arg_names args)
   in
-  let func_name = "f_curry" in
+  let func_name = "f_partial" in
   let ctx_with_everything =
     _context_insert ctx_with_provided_args func_name func_desc in
   let extra_arg_names = 
@@ -341,6 +351,7 @@ let _interp_struct_item (ctx : context) (item : Ast.struct_item) : context =
 let _interp_struct_impl items =
   let init_ctx = Map.empty String.compare in
   let init_ctx = Map.add "println" (Native Builtin_println) init_ctx in
+  let init_ctx = Map.add "=" (Native Builtin_equal) init_ctx in
   let init_ctx =
     List.fold_left
       (fun ctx (info : Primops.op_info) ->

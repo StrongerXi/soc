@@ -217,15 +217,34 @@ let update_typ t desc =
   Substs.apply_to_typ t.substs desc
 ;;
 
+(* NOTE natives and primops will be declared in source once `external` syntax
+ * is added *)
+let _add_primops_into_var_env (var_env : (string, scheme) Map.t)
+  : (string, scheme) Map.t =
+  List.fold_left
+    (fun env (info : Primops.op_info) ->
+       let schm = _generalize_typ info.typ (Set.empty String.compare) in
+       Map.add info.opstr schm env)
+    var_env Primops.all_op_infos
+;;
+
+let _add_natives_into_var_env (var_env : (string, scheme) Map.t)
+  : (string, scheme) Map.t =
+  let tyvar = Ast.Typ_var (Some "a") in
+  let eq_typ =
+    Ast.Typ_arrow (tyvar, (Ast.Typ_arrow (tyvar, Builtin_types.bool_typ)))
+  in
+  Map.add "=" (_generalize_typ eq_typ (Set.empty String.compare)) var_env
+;;
 
 (* Initialize with some built-in stuff, an ad hoc solution *)
 let create tv_namer =
-  let cur_var_env = List.fold_left
-      (fun env (info : Primops.op_info) ->
-         let schm = _generalize_typ info.typ (Set.empty String.compare) in
-         Map.add info.opstr schm env)
-      (Map.empty String.compare) Primops.all_op_infos
-  in
+  let cur_var_env = Map.empty String.compare in
+  (* It's okay to have custom tyvars in primops/natives, because we won't
+   * generate new tyvars inside them anymore, and tyvar scope is limited to
+   * each top-level *)
+  let cur_var_env = _add_primops_into_var_env cur_var_env in
+  let cur_var_env = _add_natives_into_var_env cur_var_env in
   { cur_var_env
   ; prev_var_envs = []
   ; substs        = Substs.empty

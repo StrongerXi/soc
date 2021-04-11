@@ -61,14 +61,6 @@ let _print_newline (p : printer) : unit =
 (* Again, this deserves a module but to simplify self-compilation... TODO *)
 
 
-let _pp_lexer_action (what : Errors.lexer_action) : string =
-  match what with
-  | Lexing_expecting expect ->
-    String.join_with [ "expecting '"; (Char.to_string expect); "'" ] ""
-  | Lexing_number -> "lexing a number"
-  | Lexing_identifier_or_keyword -> "lexing an identifier or keyword"
-;;
-
 let pp_lexer_error (err : Errors.lexer_error) : string =
   match err with
   | Lexer_unexpected_char (expect, actual, loc) ->
@@ -77,9 +69,9 @@ let pp_lexer_error (err : Errors.lexer_error) : string =
         "', but got '"; (Char.to_string actual); "'";
         " at "; (Location.to_string loc); ]
       ""
-  | Lexer_unexpected_eof (where, action) ->
+  | Lexer_unexpected_eof (where, expected) ->
     String.join_with
-      [ "[Lexer] Unexpected EOF while "; (_pp_lexer_action action);
+      [ "[Lexer] Unexpected EOF while expecting "; (Char.to_string expected);
         " at "; (Location.to_string where); ]
       ""
   | Lexer_invalid_start (start, loc) ->
@@ -450,13 +442,21 @@ let rec _pp_cir_expr (p : printer) (e : Cir.expr) : unit =
       args;
     _print_str p ")";
 
+  | Cnative_apply (name, args) ->
+    _print_strs p ["(<native:" ;name; ">"];
+    List.iter (fun arg ->
+        _print_str p " "; (* first space separates func and arg *)
+        _pp_cir_expr p arg;)
+      args;
+    _print_str p ")";
+
 and _pp_cir_const (p : printer) (const : Cir.constant) : unit =
   match const with
   | CInt n  -> _print_str p (Int.to_string n)
   | CBool b -> _print_str p (Bool.to_string b)
 
 and _pp_cir_mk_closure (p : printer) (mkcls : Cir.mk_closure) : unit =
-  _print_strs p ["(MK_CLOSURE <"; mkcls.func_name; "> "];
+  _print_strs p ["(MK_CLOSURE <"; mkcls.cls_name; "> "];
   _print_str p (String.join_with mkcls.free_vars " ");
   _print_str p ")";
 
@@ -484,7 +484,7 @@ let _pp_cir_funcs (p : printer) (funcs : (string, Cir.closure) Map.t) : unit =
 ;;
 
 let _pp_cir (p : printer) (cir : Cir.prog) : unit =
-  _pp_cir_funcs p cir.funcs;
+  _pp_cir_funcs p cir.closures;
   _pp_cir_expr p cir.expr;
 ;;
 

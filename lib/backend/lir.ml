@@ -130,12 +130,13 @@ let rec _transl_cir_expr_tailpos (ctx : context) (ce : Cir.expr) : context =
 
 and _transl_cir_expr (ctx : context) (ce : Cir.expr) : (context * expr) =
   match ce with
-  | Cconst const            -> (ctx, _transl_cir_const const)
-  | Cident name             -> (ctx, Tmp (_ctx_get_temp ctx name))
-  | Cmk_closure mkcls       -> _transl_cir_mk_closure ctx mkcls
-  | Cprimop (op_kind, args) -> _transl_cir_primop ctx op_kind args
-  | Cif (cnd, thn, els)     -> _transl_cir_if ctx cnd thn els
-  | Capply (func, args)     -> _transl_cir_apply ctx func args
+  | Cconst const               -> (ctx, _transl_cir_const const)
+  | Cident name                -> (ctx, Tmp (_ctx_get_temp ctx name))
+  | Cmk_closure mkcls          -> _transl_cir_mk_closure ctx mkcls
+  | Cprimop (op_kind, args)    -> _transl_cir_primop ctx op_kind args
+  | Cif (cnd, thn, els)        -> _transl_cir_if ctx cnd thn els
+  | Capply (func, args)        -> _transl_cir_apply ctx func args
+  | Cnative_apply (func, args) -> _transl_cir_native_apply ctx func args
 
   | Clet (bds, body) ->
     let ctx = _transl_cir_let_bindings ctx bds in
@@ -189,13 +190,6 @@ and _transl_cir_primop (ctx : context)
 
   | LogicOr ->
     _transl_binop_with_short_circuit ctx lhs_e rhs_ce _true_e "or"
-
-  | Equal ->
-    let ctx, rhs_e = _transl_cir_expr ctx rhs_ce in
-    (* NOTE this label must synch with the external function name *)
-    let label = Label.create_native "equal" in
-    let call_e = NativeCall (label, [lhs_e; rhs_e]) in
-    (ctx, call_e)
 
   | LtInt ->
     let ctx, rhs_e = _transl_cir_expr ctx rhs_ce in
@@ -275,18 +269,29 @@ and _transl_cir_apply
     (ctx : context) (func_ce : Cir.expr) (arg_ces : Cir.expr list)
   : (context * expr) =
   let ctx, func_e = _transl_cir_expr ctx func_ce in
-  let ctx, arg_es = (* NOTE technically the order can be arbitrary :) *)
-    List.fold_left 
-      (fun (ctx, rev_arg_es) arg_ce ->
-         let ctx, arg_e = _transl_cir_expr ctx arg_ce in
-         (ctx, arg_e::rev_arg_es))
-      (ctx, []) arg_ces
-    |> (fun (ctx, rev_arg_es) -> (ctx, List.rev rev_arg_es))
-  in
+  let ctx, arg_es = _transl_cir_apply_args ctx arg_ces in
   let ctx, label_temp = _ctx_gen_temp ctx in
   let ctx = _ctx_add_instr ctx (LoadMem (func_e, label_temp)) in
   let call_e = Call (label_temp, func_e::arg_es) in
   (ctx, call_e)
+
+and _transl_cir_native_apply
+    (ctx : context) (name : string) (arg_ces : Cir.expr list)
+  : (context * expr) =
+  let native_label = Label.create_native name in
+  let ctx, arg_es = _transl_cir_apply_args ctx arg_ces in
+  let call_e = NativeCall (native_label, arg_es) in
+  (ctx, call_e)
+
+and _transl_cir_apply_args (ctx : context) (arg_ces : Cir.expr list)
+  : (context * expr list) =
+  (* NOTE technically the order can be arbitrary :) *)
+  List.fold_left 
+    (fun (ctx, rev_arg_es) arg_ce ->
+       let ctx, arg_e = _transl_cir_expr ctx arg_ce in
+       (ctx, arg_e::rev_arg_es))
+    (ctx, []) arg_ces
+  |> (fun (ctx, rev_arg_es) -> (ctx, List.rev rev_arg_es))
 
 (* [...translate bd_rhs_0...]
  * result_temp_0 := bd_rhs_0
@@ -357,19 +362,19 @@ and _transl_cir_mkcls_alloc_space (free_vars : string list) : expr =
 and _transl_cir_mkcls_skip_alloc (ctx : context)
     (cls_addr_e : expr) (mkcls : Cir.mk_closure)
   : (context * expr) =
-  let entry_label = _ctx_get_label ctx mkcls.func_name in
+  let entry_label = _ctx_get_label ctx mkcls.cls_name in
   let ctx = _ctx_add_instr ctx (Store_label (entry_label, cls_addr_e)) in
-  let ctx, _ =
-    List.fold_left (* store each free variable to their slot *)
-      (fun (ctx, word_offset) fv_name ->
+  let instrs =
+    List.mapi 
+      (fun n fv_name -> (* store each free variable to their slot *)
+         let word_offset = n + 1 in (* start at 1 *)
          let fv_e = Tmp (_ctx_get_temp ctx fv_name) in
          let slot_addr_e =
            Op (Add, cls_addr_e, Imm (word_offset * _word_size)) in
-         let ctx = _ctx_add_instr ctx (Store (fv_e, slot_addr_e)) in
-         (ctx, word_offset + 1))
-      (ctx, 1)
+         Store (fv_e, slot_addr_e))
       mkcls.free_vars
   in
+  let ctx = _ctx_add_instrs ctx instrs in
   (ctx, cls_addr_e)
 
 and _transl_cir_mk_closure (ctx : context) (mkcls : Cir.mk_closure)
@@ -391,7 +396,7 @@ let _emit_cls_prelude (ctx : context) (cls : Cir.closure)
   : (context * Temp.t list) =
   let ctx, cls_temp = _ctx_gen_temp ctx in
   let ctx, arg_temps =
-    List.fold_right (* order matters *)
+    List.fold_right
       (fun arg_name (ctx, arg_temps) ->
          let ctx, arg_temp = _ctx_gen_and_bind_temp ctx arg_name in
          (ctx, arg_temp::arg_temps))
@@ -399,7 +404,7 @@ let _emit_cls_prelude (ctx : context) (cls : Cir.closure)
       (ctx, [])
   in
   let ctx, _ = (* emit code for loading freevars *)
-    List.fold_left
+    List.fold_left (* start with first freevar *)
       (fun (ctx, word_offset) fv_name ->
          (* fv_temp = *[cls_temp + word_offset] *)
          let ctx, fv_temp = _ctx_gen_and_bind_temp ctx fv_name in
@@ -435,14 +440,14 @@ let from_cir_prog (cir_prog : Cir.prog) =
       (fun name _ label_manager ->
          let label_manager, _ = Label.gen_and_bind label_manager name in
          label_manager)
-      cir_prog.funcs label_manager
+      cir_prog.closures label_manager
   in
   let label_manager, funcs =
     Map.foldi
       (fun name cls (label_manager, funcs) ->
          let label_manager, func = _from_closure label_manager name cls in
          (label_manager, func::funcs))
-      cir_prog.funcs (label_manager, [])
+      cir_prog.closures (label_manager, [])
   in
   let ctx = _ctx_init label_manager in
   let ctx = _transl_cir_expr_tailpos ctx cir_prog.expr in
