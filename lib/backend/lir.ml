@@ -29,14 +29,16 @@ type instr =
   | Ret of expr
 
 type func =
-  { name     : Label.t
-  ; args     : Temp.t list
-  ; body     : instr list 
+  { name         : Label.t
+  ; ordered_args : Temp.t list
+  ; body         : instr list 
+  ; temp_manager : Temp.manager
   }
 
 type prog =
   { funcs : func list
   ; entry : instr list
+  ; temp_manager  : Temp.manager
   }
 
 
@@ -116,8 +118,7 @@ let _ctx_gen_and_bind_temp (ctx : context) (ident : string)
 
 
 (* Some constants *)
-let _word_size = 8 (* A bit brittle, good for now I guess, I hope *)
-and _true_e    = Imm 1
+let _true_e    = Imm 1
 and _false_e   = Imm 0
 ;;
 
@@ -278,7 +279,7 @@ and _transl_cir_apply
 and _transl_cir_native_apply
     (ctx : context) (name : string) (arg_ces : Cir.expr list)
   : (context * expr) =
-  let native_label = Label.create_native name in
+  let native_label = Label.get_native name in
   let ctx, arg_es = _transl_cir_apply_args ctx arg_ces in
   let call_e = NativeCall (native_label, arg_es) in
   (ctx, call_e)
@@ -370,7 +371,7 @@ and _transl_cir_mkcls_skip_alloc (ctx : context)
          let word_offset = n + 1 in (* start at 1 *)
          let fv_e = Tmp (_ctx_get_temp ctx fv_name) in
          let slot_addr_e =
-           Op (Add, cls_addr_e, Imm (word_offset * _word_size)) in
+           Op (Add, cls_addr_e, Imm (word_offset * Constants.word_size)) in
          Store (fv_e, slot_addr_e))
       mkcls.free_vars
   in
@@ -428,7 +429,10 @@ let _from_closure
   let ctx, arg_temps = _emit_cls_prelude ctx cls in
   let ctx = _transl_cir_expr_tailpos ctx cls.body in
   let body = _ctx_get_instrs ctx in
-  let func = { name = entry_label; args = arg_temps; body } in
+  let temp_manager = ctx.temp_manager in
+  let func =
+    { name = entry_label; ordered_args = arg_temps; body; temp_manager }
+  in
   (ctx.label_manager, func)
 ;;
 
@@ -451,6 +455,7 @@ let from_cir_prog (cir_prog : Cir.prog) =
   in
   let ctx = _ctx_init label_manager in
   let ctx = _transl_cir_expr_tailpos ctx cir_prog.expr in
-  let entry = _ctx_get_instrs ctx in
-  { funcs; entry }
+  { funcs
+  ; entry = _ctx_get_instrs ctx
+  ; temp_manager = ctx.temp_manager }
 ;;

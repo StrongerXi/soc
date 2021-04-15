@@ -617,7 +617,7 @@ let _pp_lir_instrs (p : printer) (instrs : Lir.instr list) : unit =
 
 let _pp_lir_func (p : printer) (func : Lir.func) : unit =
   _print_strs p ["<"; Label.to_string func.name; ">:"]; _print_newline p;
-  let arg_strs = List.map Temp.to_string func.args in
+  let arg_strs = List.map Temp.to_string func.ordered_args in
   _print_strs p ["args: ["; String.join_with arg_strs ", "; "]"]; _print_newline p;
   _println_str p "body:";
   _inc_space p 2;
