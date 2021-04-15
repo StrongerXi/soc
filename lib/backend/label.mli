@@ -23,9 +23,11 @@ val gen : manager -> string -> (manager * t)
     binds [name] with the returned [t] *)
 val gen_and_bind : manager -> string -> (manager * t)
 
-(** [create_native name] returns a label for externally defined function.
+(** [get_native name] returns a label for externally defined function.
     It's guaranteed to be unique if [name] is unique *)
-val create_native : string -> t
+val get_native : string -> t
+
+val to_epilogue : t -> t
 
 (** [to_string t] returns a string representation of [t] *)
 val to_string : t -> string

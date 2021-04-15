@@ -278,7 +278,7 @@ and _transl_cir_apply
 and _transl_cir_native_apply
     (ctx : context) (name : string) (arg_ces : Cir.expr list)
   : (context * expr) =
-  let native_label = Label.create_native name in
+  let native_label = Label.get_native name in
   let ctx, arg_es = _transl_cir_apply_args ctx arg_ces in
   let call_e = NativeCall (native_label, arg_es) in
   (ctx, call_e)
