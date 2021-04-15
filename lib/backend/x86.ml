@@ -78,10 +78,7 @@ type temp_prog =
   }
 
 
-let _word_size = 8
-;;
-
-
+(* context for translation from [Lir.func] to [temp_func] *)
 type context =
   { func_label        : Label.t
   ; rax_temp          : Temp.t
@@ -128,8 +125,8 @@ let _emit_load_args_into_temps (ctx : context) (ordered_arg_temps : Temp.t list)
          let mem_arg = Mem_arg (Rbp, offset_bytes) in
          let instr = Load (mem_arg, Greg arg_temp) in
          let ctx = _ctx_add_instr ctx instr in
-         (ctx, offset_bytes + _word_size))
-      (ctx, 2 * _word_size) extra_arg_temps
+         (ctx, offset_bytes + Constants.word_size))
+      (ctx, 2 * Constants.word_size) extra_arg_temps
     |> (fun (ctx, _) -> ctx)
   in
   let rec go ctx arg_temps (arg_prs : physical_reg list) : context =
@@ -168,7 +165,7 @@ let rec _emit_lir_expr (ctx : context) (e : Lir.expr) (dst_temp : Temp.t)
 
   | Mem_alloc nbytes ->
     let ctx = _emit_prepare_x86_call_args ctx [Imm nbytes] in
-    let instr = Call_lbl (Label.get_native "mem_alloc") in
+    let instr = Call_lbl (Label.get_native Constants.mem_alloc_name) in
     _ctx_add_instr ctx instr
 
 (*       ......
@@ -334,11 +331,11 @@ let _from_lir_main_func
   : temp_func =
   (* TODO call "soml_init" here, or make this a function called by C runtime?
    * TBD when implementing runtime. *)
-  let main_label = Label.get_native "main" in
-  let ctx = _init_ctx main_label [] temp_manager in
+  let entry_label = Label.get_native Constants.entry_name in
+  let ctx = _init_ctx entry_label [] temp_manager in
   let ctx = _emit_lir_instrs ctx lir_instrs in
   let instrs = _ctx_get_instrs ctx in
-  { entry = main_label; instrs; args = []; rax = ctx.rax_temp; } 
+  { entry = entry_label; instrs; args = []; rax = ctx.rax_temp; } 
 ;;
 
 let from_lir_prog (lir_prog : Lir.prog) : temp_prog =
