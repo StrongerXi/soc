@@ -29,14 +29,16 @@ type instr =
   | Ret of expr
 
 type func =
-  { name     : Label.t
-  ; args     : Temp.t list
-  ; body     : instr list 
+  { name         : Label.t
+  ; ordered_args : Temp.t list
+  ; body         : instr list 
+  ; temp_manager : Temp.manager
   }
 
 type prog =
   { funcs : func list
   ; entry : instr list
+  ; temp_manager  : Temp.manager
   }
 
 
@@ -428,7 +430,10 @@ let _from_closure
   let ctx, arg_temps = _emit_cls_prelude ctx cls in
   let ctx = _transl_cir_expr_tailpos ctx cls.body in
   let body = _ctx_get_instrs ctx in
-  let func = { name = entry_label; args = arg_temps; body } in
+  let temp_manager = ctx.temp_manager in
+  let func =
+    { name = entry_label; ordered_args = arg_temps; body; temp_manager }
+  in
   (ctx.label_manager, func)
 ;;
 
@@ -451,6 +456,7 @@ let from_cir_prog (cir_prog : Cir.prog) =
   in
   let ctx = _ctx_init label_manager in
   let ctx = _transl_cir_expr_tailpos ctx cir_prog.expr in
-  let entry = _ctx_get_instrs ctx in
-  { funcs; entry }
+  { funcs
+  ; entry = _ctx_get_instrs ctx
+  ; temp_manager = ctx.temp_manager }
 ;;

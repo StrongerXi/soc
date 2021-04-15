@@ -37,23 +37,25 @@ type instr =
   | Jump of cond * Label.t
       (* Jump to label if [cond] is satisfied. *)
   | Set of cond * Temp.t
-      (* Sets content of [temp] to 0 if [cond] is satisfied, else 1 *)
+      (* Sets content of [temp] to 1 if [cond] is satisfied, else 0 *)
   | Ret of expr
       (* Return the result of [expr] to callee function *)
 
 
 (** A [func] is a function at Lir level. *)
 type func =
-  { name     : Label.t
-  ; args     : Temp.t list
-  ; body     : instr list  (* NOTE doesn't start with [name] label *)
+  { name         : Label.t
+  ; ordered_args : Temp.t list  (* 1st temp for 1st function arg, etc. *)
+  ; body         : instr list   (* NOTE doesn't start with [name] label *)
+  ; temp_manager : Temp.manager
   }
 
 
 (** A [prog] is the entire program at Lir level. *)
 type prog =
-  { funcs : func list
-  ; entry : instr list
+  { funcs         : func list
+  ; entry         : instr list   (* no entry label, to be generated later *)
+  ; temp_manager  : Temp.manager (* for [entry] *)
   }
 
 
