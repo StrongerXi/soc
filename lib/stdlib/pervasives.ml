@@ -10,3 +10,7 @@ type 'a option =
 type ('a, 'e) result =
   | Ok of 'a
   | Error of 'e
+
+let not b =
+  if b then false else true
+;;

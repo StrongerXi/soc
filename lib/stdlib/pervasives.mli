@@ -20,3 +20,5 @@ type 'a option =
 type ('a, 'e) result =
   | Ok of 'a
   | Error of 'e
+
+val not : bool -> bool
