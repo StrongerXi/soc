@@ -84,3 +84,10 @@ let to_string f g t =
   let inner = String.join_with pairs "; " in
   String.append "{" (String.append inner "}")
 ;;
+
+let get_key_set t =
+  List.fold_right 
+    (fun (key, _) key_set -> Set.add key key_set)
+    (_unique_pairs t)
+    (Set.empty t.cmp)
+;;

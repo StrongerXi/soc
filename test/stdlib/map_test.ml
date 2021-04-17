@@ -90,6 +90,14 @@ let tests = OUnit2.(>:::) "map_tests" [
         OUnit2.assert_equal "{(42, a); (1, b)}"
           (Map.to_string Int.to_string Char.to_string s2);
       );
+
+    OUnit2.(>::) "test_get_key_set" (fun _ ->
+        let s2 = from_list [(42, 'a'); (1, 'b')] int_cmp in
+        let keys = Map.get_key_set s2 in
+        OUnit2.assert_equal 2 (Set.size keys);
+        OUnit2.assert_equal true (Set.mem 42 keys);
+        OUnit2.assert_equal true (Set.mem 1 keys);
+      );
   ]
 
 let _ =
