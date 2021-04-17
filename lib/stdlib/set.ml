@@ -34,6 +34,12 @@ let remove e t =
   { t with rep = List.filter (fun x -> not (_equal_by_cmp t.cmp e x)) t.rep }
 ;;
 
+let get_one t =
+  match t.rep with
+  | [] -> None
+  | e::_ -> Some e
+;;
+
 let mem e t =
   match List.find_opt (_equal_by_cmp t.cmp e) t.rep with
   | None   -> false
@@ -46,6 +52,19 @@ let size t =
 
 let map f t =
   { t with rep = List.map f t.rep }
+;;
+
+let filter p t =
+  { t with rep = List.filter p t.rep }
+;;
+
+let find p t =
+  List.find_opt p t.rep
+;;
+
+let fold f acc t =
+  let unique_elems = _unique_elems t in
+  List.fold_left f acc unique_elems
 ;;
 
 let union t1 t2 =
@@ -79,4 +98,8 @@ let to_string f t =
   let es = List.map f (_unique_elems t) in
   let inner = String.join_with es "; " in
   String.append "{" (String.append inner "}")
+;;
+
+let get_compare_func t =
+  t.cmp
 ;;

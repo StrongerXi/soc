@@ -30,6 +30,25 @@ let tests = OUnit2.(>:::) "set_tests" [
         OUnit2.assert_equal 1 (Set.size (Set.remove 42 s2));
       );
 
+    OUnit2.(>::) "test_get_one" (fun _ ->
+        let _check_get_one (set : int Set.t) : unit =
+          match Set.get_one set with
+          | None ->
+            OUnit2.assert_bool
+              "Non-empty set returned nothing"
+              ((Set.size set) = 0)
+          | Some n ->
+            OUnit2.assert_bool
+              "get_one should return a member of set"
+              (Set.mem n set)
+        in
+        let s1 = from_list [42] int_cmp in
+        let s2 = from_list [1; 42] int_cmp in
+        _check_get_one emp_int;
+        _check_get_one s1;
+        _check_get_one s2;
+      );
+
     OUnit2.(>::) "test_mem" (fun _ ->
         let s2 = from_list [42; 1; 42] int_cmp in
         OUnit2.assert_equal false (Set.mem 42 emp_int);
@@ -49,6 +68,30 @@ let tests = OUnit2.(>:::) "set_tests" [
         OUnit2.assert_equal true (Set.mem 2 s2);
         OUnit2.assert_equal false (Set.mem 42 s2);
         OUnit2.assert_equal true (Set.mem 84 s2);
+      );
+
+    OUnit2.(>::) "test_filter" (fun _ ->
+        let s = from_list [1; 42; 22; 25] int_cmp in
+        let even_s = Set.filter (fun n -> n mod 2 = 0) s in 
+        OUnit2.assert_equal 2 (Set.size even_s);
+        OUnit2.assert_equal true (Set.mem 42 even_s);
+        OUnit2.assert_equal true (Set.mem 22 even_s);
+      );
+
+    OUnit2.(>::) "test_find" (fun _ ->
+        let s = from_list [42; 1; 22; 25] int_cmp in
+        OUnit2.assert_equal None (Set.find (fun n -> n = 2) s);
+        OUnit2.assert_equal (Some 1) (Set.find (fun n -> n = 1) s);
+        OUnit2.assert_equal (Some 22) (Set.find (fun n -> n = 22) s);
+      );
+
+    OUnit2.(>::) "test_fold" (fun _ ->
+        let s = from_list [1; 42; 11] int_cmp in
+        let l = Set.fold (fun l x -> x::l) [] s in
+        OUnit2.assert_equal 3 (List.length l);
+        OUnit2.assert_equal true (List.mem 11 l);
+        OUnit2.assert_equal true (List.mem 1 l);
+        OUnit2.assert_equal true (List.mem 42 l);
       );
 
     OUnit2.(>::) "test_union" (fun _ ->
@@ -151,6 +194,21 @@ let tests = OUnit2.(>:::) "set_tests" [
         let s4 = from_list [33; 11; 1; 42] int_cmp in
         OUnit2.assert_equal "{}" (Set.to_string Int.to_string emp_int);
         OUnit2.assert_equal "{33; 11; 1; 42}" (Set.to_string Int.to_string s4);
+      );
+
+    OUnit2.(>::) "test_get_compare_func" (fun _ ->
+        let lt = Int.compare in
+        let gt = (fun n1 n2 -> -(Int.compare n1 n2)) in
+        let slt = from_list [33; 11; 1; 42] lt in
+        let sgt = from_list [33; 11; 1; 42] gt in
+        let slt_func = Set.get_compare_func slt in
+        let sgt_func = Set.get_compare_func sgt in
+        OUnit2.assert_equal true ((slt_func 0 2) < 0);
+        OUnit2.assert_equal true ((slt_func 1 1) = 0);
+        OUnit2.assert_equal true ((slt_func 3 1) > 0);
+        OUnit2.assert_equal true ((sgt_func 3 1) < 0);
+        OUnit2.assert_equal true ((sgt_func 1 1) = 0);
+        OUnit2.assert_equal true ((sgt_func 0 2) > 0);
       );
   ]
 
