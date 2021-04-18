@@ -1,0 +1,158 @@
+open Pervasives
+
+let _annotated_vasm_to_str
+    ((vasm : Vasm.t), (annot : Liveness_analysis.annot))
+  : string =
+  let vasm_str = Pretty.pp_vasm vasm in
+  let annot_str = Set.to_string Temp.to_string annot.live_out in
+  String.join_with [vasm_str; annot_str] " # "
+;;
+
+let _annotated_vasms_to_str
+    (avs : (Vasm.t * Liveness_analysis.annot) list)
+  : string =
+  let av_strs = List.map _annotated_vasm_to_str avs in
+  let avs_str = String.join_with av_strs ";\n" in
+  String.join_with ["["; avs_str; "]"] ""
+;;
+
+let _annotated_vasm_equal
+  ((v1 : Vasm.t), (a1 : Liveness_analysis.annot))
+  ((v2 : Vasm.t), (a2 : Liveness_analysis.annot))
+  : bool =
+  Test_aux.vasm_equal v1 v2 &&
+  Test_aux.set_equal a1.live_out a2.live_out
+;;
+
+let _mk_annotated_vasms
+  (vasm_live_out_set_pairs : (Vasm.t * Temp.t list) list)
+  : (Vasm.t * Liveness_analysis.annot) list =
+  List.map
+    (fun (instr, live_out) ->
+       let live_out = Backend_aux.temps_to_set live_out in
+       let annot = { Liveness_analysis.live_out } in
+       (instr, annot))
+    vasm_live_out_set_pairs
+;;
+
+
+(* example temps and labels for convenience *)
+let t0, t1, t2, t3 =
+  let temp_manager, t0 = Temp.gen Temp.init_manager in
+  let temp_manager, t1 = Temp.gen temp_manager in
+  let temp_manager, t2 = Temp.gen temp_manager in
+  let _, t3            = Temp.gen temp_manager in
+  (t0, t1, t2, t3)
+;;
+
+let l0, l1, l2 = 
+  let label_manager, l0 = Label.gen Label.init_manager "L" in
+  let label_manager, l1 = Label.gen label_manager "L" in
+  let _, l2             = Label.gen label_manager "L" in
+  (l0, l1, l2)
+;;
+
+let tests = OUnit2.(>:::) "Liveness_analysis_test" [
+
+    OUnit2.(>::) "test_analyze_vasm_linear" (fun _ ->
+        (* t0     -> t0, t1   # live-out: [t1, t3]
+         * t3     -> t2       # live-out: [t1, t3]
+         * t1, t3 -> ...      # live-out: [t1]
+         * ...    -> t2, t3   # live-out: [t1, t3]
+         * t1, t3 -> ...      # live-out: []
+         *
+         * - t0: immediately killed
+         * - t1: lived throughout
+         * - t2: defined but never used
+         * - t3: used before and after definition
+         *)
+        let expected = _mk_annotated_vasms
+            [
+              (Backend_aux.mk_instr_no_jump [t0] [t0; t1], [t1; t3]);
+              (Backend_aux.mk_instr_no_jump [t3] [t2],     [t1; t3]);
+              (Backend_aux.mk_instr_no_jump [t1; t3] [],   [t1]);
+              (Backend_aux.mk_instr_no_jump [] [t2; t3],   [t1; t3]);
+              (Backend_aux.mk_instr_no_jump [t1; t3] [],   []);
+            ]
+        in
+        let vasms = List.map (fun (instr, _) -> instr) expected in
+        let annotated_vasms = Liveness_analysis.analyze_vasm vasms in
+        OUnit2.assert_equal
+          ~printer:_annotated_vasms_to_str
+          ~cmp:(Test_aux.list_equal _annotated_vasm_equal)
+          expected annotated_vasms
+      );
+
+    OUnit2.(>::) "test_analyze_vasm_with_jumps" (fun _ ->
+        (* ### High-level CFG:
+         *
+         * ---
+         * v /
+         * B0    # L0
+         * | ^      
+         * |  \
+         * v  |
+         * B1 |  # no label start after cond jump 
+         *    X
+         * B2 |  # no label start after cond jump
+         *    /
+         *   v
+         * B3    # L1
+         *   
+         *
+         * ### Actual Instructions:
+         *
+         * B0: (gen = [t0], kill = [t0, t1], pred = [B0, B2], succ = [B0, B1],
+         *      live-in = [t0], live-out = [t0, t1])
+         *  L0                  # live-out: [t0]
+         *   t0     -> t0, t1   # live-out: [t0, t1]
+         *   t0, t1 -> ...      # live-out: [t0, t1]
+         *   cond_jump L0       # live-out: [t0, t1]
+         *
+         * B1: (gen = [t0], kill = [t0], pred = [B0], succ = [B2, B3],
+         *      live-in = [t0, t1], live-out = [t0, t1])
+         *   t0     -> t0       # live-out: [t0, t1]
+         *   cond_jump L1       # live-out: [t0, t1]
+         *
+         * B2: (gen = [t0, t1], kill = [t0, t2], pred = [B1], succ = [B0],
+         *      live-in = [t0, t1], live-out = [t0])
+         *   t0, t1 -> t2       # live-out: [t2]
+         *   t2     -> t0       # live-out: [t0, t2]
+         *   dir_jump t2, L0    # live-out: [t0]
+         *
+         * B3: (gen = [t0], kill = [t0], pred = [B1], succ = [],
+         *      live-in = [t0], live-out = [])
+         *  L1                  # live-out: [t0]
+         *   t0     -> t3       # live-out: [t0, t3]
+         *   t0, t3 -> t0       # live-out: []
+         *)
+        let expected = _mk_annotated_vasms
+            [ (* B0 *)
+              (Backend_aux.mk_label l0, [t0]);
+              (Backend_aux.mk_instr_no_jump [t0] [t0; t1], [t0; t1]);
+              (Backend_aux.mk_instr_no_jump [t0; t1] [],   [t0; t1]);
+              (Backend_aux.mk_instr_cond_jump [] [] l0,    [t0; t1]);
+              (* B1 *)
+              (Backend_aux.mk_instr_no_jump [t0] [t0],     [t0; t1]);
+              (Backend_aux.mk_instr_cond_jump [] [] l1,    [t0; t1]);
+              (* B2 *)
+              (Backend_aux.mk_instr_no_jump [t0; t1] [t2], [t2]);
+              (Backend_aux.mk_instr_no_jump [t2] [t0],     [t0; t2]);
+              (Backend_aux.mk_instr_dir_jump [t2] [] l0,   [t0]);
+              (* B3 *)
+              (Backend_aux.mk_label l1, [t0]);
+              (Backend_aux.mk_instr_no_jump [t0] [t3],     [t0; t3]);
+              (Backend_aux.mk_instr_no_jump [t0; t3] [t0], []);
+            ]
+        in
+        let vasms = List.map (fun (instr, _) -> instr) expected in
+        let annotated_vasms = Liveness_analysis.analyze_vasm vasms in
+        OUnit2.assert_equal
+          ~printer:_annotated_vasms_to_str
+          ~cmp:(Test_aux.list_equal _annotated_vasm_equal)
+          expected annotated_vasms
+      );
+  ]
+
+let _ =
+  OUnit2.run_test_tt_main tests
