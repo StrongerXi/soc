@@ -24,3 +24,7 @@ val gen_and_bind : manager -> string -> (manager * t)
 
 (** [to_string t] returns a string representation of [t] *)
 val to_string : t -> string
+
+(** Forms a well-define ordering of [t], where negative result means less than,
+    zero means equal, and positive means greater than *)
+val compare : t -> t -> int
