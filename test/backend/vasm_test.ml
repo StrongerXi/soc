@@ -1,45 +1,5 @@
 open Pervasives
 
-(* convenience constructors for vasm instructions *)
-
-let _temps_to_set (temps : Temp.t list) : Temp.t Set.t =
-  List.fold_right Set.add temps (Set.empty Temp.compare)
-;;
-
-let _mk_instr
-    (reads : Temp.t list) (writes : Temp.t list) (jump : Vasm.jump option)
-  : Vasm.t =
-  Vasm.Instr
-    { reads = _temps_to_set reads;
-      writes = _temps_to_set writes;
-      jump }
-;;
-
-let _mk_instr_no_jump (reads : Temp.t list) (writes : Temp.t list) : Vasm.t =
-  _mk_instr reads writes None
-;;
-
-let _mk_instr_dir_jump
-    (reads : Temp.t list) (writes : Temp.t list) (target : Label.t) : Vasm.t =
-  let jump = { Vasm.target; kind = Unconditional } in
-  _mk_instr reads writes (Some jump)
-;;
-
-let _mk_instr_cond_jump
-    (reads : Temp.t list) (writes : Temp.t list) (target : Label.t) : Vasm.t =
-  let jump = { Vasm.target; kind = Conditional } in
-  _mk_instr reads writes (Some jump)
-;;
-
-let _mk_call (reads : Temp.t list) : Vasm.t =
-  Vasm.Call (_temps_to_set reads)
-;;
-
-let _mk_label (label : Label.t) : Vasm.t =
-  Vasm.Label label
-;;
-
-
 (* property checks on cfg (incomprehensive)
  * - no internal jumps or labels (besides first and last)
  * - empty node should have <= 1 in and <= 1 out neighbors
@@ -155,12 +115,12 @@ let l0, l1, l2 =
 let tests = OUnit2.(>:::) "vasm_test" [
 
     OUnit2.(>::) "test_get_reads_writes" (fun _ ->
-        let instr_no_jump   = _mk_instr_no_jump   [t0; t2] [t0; t1]    in
-        let instr_dir_jump  = _mk_instr_dir_jump  []       [t2; t3] l0 in
-        let instr_cond_jump = _mk_instr_cond_jump [t2; t1] []       l1 in
-        let call_no_read    = _mk_call [] in
-        let call_with_read  = _mk_call [t0; t3] in
-        let label           = _mk_label l0 in
+        let instr_no_jump   = Backend_aux.mk_instr_no_jump [t0; t2] [t0; t1] in
+        let instr_dir_jump  = Backend_aux.mk_instr_dir_jump  [] [t2; t3] l0 in
+        let instr_cond_jump = Backend_aux.mk_instr_cond_jump [t2; t1] [] l1 in
+        let call_no_read    = Backend_aux.mk_call [] in
+        let call_with_read  = Backend_aux.mk_call [t0; t3] in
+        let label           = Backend_aux.mk_label l0 in
 
         Test_aux.check_set [t0; t2] (Vasm.get_reads instr_no_jump);
         Test_aux.check_set []       (Vasm.get_reads instr_dir_jump);
@@ -190,14 +150,14 @@ let tests = OUnit2.(>:::) "vasm_test" [
          * NOTE reads and writes shouldn't matter for control flow *)
         let vasms =
           [
-            _mk_label l0;
-            _mk_instr_no_jump [t1] [t2];
-            _mk_instr_cond_jump [t3] [t3] l1;
-            _mk_call [t0];
-            _mk_instr_dir_jump [t2; t3] [] l2;
-            _mk_label l1;
-            _mk_instr_dir_jump [] [t1; t3] l0;
-            _mk_instr_no_jump [] [];
+            Backend_aux.mk_label l0;
+            Backend_aux.mk_instr_no_jump [t1] [t2];
+            Backend_aux.mk_instr_cond_jump [t3] [t3] l1;
+            Backend_aux.mk_call [t0];
+            Backend_aux.mk_instr_dir_jump [t2; t3] [] l2;
+            Backend_aux.mk_label l1;
+            Backend_aux.mk_instr_dir_jump [] [t1; t3] l0;
+            Backend_aux.mk_instr_no_jump [] [];
           ]
         in
         let cfg, ordered_nodes = Vasm.build_cfg vasms in

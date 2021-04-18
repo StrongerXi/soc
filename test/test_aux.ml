@@ -35,13 +35,14 @@ let check_unordered_list (expects : 'a list) (actuals : 'a list) : unit =
     expects
 ;;
 
+(* TODO move to Set module *)
+let set_equal (s1 : 'a Set.t) (s2 : 'a Set.t) : bool =
+  let s1_size = Set.size s1 in
+  (s1_size = Set.size s2) &&
+  (Set.size (Set.union s1 s2) = s1_size)
+;;
+
 let vasm_equal (v1 : Vasm.t) (v2 : Vasm.t) : bool =
-  (* TODO move to Set module *)
-  let set_equal (s1 : 'a Set.t) (s2 : 'a Set.t) : bool =
-    let s1_size = Set.size s1 in
-    (s1_size = Set.size s2) &&
-    (Set.size (Set.union s1 s2) = s1_size)
-  in
   match v1, v2 with
   | Call reads1, Call reads2 ->
     set_equal reads1 reads2
