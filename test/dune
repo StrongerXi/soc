@@ -9,7 +9,7 @@
    substs_test
 
    ; backend
-   cir_test temp_test label_test graph_test
+   cir_test temp_test label_test graph_test vasm_test
 
    ; helper functions
    test_aux
