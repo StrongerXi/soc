@@ -24,11 +24,26 @@ val add : 'e -> 'e t -> 'e t
 (** [remove e t] returns a set where [e] is absent *)
 val remove : 'e -> 'e t -> 'e t
 
+(** [get_one t] tries to get some element from [t].
+    Return [None] if [t] is empty. *)
+val get_one : 'e t -> 'e option
+
 (** [mem e t] returns true iff [e] is present in [t] *)
 val mem : 'e -> 'e t -> bool
 
 (** [map f t] returns a new map where each value [v] in [t] becomes [f v] *)
 val map : ('e -> 'e) -> 'e t -> 'e t
+
+(** [filter p t] returns a subset of [t] whose elements satisfy [p]. *)
+val filter : ('e -> bool) -> 'e t -> 'e t
+
+(** [find p t] returns some element in [t] that satisfies [p],
+    or None if such element doesn't exist in [t]. *)
+val find : ('e -> bool) -> 'e t -> 'e option
+
+(** [fold f a t] is (f (... (f (f a e1) e2)  ...) en),
+    where e1 ... eN are all the elements in [t] *)
+val fold : ('a -> 'e -> 'a) -> 'a -> 'e t -> 'a
 
 (** [union t1 t2] returns a new set that contains all the elements in either 
     [t1] or [t2]. *)
@@ -53,3 +68,7 @@ val to_list : 'e t -> 'e list
 (** [to_string f t] returns a string representation of the [t], using [f] to
     format individual elements *)
 val to_string : ('e -> string) -> 'e t -> string
+
+(** [get_compare_func t] returns the compare function for elements of [t],
+    passed in during [t]'s construction. *)
+val get_compare_func : 'e t -> ('e -> 'e -> int)

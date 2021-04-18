@@ -48,3 +48,6 @@ val foldi : ('k -> 'v -> 'b -> 'b) -> ('k, 'v) t -> 'b -> 'b
 (** [to_string f g t] returns a string representation of the [t], using [f] to
     format individual keys, and [g] for elements. *)
 val to_string : ('k -> string) -> ('v -> string) -> ('k, 'v) t -> string
+
+(** [get_key_set t] returns all the keys present in [t] as a set *)
+val get_key_set : ('k, 'v) t -> 'k Set.t

@@ -64,23 +64,20 @@ let tests = OUnit2.(>:::) "map_tests" [
       );
 
     OUnit2.(>::) "test_fold" (fun _ ->
-        let s2 = from_list [(42, 'a'); (1, 'b')] int_cmp in
+        let elem_pairs = [(42, 'a'); (1, 'b')] in
+        let s2 = from_list elem_pairs int_cmp in
         let f v acc = v::acc in
+        let values = List.map (fun (_, v) -> v) elem_pairs in
         OUnit2.assert_equal [] (Map.fold f emp_int []);
-        let res = Map.fold f s2 [] in
-        OUnit2.assert_equal 2 (List.length res);
-        OUnit2.assert_equal true (List.mem 'a' res);
-        OUnit2.assert_equal true (List.mem 'b' res);
+        Test_aux.check_unordered_list values (Map.fold f s2 []);
       );
 
     OUnit2.(>::) "test_foldi" (fun _ ->
-        let s2 = from_list [(42, 'a'); (1, 'b')] int_cmp in
+        let elem_pairs = [(42, 'a'); (1, 'b')] in
+        let s2 = from_list elem_pairs int_cmp in
         let f k v acc = (k, v)::acc in
         OUnit2.assert_equal [] (Map.foldi f emp_int []);
-        let res = Map.foldi f s2 [] in
-        OUnit2.assert_equal 2 (List.length res);
-        OUnit2.assert_equal true (List.mem (42, 'a') res);
-        OUnit2.assert_equal true (List.mem (1, 'b') res);
+        Test_aux.check_unordered_list elem_pairs (Map.foldi f s2 [])
       );
 
     OUnit2.(>::) "test_to_string" (fun _ ->
@@ -89,6 +86,11 @@ let tests = OUnit2.(>:::) "map_tests" [
           (Map.to_string Int.to_string Char.to_string emp_int);
         OUnit2.assert_equal "{(42, a); (1, b)}"
           (Map.to_string Int.to_string Char.to_string s2);
+      );
+
+    OUnit2.(>::) "test_get_key_set" (fun _ ->
+        let s2 = from_list [(42, 'a'); (1, 'b')] int_cmp in
+        Test_aux.check_set [42; 1] (Map.get_key_set s2);
       );
   ]
 
