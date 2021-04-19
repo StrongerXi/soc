@@ -104,7 +104,8 @@ open Pervasives
  *)
 
 type annot =
-  { live_out : Temp.t Set.t
+  { live_in  : Temp.t Set.t
+  ; live_out : Temp.t Set.t
   }
 
 type block_annot =
@@ -176,12 +177,12 @@ let _annot_instructions_in_block
   : (Vasm.t * annot) list =
   List.fold_right (* backward analysis, instruction order also preserved *)
     (fun (instr : Vasm.t) (annot_instrs, live_out) ->
-       let annot = { live_out } in
-       let annot_instrs = (instr, annot)::annot_instrs in
        let reads, writes = (Vasm.get_reads instr, Vasm.get_writes instr) in
-       let live_out = Set.diff live_out writes in (* update for next iteration *)
-       let live_out = Set.union live_out reads in
-       (annot_instrs, live_out))
+       let new_live_out = Set.diff live_out writes in
+       let new_live_out = Set.union new_live_out reads in
+       let annot = { live_in = new_live_out; live_out } in
+       let annot_instrs = (instr, annot)::annot_instrs in
+       (annot_instrs, new_live_out))
     block ([], block_annot.live_out)
   |> (fun (annot_instrs, _) -> annot_instrs)
 ;;

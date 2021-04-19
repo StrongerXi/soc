@@ -25,14 +25,18 @@ let _annotated_vasm_equal
 ;;
 
 let _mk_annotated_vasms
+  (live_in : Temp.t list)
   (vasm_live_out_set_pairs : (Vasm.t * Temp.t list) list)
   : (Vasm.t * Liveness_analysis.annot) list =
-  List.map
-    (fun (instr, live_out) ->
+  List.fold_left
+    (fun (live_in, rev_annot_instrs) (instr, live_out) ->
        let live_out = Backend_aux.temps_to_set live_out in
-       let annot = { Liveness_analysis.live_out } in
-       (instr, annot))
+       let annot = { Liveness_analysis.live_in; live_out } in
+       let rev_annot_instrs = (instr, annot)::rev_annot_instrs in
+       (live_out, rev_annot_instrs))
+    (Backend_aux.temps_to_set live_in, [])
     vasm_live_out_set_pairs
+  |> (fun (_, rev_annot_instrs) -> List.rev rev_annot_instrs)
 ;;
 
 
@@ -55,7 +59,8 @@ let l0, l1, l2 =
 let tests = OUnit2.(>:::) "Liveness_analysis_test" [
 
     OUnit2.(>::) "test_analyze_vasm_linear" (fun _ ->
-        (* t0     -> t0, t1   # live-out: [t1, t3]
+        (*                    # live-out: [t0]
+         * t0     -> t0, t1   # live-out: [t1, t3]
          * t3     -> t2       # live-out: [t1, t3]
          * t1, t3 -> ...      # live-out: [t1]
          * ...    -> t2, t3   # live-out: [t1, t3]
@@ -66,7 +71,7 @@ let tests = OUnit2.(>:::) "Liveness_analysis_test" [
          * - t2: defined but never used
          * - t3: used before and after definition
          *)
-        let expected = _mk_annotated_vasms
+        let expected = _mk_annotated_vasms [t0]
             [
               (Backend_aux.mk_instr_no_jump [t0] [t0; t1], [t1; t3]);
               (Backend_aux.mk_instr_no_jump [t3] [t2],     [t1; t3]);
@@ -126,7 +131,7 @@ let tests = OUnit2.(>:::) "Liveness_analysis_test" [
          *   t0     -> t3       # live-out: [t0, t3]
          *   t0, t3 -> t0       # live-out: []
          *)
-        let expected = _mk_annotated_vasms
+        let expected = _mk_annotated_vasms [t0]
             [ (* B0 *)
               (Backend_aux.mk_label l0, [t0]);
               (Backend_aux.mk_instr_no_jump [t0] [t0; t1], [t0; t1]);
