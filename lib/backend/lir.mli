@@ -23,7 +23,8 @@ type cond =
   | Less of expr * expr
   | Equal of expr * expr
 
-(** An [instr] is a basic building block of Lir. *)
+(** An [instr] is a basic building block of Lir. 
+    NOTE all memory addresses have byte as unit. *)
 type instr =
   | Label of Label.t
   | Load of expr * Temp.t
