@@ -42,22 +42,6 @@ let set_equal (s1 : 'a Set.t) (s2 : 'a Set.t) : bool =
   (Set.size (Set.union s1 s2) = s1_size)
 ;;
 
-let vasm_equal (v1 : Vasm.t) (v2 : Vasm.t) : bool =
-  match v1, v2 with
-  | Call reads1, Call reads2 ->
-    set_equal reads1 reads2
-
-  | Label l1, Label l2 ->
-    (Label.to_string l1) = (Label.to_string l2)
-
-  | Instr instr1, Instr instr2 ->
-    (set_equal instr1.reads instr2.reads) &&
-    (set_equal instr1.writes instr2.writes) &&
-    instr1.jump = instr2.jump
-
-  | _ -> false
-;;
-
 (* TODO move to list module *)
 let rec list_equal (cmp : 'a -> 'a -> bool) (l1 : 'a list) (l2 : 'a list)
   : bool =

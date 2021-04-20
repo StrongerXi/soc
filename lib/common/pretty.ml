@@ -642,38 +642,3 @@ let pp_lir_prog prog =
   _pp_lir_prog p prog;
   p.buffer
 ;;
-
-
-let _pp_vasm_jump (p : printer) (jump : Vasm.jump) : unit =
-  let kind_str =
-    match jump.kind with
-    | Conditional -> "conditional"
-    | Unconditional -> "unconditional"
-  in
-  _print_strs p [kind_str; " jump to "; Label.to_string jump.target];
-;;
-
-let _pp_vasm_instr (p : printer) (instr : Vasm.instr) : unit =
-  _print_strs p
-    ["instr, reads = "; Set.to_string Temp.to_string instr.reads;
-     ", writes = "; Set.to_string Temp.to_string instr.writes;];
-  match instr.jump with
-  | None -> ()
-  | Some jump ->
-    _print_str p ", jump = ";
-    _pp_vasm_jump p jump
-;;
-
-let _pp_vasm (p : printer) (vasm : Vasm.t) : unit =
-  match vasm with
-  | Label label -> _print_str p (Label.to_string label)
-  | Call  reads -> 
-    _print_strs p ["call("; Set.to_string Temp.to_string reads; ")"]
-  | Instr instr -> _pp_vasm_instr p instr
-;;
-
-let pp_vasm vasm =
-  let p = _create_printer () true in
-  _pp_vasm p vasm;
-  p.buffer
-;;

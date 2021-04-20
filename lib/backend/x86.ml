@@ -81,18 +81,49 @@ type temp_prog =
 (* context for translation from [Lir.func] to [temp_func] *)
 type context =
   { func_label        : Label.t
+
+  (* following are used to encode calling convention *)
   ; rax_temp          : Temp.t
-  ; ordered_arg_temps : Temp.t list
+  ; ordered_arg_temps : Temp.t list 
+    (* _All_ args that can fit in regs; NOTE Original func might not have this
+     * many args, but calls to other func might need more args. It can also
+     * have more, but we ignore the rest. *)
+
   (* following are "mutable" *)
   ; temp_manager      : Temp.manager
   ; rev_instrs        : Temp.t instr list
   }
+
+let rec _generate_n_temps (manager : Temp.manager) (n : int)
+  : (Temp.manager * Temp.t list) =
+  if n <= 0 then (manager, [])
+  else 
+    let manager, n_sub_1_temps = _generate_n_temps manager (n - 1) in
+    let manager, temp = Temp.gen manager in
+    (manager, temp::n_sub_1_temps)
+;;
+
+(* expand or shrink [temps] so that output is a list of size [max(0, n)] *)
+let rec _ensure_n_temps
+    (manager : Temp.manager) (temps : Temp.t list) (n : int)
+  : (Temp.manager * Temp.t list) =
+  if n <= 0 then (manager, [])
+  else
+    match temps with
+    | [] -> _generate_n_temps manager n
+    | temp::temps ->
+      let manager, n_sub_1_temps = _ensure_n_temps manager temps (n - 1) in
+      (manager, temp::n_sub_1_temps)
+;;
 
 let _init_ctx
     (func_label : Label.t) (ordered_arg_temps : Temp.t list)
     (temp_manager : Temp.manager)
   : context =
   let temp_manager, rax_temp = Temp.gen temp_manager in
+  let x86_arg_reg_num = List.length ordered_argument_physical_regs in
+  let temp_manager, ordered_arg_temps =
+    _ensure_n_temps temp_manager ordered_arg_temps x86_arg_reg_num in
   { func_label; rax_temp; ordered_arg_temps;
     temp_manager; rev_instrs = [] }
 ;;
@@ -156,17 +187,20 @@ let rec _emit_lir_expr (ctx : context) (e : Lir.expr) (dst_temp : Temp.t)
   | Call (label_temp, es) ->
     let ctx = _emit_prepare_x86_call_args ctx es in
     let instr = Call_reg label_temp in
-    _ctx_add_instr ctx instr
+    let ctx = _ctx_add_instr ctx instr in
+    _ctx_add_instr ctx (Load (Reg_arg (Greg ctx.rax_temp), Greg dst_temp))
 
   | NativeCall (func_label, es) ->
     let ctx = _emit_prepare_x86_call_args ctx es in
     let instr = Call_lbl func_label in
-    _ctx_add_instr ctx instr
+    let ctx = _ctx_add_instr ctx instr in
+    _ctx_add_instr ctx (Load (Reg_arg (Greg ctx.rax_temp), Greg dst_temp))
 
   | Mem_alloc nbytes ->
     let ctx = _emit_prepare_x86_call_args ctx [Imm nbytes] in
     let instr = Call_lbl (Label.get_native Constants.mem_alloc_name) in
-    _ctx_add_instr ctx instr
+    let ctx = _ctx_add_instr ctx instr in
+    _ctx_add_instr ctx (Load (Reg_arg (Greg ctx.rax_temp), Greg dst_temp))
 
 (*       ......
  * caller stack frame

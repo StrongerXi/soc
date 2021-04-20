@@ -2,8 +2,9 @@ open Pervasives
 
 (* An [annot] is an annotation for a single [Vasm.t] *)
 type annot =
-  { live_out : Temp.t Set.t (* Temps whose definition at a [Vasm.t] might be
-                               used later *)
+  (* Temps whose definition before/after an instruction might be used later *)
+  { live_in  : Temp.t Set.t 
+  ; live_out : Temp.t Set.t 
   }
 
 
