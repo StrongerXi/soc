@@ -1,9 +1,13 @@
 open Pervasives
 
+let temps_to_set (temps : Temp.t list) : Temp.t Set.t =
+  List.fold_right Set.add temps (Set.empty Temp.compare)
+;;
+
 let _annotated_vasm_to_str
     ((vasm : Vasm.t), (annot : Liveness_analysis.annot))
   : string =
-  let vasm_str = Pretty.pp_vasm vasm in
+  let vasm_str = Vasm.pp vasm in
   let annot_str = Set.to_string Temp.to_string annot.live_out in
   String.join_with [vasm_str; annot_str] " # "
 ;;
@@ -20,7 +24,7 @@ let _annotated_vasm_equal
   ((v1 : Vasm.t), (a1 : Liveness_analysis.annot))
   ((v2 : Vasm.t), (a2 : Liveness_analysis.annot))
   : bool =
-  Test_aux.vasm_equal v1 v2 &&
+  Vasm.equal v1 v2 &&
   Test_aux.set_equal a1.live_out a2.live_out
 ;;
 
@@ -30,11 +34,11 @@ let _mk_annotated_vasms
   : (Vasm.t * Liveness_analysis.annot) list =
   List.fold_left
     (fun (live_in, rev_annot_instrs) (instr, live_out) ->
-       let live_out = Backend_aux.temps_to_set live_out in
+       let live_out = temps_to_set live_out in
        let annot = { Liveness_analysis.live_in; live_out } in
        let rev_annot_instrs = (instr, annot)::rev_annot_instrs in
        (live_out, rev_annot_instrs))
-    (Backend_aux.temps_to_set live_in, [])
+    (temps_to_set live_in, [])
     vasm_live_out_set_pairs
   |> (fun (_, rev_annot_instrs) -> List.rev rev_annot_instrs)
 ;;
@@ -73,11 +77,11 @@ let tests = OUnit2.(>:::) "Liveness_analysis_test" [
          *)
         let expected = _mk_annotated_vasms [t0]
             [
-              (Backend_aux.mk_instr_no_jump [t0] [t0; t1], [t1; t3]);
-              (Backend_aux.mk_instr_no_jump [t3] [t2],     [t1; t3]);
-              (Backend_aux.mk_instr_no_jump [t1; t3] [],   [t1]);
-              (Backend_aux.mk_instr_no_jump [] [t2; t3],   [t1; t3]);
-              (Backend_aux.mk_instr_no_jump [t1; t3] [],   []);
+              (Vasm.mk_instr [t0] [t0; t1], [t1; t3]);
+              (Vasm.mk_instr [t3] [t2],     [t1; t3]);
+              (Vasm.mk_instr [t1; t3] [],   [t1]);
+              (Vasm.mk_instr [] [t2; t3],   [t1; t3]);
+              (Vasm.mk_instr [t1; t3] [],   []);
             ]
         in
         let vasms = List.map (fun (instr, _) -> instr) expected in
@@ -133,21 +137,21 @@ let tests = OUnit2.(>:::) "Liveness_analysis_test" [
          *)
         let expected = _mk_annotated_vasms [t0]
             [ (* B0 *)
-              (Backend_aux.mk_label l0, [t0]);
-              (Backend_aux.mk_instr_no_jump [t0] [t0; t1], [t0; t1]);
-              (Backend_aux.mk_instr_no_jump [t0; t1] [],   [t0; t1]);
-              (Backend_aux.mk_instr_cond_jump [] [] l0,    [t0; t1]);
+              (Vasm.mk_label l0,            [t0]);
+              (Vasm.mk_instr [t0] [t0; t1], [t0; t1]);
+              (Vasm.mk_instr [t0; t1] [],   [t0; t1]);
+              (Vasm.mk_cond_jump [] [] l0,  [t0; t1]);
               (* B1 *)
-              (Backend_aux.mk_instr_no_jump [t0] [t0],     [t0; t1]);
-              (Backend_aux.mk_instr_cond_jump [] [] l1,    [t0; t1]);
+              (Vasm.mk_instr [t0] [t0],    [t0; t1]);
+              (Vasm.mk_cond_jump [] [] l1, [t0; t1]);
               (* B2 *)
-              (Backend_aux.mk_instr_no_jump [t0; t1] [t2], [t2]);
-              (Backend_aux.mk_instr_no_jump [t2] [t0],     [t0; t2]);
-              (Backend_aux.mk_instr_dir_jump [t2] [] l0,   [t0]);
+              (Vasm.mk_instr [t0; t1] [t2], [t2]);
+              (Vasm.mk_instr [t2] [t0],     [t0; t2]);
+              (Vasm.mk_dir_jump [t2] [] l0, [t0]);
               (* B3 *)
-              (Backend_aux.mk_label l1, [t0]);
-              (Backend_aux.mk_instr_no_jump [t0] [t3],     [t0; t3]);
-              (Backend_aux.mk_instr_no_jump [t0; t3] [t0], []);
+              (Vasm.mk_label l1,            [t0]);
+              (Vasm.mk_instr [t0] [t3],     [t0; t3]);
+              (Vasm.mk_instr [t0; t3] [t0], []);
             ]
         in
         let vasms = List.map (fun (instr, _) -> instr) expected in

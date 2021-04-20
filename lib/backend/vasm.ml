@@ -9,31 +9,114 @@ type jump =
   ; kind   : jump_kind
   }
 
+type instr_desc =
+  | Jump of jump
+  | Call
+  | Linear
+
 type instr =
   { reads  : Temp.t Set.t 
   ; writes : Temp.t Set.t 
-  ; jump   : jump option
+  ; desc   : instr_desc
   }
 
 type t =
-  | Instr of instr
   | Label of Label.t
-  | Call  of Temp.t Set.t * Temp.t Set.t
+  | Instr of instr
+
+
+
+let mk_label label = 
+  Label label
+;;
+
+let _mk_instr (reads : Temp.t list) (writes : Temp.t list) (desc : instr_desc)
+  : t =
+  let _temps_to_set (temps : Temp.t list) : Temp.t Set.t =
+    List.fold_right Set.add temps (Set.empty Temp.compare)
+  in
+  Instr { reads  = _temps_to_set reads;
+          writes = _temps_to_set writes;
+          desc }
+;;
+
+let mk_instr reads writes =
+  _mk_instr reads writes Linear
+;;
+
+let mk_dir_jump reads writes target =
+  let jump = { target; kind = Unconditional } in
+  _mk_instr reads writes (Jump jump)
+;;
+
+let mk_cond_jump reads writes target =
+  let jump = { target; kind = Conditional } in
+  _mk_instr reads writes (Jump jump)
+;;
+
+let mk_call reads writes =
+  _mk_instr reads writes Call
+;;
 
 
 let get_reads t : Temp.t Set.t =
   match t with
-  | Label _         -> Set.empty Temp.compare
-  | Call (reads, _) -> reads
-  | Instr instr     -> instr.reads
+  | Label _     -> Set.empty Temp.compare
+  | Instr instr -> instr.reads
 ;;
 
 let get_writes t : Temp.t Set.t =
   match t with
-  | Label _          -> Set.empty Temp.compare
-  | Call (_, writes) -> writes
-  | Instr instr      -> instr.writes
+  | Label _     -> Set.empty Temp.compare
+  | Instr instr -> instr.writes
 ;;
+
+let _is_instr_call instr : bool =
+  match instr.desc with
+  | Call -> true
+  | Linear | Jump _ -> false
+;;
+
+let is_call t =
+  match t with
+  | Label _ -> false
+  | Instr instr -> _is_instr_call instr
+;;
+
+
+(* TODO move to Set module *)
+let _set_equal (s1 : 'a Set.t) (s2 : 'a Set.t) : bool =
+  let s1_size = Set.size s1 in
+  (s1_size = Set.size s2) &&
+  (Set.size (Set.union s1 s2) = s1_size)
+;;
+
+let _jump_equal (j1 : jump) (j2 : jump) : bool =
+  ((Label.to_string j1.target) = (Label.to_string j2.target)) &&
+  (j1 = j2)
+;;
+
+let _instr_desc_equal (d1 : instr_desc) (d2 : instr_desc) : bool =
+  match d1, d2 with
+  | Call, Call       -> true
+  | Linear, Linear   -> true
+  | Jump j1, Jump j2 -> _jump_equal j1 j2
+  | _, _ -> false
+;;
+
+let _instr_equal (i1 : instr) (i2 : instr) : bool =
+  (_set_equal i1.reads i2.reads) &&
+  (_set_equal i1.writes i2.writes) &&
+  (_instr_desc_equal i1.desc i2.desc)
+;;
+
+let equal t1 t2 =
+  match t1, t2 with
+  | Label l1, Label l2 -> (Label.to_string l1) = (Label.to_string l2)
+  | Instr i1, Instr i2 -> _instr_equal i1 i2
+  | _ -> false
+;;
+
 
 type block_info =
   { instrs : t list
@@ -155,29 +238,31 @@ let _ctx_handle_label (ctx : context) (label : Label.t) : context =
   _ctx_add_instr ctx (Label label)
 ;;
 
-(* add edges and create id for label if needed *)
+let _ctx_handle_jump (ctx : context) (jump : jump) : context =
+  let ctx, target_id = _ctx_get_or_gen_label_id ctx jump.target in
+  let ctx = _ctx_add_edge_btw_blocks ctx ctx.curr_block_id target_id in
+  let ctx = _ctx_finish_curr_block ctx in
+  let old_block_id = ctx.curr_block_id in
+  let ctx = _ctx_start_block ctx in
+  match jump.kind with
+  | Unconditional -> ctx
+  | Conditional ->
+    _ctx_add_edge_btw_blocks ctx old_block_id ctx.curr_block_id
+;;
+
 let _ctx_handle_instr (ctx : context) (instr : instr) : context =
   let ctx = _ctx_add_instr ctx (Instr instr) in
-  match instr.jump with
-  | None -> ctx
-  | Some jump ->
-    let ctx, target_id = _ctx_get_or_gen_label_id ctx jump.target in
-    let ctx = _ctx_add_edge_btw_blocks ctx ctx.curr_block_id target_id in
-    let ctx = _ctx_finish_curr_block ctx in
-    let old_block_id = ctx.curr_block_id in
-    let ctx = _ctx_start_block ctx in
-    match jump.kind with
-    | Unconditional -> ctx
-    | Conditional ->
-      _ctx_add_edge_btw_blocks ctx old_block_id ctx.curr_block_id
+  match instr.desc with
+  | Call   -> ctx (* no inter-procedural analysis *)
+  | Linear -> ctx (* linear control flow, i.e., straight to next instr *)
+  | Jump jump -> _ctx_handle_jump ctx jump
 ;;
 
 (* update [ctx] for wiring between nodes, starting new node, or adding [t] *)
 let _ctx_handle_one_vasm (ctx : context) t : context =
   match t with
   | Label label -> _ctx_handle_label ctx label
-  | Instr instr -> _ctx_handle_instr ctx instr
-  | Call _      -> _ctx_add_instr ctx t (* no inter-procedural analysis *)
+  | Instr instr   -> _ctx_handle_instr ctx instr
 ;;
 
 let rec _ctx_handle_vasms (ctx : context) (ts : t list) : context =
@@ -210,4 +295,35 @@ let build_cfg vasms =
   let cfg = Graph.map (_ctx_get_block_instrs ctx) cfg in
   let finished_nodes = List.rev ctx.rev_finished_nodes in
   (cfg, finished_nodes)
+;;
+
+
+let _pp_jump (jump : jump) : string =
+  let kind_str =
+    match jump.kind with
+    | Conditional -> "conditional"
+    | Unconditional -> "unconditional"
+  in
+  String.join_with [kind_str; " jump to "; Label.to_string jump.target] ""
+;;
+
+let _pp_instr (instr : instr) : string =
+  let desc_str =
+    match instr.desc with
+    | Linear -> "instr"
+    | Call -> "call"
+    | Jump jump -> _pp_jump jump
+  in
+  let rw_str =
+    String.join_with
+      [", reads = "; Set.to_string Temp.to_string instr.reads;
+       ", writes = "; Set.to_string Temp.to_string instr.writes;] ""
+  in
+  String.append desc_str rw_str
+;;
+
+let pp t =
+  match t with
+  | Label label -> Label.to_string label
+  | Instr instr -> _pp_instr instr
 ;;

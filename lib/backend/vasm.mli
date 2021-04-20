@@ -1,30 +1,25 @@
 open Pervasives
 
-type jump_kind =
-  | Unconditional
-  | Conditional
+(** A [t] is a virtual assembly instruction, which tries to abstract over
+    different backend ISAs. *)
+type t
 
-type jump =
-  { target : Label.t
-  ; kind   : jump_kind
-  }
 
-(* NOTE ASSUME read happen before write *)
-type instr =
-  { reads  : Temp.t Set.t (* temps written to in this instr *)
-  ; writes : Temp.t Set.t (* temps read from in this instr *)
-  ; jump   : jump option  (* whether this instruction jumps to some label *)
-  }
-
-type t =
-  | Instr of instr
-  | Label of Label.t
-  | Call  of Temp.t Set.t * Temp.t Set.t (* reads and writes *)
+(* Some constructors; generally take in lists of read/written temps *)
+val mk_label     : Label.t -> t
+val mk_instr     : Temp.t list -> Temp.t list -> t
+val mk_dir_jump  : Temp.t list -> Temp.t list -> Label.t -> t
+val mk_cond_jump : Temp.t list -> Temp.t list -> Label.t -> t
+val mk_call      : Temp.t list -> Temp.t list -> t
 
 
 (* Some query functions over [t] *)
-val get_reads  : t -> Temp.t Set.t
-val get_writes : t -> Temp.t Set.t
+val get_reads    : t -> Temp.t Set.t
+val get_writes   : t -> Temp.t Set.t
+val is_call      : t -> bool
+
+(** structural equality *)
+val equal : t -> t -> bool
 
 
 (** Returns 
@@ -46,3 +41,7 @@ val get_writes : t -> Temp.t Set.t
     2. We might end up with some empty intermediate blocks in the output graph;
        we could eliminate them by searching and merging, but KISS for now. *)
 val build_cfg  : t list -> (t list Graph.t * Graph.node list)
+
+
+(** [pp t] returns a readable string representation of [t] *)
+val pp : t -> string
