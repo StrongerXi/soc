@@ -9,10 +9,12 @@ type jump =
   ; kind   : jump_kind
   }
 
+(* NOTE update equal method when updating this *)
 type instr_desc =
   | Jump of jump
   | Call
   | Linear
+  | Ret
 
 type instr =
   { reads  : Temp.t Set.t 
@@ -54,6 +56,10 @@ let mk_cond_jump reads writes target =
   _mk_instr reads writes (Jump jump)
 ;;
 
+let mk_ret reads writes =
+  _mk_instr reads writes Ret
+;;
+
 let mk_call reads writes =
   _mk_instr reads writes Call
 ;;
@@ -74,7 +80,7 @@ let get_writes t : Temp.t Set.t =
 let _is_instr_call instr : bool =
   match instr.desc with
   | Call -> true
-  | Linear | Jump _ -> false
+  | Linear | Ret | Jump _ -> false
 ;;
 
 let is_call t =
@@ -100,6 +106,7 @@ let _instr_desc_equal (d1 : instr_desc) (d2 : instr_desc) : bool =
   match d1, d2 with
   | Call, Call       -> true
   | Linear, Linear   -> true
+  | Ret, Ret         -> true
   | Jump j1, Jump j2 -> _jump_equal j1 j2
   | _, _ -> false
 ;;
@@ -238,6 +245,12 @@ let _ctx_handle_label (ctx : context) (label : Label.t) : context =
   _ctx_add_instr ctx (Label label)
 ;;
 
+(* ASSUME the ret instruction has been added to [ctx] *)
+let _ctx_handle_ret (ctx : context) : context =
+  let ctx = _ctx_finish_curr_block ctx in
+  _ctx_start_block ctx
+;;
+
 let _ctx_handle_jump (ctx : context) (jump : jump) : context =
   let ctx, target_id = _ctx_get_or_gen_label_id ctx jump.target in
   let ctx = _ctx_add_edge_btw_blocks ctx ctx.curr_block_id target_id in
@@ -253,6 +266,7 @@ let _ctx_handle_jump (ctx : context) (jump : jump) : context =
 let _ctx_handle_instr (ctx : context) (instr : instr) : context =
   let ctx = _ctx_add_instr ctx (Instr instr) in
   match instr.desc with
+  | Ret    -> _ctx_handle_ret ctx
   | Call   -> ctx (* no inter-procedural analysis *)
   | Linear -> ctx (* linear control flow, i.e., straight to next instr *)
   | Jump jump -> _ctx_handle_jump ctx jump
@@ -312,6 +326,7 @@ let _pp_instr (instr : instr) : string =
     match instr.desc with
     | Linear -> "instr"
     | Call -> "call"
+    | Ret  -> "ret"
     | Jump jump -> _pp_jump jump
   in
   let rw_str =

@@ -377,3 +377,84 @@ let from_lir_prog (lir_prog : Lir.prog) : temp_prog =
   let temp_main = _from_lir_main_func lir_prog.temp_manager lir_prog.entry in
   { temp_funcs = funcs; temp_main }
 ;;
+
+
+let _add_temps_in_temp_reg (acc : Temp.t list) (reg : Temp.t reg)
+  : Temp.t list =
+  match reg with
+  | Rsp | Rbp -> acc
+  | Greg temp -> temp::acc
+;;
+
+let _add_temps_in_temp_arg  (acc : Temp.t list) (arg : Temp.t arg)
+  : Temp.t list =
+  match arg with
+  | Lbl_arg _        -> acc
+  | Imm_arg _        -> acc
+  | Reg_arg reg      -> _add_temps_in_temp_reg acc reg
+  | Mem_arg (reg, _) -> _add_temps_in_temp_reg acc reg
+;;
+
+let _get_reads_and_writes_temp_instr (rax : Temp.t) (instr : Temp.t instr)
+  : (Temp.t list * Temp.t list) =
+  match instr with
+  | Label _        -> ([], [])
+  | Push reg       -> ([reg], [])
+  | Pop reg        -> ([], [reg])
+  | Jmp _          -> ([], [])
+  | JmpC (_, _)    -> ([], [])
+  | SetC (_, temp) -> ([], [temp])
+
+  | Load (arg, dst_reg) ->
+    let reads = _add_temps_in_temp_arg [] arg in
+    let writes = _add_temps_in_temp_reg [] dst_reg in
+    (reads, writes)
+
+  | Store (arg, dst_addr_reg, _) ->
+    let reads = _add_temps_in_temp_arg [] arg in
+    let writes = _add_temps_in_temp_reg [] dst_addr_reg in
+    (reads, writes)
+
+  | Binop (_, temp, arg) ->
+    let reads = _add_temps_in_temp_arg [temp] arg in
+    let writes = [temp] in
+    (reads, writes)
+
+  | Cmp (arg, temp) ->
+    let reads = _add_temps_in_temp_arg [temp] arg in
+    let writes = [] in
+    (reads, writes)
+
+  (* Q: What about caller-saved registers?
+   * A: We ignore all details about calling convention at this level (except
+   *    for RAX, because our instr doesn't specify "dst_reg" of call).
+   *    Basically we leave it to the register allocator to ensure that
+   *    caller-saved registers are properly assigned or spilled *)
+  | Call_reg temp -> ([temp], [rax])
+  | Call_lbl _    -> ([],     [rax])
+  | Ret           -> ([rax],  [])
+;;
+
+let _temp_instr_to_vasm (rax : Temp.t) (instr : Temp.t instr) : Vasm.t =
+  let reads, writes = _get_reads_and_writes_temp_instr rax instr in
+  match instr with
+  | Label label -> Vasm.mk_label label
+
+  | Load _ | Store _ | Push _ | Pop _ | Binop _ | Cmp _ | SetC _ ->
+    Vasm.mk_instr reads writes
+
+  | Call_reg _ | Call_lbl _ ->
+    Vasm.mk_call reads writes
+
+  | Jmp target -> Vasm.mk_dir_jump reads writes target
+  | JmpC (_, target) -> Vasm.mk_cond_jump reads writes target
+
+  | Ret -> Vasm.mk_ret reads writes
+;;
+
+let temp_func_to_vasms temp_func =
+  let body_vasms =
+    List.map (_temp_instr_to_vasm temp_func.rax) temp_func.instrs in
+  let entry_label = Vasm.mk_label temp_func.entry in
+  entry_label::body_vasms
+;;

@@ -87,3 +87,6 @@ type prog =
 
 
 val from_lir_prog : Lir.prog -> temp_prog
+
+(** Includes entry label in output vasms. *)
+val temp_func_to_vasms : temp_func -> Vasm.t list
