@@ -19,7 +19,7 @@ type instr =
 type t =
   | Instr of instr
   | Label of Label.t
-  | Call  of Temp.t Set.t (* reads *)
+  | Call  of Temp.t Set.t * Temp.t Set.t (* reads and writes *)
 
 
 (* Some query functions over [t] *)

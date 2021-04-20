@@ -667,8 +667,12 @@ let _pp_vasm_instr (p : printer) (instr : Vasm.instr) : unit =
 let _pp_vasm (p : printer) (vasm : Vasm.t) : unit =
   match vasm with
   | Label label -> _print_str p (Label.to_string label)
-  | Call  reads -> 
-    _print_strs p ["call("; Set.to_string Temp.to_string reads; ")"]
+
+  | Call  (reads, writes) -> 
+    let writes_str = (Set.to_string Temp.to_string writes) in
+    let reads_str = (Set.to_string Temp.to_string reads) in
+    _print_strs p [writes_str; " := call("; reads_str; ")"]
+
   | Instr instr -> _pp_vasm_instr p instr
 ;;
 

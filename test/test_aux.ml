@@ -44,8 +44,9 @@ let set_equal (s1 : 'a Set.t) (s2 : 'a Set.t) : bool =
 
 let vasm_equal (v1 : Vasm.t) (v2 : Vasm.t) : bool =
   match v1, v2 with
-  | Call reads1, Call reads2 ->
-    set_equal reads1 reads2
+  | Call (reads1, writes1), Call (reads2, writes2) ->
+    (set_equal reads1 reads2) &&
+    (set_equal writes1 writes2)
 
   | Label l1, Label l2 ->
     (Label.to_string l1) = (Label.to_string l2)

@@ -18,20 +18,21 @@ type instr =
 type t =
   | Instr of instr
   | Label of Label.t
-  | Call  of Temp.t Set.t
+  | Call  of Temp.t Set.t * Temp.t Set.t
 
 
 let get_reads t : Temp.t Set.t =
   match t with
-  | Label _     -> Set.empty Temp.compare
-  | Call  reads -> reads
-  | Instr instr -> instr.reads
+  | Label _         -> Set.empty Temp.compare
+  | Call (reads, _) -> reads
+  | Instr instr     -> instr.reads
 ;;
 
 let get_writes t : Temp.t Set.t =
   match t with
-  | Label _ | Call _  -> Set.empty Temp.compare
-  | Instr instr -> instr.writes
+  | Label _          -> Set.empty Temp.compare
+  | Call (_, writes) -> writes
+  | Instr instr      -> instr.writes
 ;;
 
 type block_info =

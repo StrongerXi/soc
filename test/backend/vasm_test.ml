@@ -70,7 +70,7 @@ let _check_cfg_properties (cfg : Vasm.t list Graph.t) : unit =
     : unit =
     match block_vasms with
     | [] -> _check_last_vasm_in_block node prev
-    | (Call reads)::rest -> _check_block_vasms node (Call reads) rest
+    | (Call (rs, ws))::rest -> _check_block_vasms node (Call (rs, ws)) rest
     | (Label _)::_ ->
       OUnit2.assert_failure "label must be at the start of a cfg block"
     | (Instr instr)::rest ->
@@ -118,8 +118,8 @@ let tests = OUnit2.(>:::) "vasm_test" [
         let instr_no_jump   = Backend_aux.mk_instr_no_jump [t0; t2] [t0; t1] in
         let instr_dir_jump  = Backend_aux.mk_instr_dir_jump  [] [t2; t3] l0 in
         let instr_cond_jump = Backend_aux.mk_instr_cond_jump [t2; t1] [] l1 in
-        let call_no_read    = Backend_aux.mk_call [] in
-        let call_with_read  = Backend_aux.mk_call [t0; t3] in
+        let call_no_read    = Backend_aux.mk_call [] [] in
+        let call_with_read  = Backend_aux.mk_call [t0; t3] [] in
         let label           = Backend_aux.mk_label l0 in
 
         Test_aux.check_set [t0; t2] (Vasm.get_reads instr_no_jump);
@@ -153,7 +153,7 @@ let tests = OUnit2.(>:::) "vasm_test" [
             Backend_aux.mk_label l0;
             Backend_aux.mk_instr_no_jump [t1] [t2];
             Backend_aux.mk_instr_cond_jump [t3] [t3] l1;
-            Backend_aux.mk_call [t0];
+            Backend_aux.mk_call [t0] [];
             Backend_aux.mk_instr_dir_jump [t2; t3] [] l2;
             Backend_aux.mk_label l1;
             Backend_aux.mk_instr_dir_jump [] [t1; t3] l0;

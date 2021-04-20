@@ -29,8 +29,8 @@ let mk_instr_cond_jump
   mk_instr reads writes (Some jump)
 ;;
 
-let mk_call (reads : Temp.t list) : Vasm.t =
-  Vasm.Call (temps_to_set reads)
+let mk_call (reads : Temp.t list) (writes : Temp.t list): Vasm.t =
+  Vasm.Call (temps_to_set reads, temps_to_set writes)
 ;;
 
 let mk_label (label : Label.t) : Vasm.t =
