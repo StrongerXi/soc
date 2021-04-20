@@ -26,6 +26,9 @@ let tests = OUnit2.(>:::) "vasm_test" [
         let call_no_read     = Vasm.mk_call [] [] in
         let call_with_read   = Vasm.mk_call [t0; t3] [] in
         let call_with_writes = Vasm.mk_call [t0] [t2; t1] in
+        let ret_no_read      = Vasm.mk_ret [] [] in
+        let ret_with_read    = Vasm.mk_ret [t1] [] in
+        let ret_with_writes  = Vasm.mk_ret [t0] [t1; t2] in
         let label            = Vasm.mk_label l0 in
 
         Test_aux.check_set [t0; t2] (Vasm.get_reads instr_no_jump);
@@ -34,6 +37,9 @@ let tests = OUnit2.(>:::) "vasm_test" [
         Test_aux.check_set []       (Vasm.get_reads call_no_read);
         Test_aux.check_set [t0; t3] (Vasm.get_reads call_with_read);
         Test_aux.check_set [t0]     (Vasm.get_reads call_with_writes);
+        Test_aux.check_set []       (Vasm.get_reads ret_no_read);
+        Test_aux.check_set [t1]     (Vasm.get_reads ret_with_read);
+        Test_aux.check_set [t0]     (Vasm.get_reads ret_with_writes);
         Test_aux.check_set []       (Vasm.get_reads label);
 
         Test_aux.check_set [t0; t1] (Vasm.get_writes instr_no_jump);
@@ -42,6 +48,9 @@ let tests = OUnit2.(>:::) "vasm_test" [
         Test_aux.check_set []       (Vasm.get_writes call_no_read);
         Test_aux.check_set []       (Vasm.get_writes call_with_read);
         Test_aux.check_set [t2; t1] (Vasm.get_writes call_with_writes);
+        Test_aux.check_set []       (Vasm.get_writes ret_no_read);
+        Test_aux.check_set []       (Vasm.get_writes ret_with_read);
+        Test_aux.check_set [t1; t2] (Vasm.get_writes ret_with_writes);
         Test_aux.check_set []       (Vasm.get_writes label);
 
         OUnit2.assert_equal false (Vasm.is_call instr_no_jump);
@@ -50,6 +59,9 @@ let tests = OUnit2.(>:::) "vasm_test" [
         OUnit2.assert_equal true  (Vasm.is_call call_no_read);
         OUnit2.assert_equal true  (Vasm.is_call call_with_read);
         OUnit2.assert_equal true  (Vasm.is_call call_with_writes);
+        OUnit2.assert_equal false (Vasm.is_call ret_no_read);
+        OUnit2.assert_equal false (Vasm.is_call ret_with_read);
+        OUnit2.assert_equal false (Vasm.is_call ret_with_writes);
         OUnit2.assert_equal false (Vasm.is_call label);
 
         (* reflexivity *)
@@ -59,6 +71,9 @@ let tests = OUnit2.(>:::) "vasm_test" [
         OUnit2.assert_equal true (Vasm.equal call_no_read call_no_read);
         OUnit2.assert_equal true (Vasm.equal call_with_read call_with_read);
         OUnit2.assert_equal true (Vasm.equal call_with_writes call_with_writes);
+        OUnit2.assert_equal true (Vasm.equal ret_no_read ret_no_read);
+        OUnit2.assert_equal true (Vasm.equal ret_with_read ret_with_read);
+        OUnit2.assert_equal true (Vasm.equal ret_with_writes ret_with_writes);
         OUnit2.assert_equal true (Vasm.equal label label);
 
         OUnit2.assert_equal true
@@ -74,6 +89,12 @@ let tests = OUnit2.(>:::) "vasm_test" [
         OUnit2.assert_equal true
           (Vasm.equal call_with_writes (Vasm.mk_call [t0] [t2; t1]));
         OUnit2.assert_equal true
+          (Vasm.equal ret_no_read (Vasm.mk_ret [] []));
+        OUnit2.assert_equal true
+          (Vasm.equal ret_with_read (Vasm.mk_ret [t1] []));
+        OUnit2.assert_equal true
+          (Vasm.equal ret_with_writes (Vasm.mk_ret [t0] [t1; t2]));
+        OUnit2.assert_equal true
           (Vasm.equal label (Vasm.mk_label l0));
 
         (* not equal to others *)
@@ -82,7 +103,10 @@ let tests = OUnit2.(>:::) "vasm_test" [
         OUnit2.assert_equal false (Vasm.equal instr_cond_jump call_no_read);
         OUnit2.assert_equal false (Vasm.equal call_no_read call_with_read);
         OUnit2.assert_equal false (Vasm.equal call_with_read call_with_writes);
-        OUnit2.assert_equal false (Vasm.equal call_with_writes label);
+        OUnit2.assert_equal false (Vasm.equal call_with_writes ret_no_read);
+        OUnit2.assert_equal false (Vasm.equal ret_no_read ret_with_read);
+        OUnit2.assert_equal false (Vasm.equal ret_with_read ret_with_writes);
+        OUnit2.assert_equal false (Vasm.equal ret_with_writes label);
         OUnit2.assert_equal false (Vasm.equal label instr_no_jump);
       );
 
@@ -95,6 +119,8 @@ let tests = OUnit2.(>:::) "vasm_test" [
          * L1:             # label after jump
          *    dir_jump L0  # backward jump w/o condition
          *    instr        # instr after jump
+         *    ret          
+         *    instr        # instr after ret, unreachable but should be collected
          *
          * NOTE reads and writes shouldn't matter for control flow *)
         let vasms =
@@ -107,6 +133,8 @@ let tests = OUnit2.(>:::) "vasm_test" [
             Vasm.mk_label l1;
             Vasm.mk_dir_jump [] [t1; t3] l0;
             Vasm.mk_instr [] [];
+            Vasm.mk_ret [t1] [];
+            Vasm.mk_instr [t2] [t2];
           ]
         in
         let cfg, ordered_nodes = Vasm.build_cfg vasms in

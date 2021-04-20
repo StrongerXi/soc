@@ -10,6 +10,7 @@ val mk_label     : Label.t -> t
 val mk_instr     : Temp.t list -> Temp.t list -> t
 val mk_dir_jump  : Temp.t list -> Temp.t list -> Label.t -> t
 val mk_cond_jump : Temp.t list -> Temp.t list -> Label.t -> t
+val mk_ret       : Temp.t list -> Temp.t list -> t
 val mk_call      : Temp.t list -> Temp.t list -> t
 
 
