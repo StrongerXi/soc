@@ -6,6 +6,9 @@ val max : int -> int -> int
 (** [min n1 n2] returns the smaller of [n1] and [n2] *)
 val min : int -> int -> int
 
+(** [ceil_div n1 n2] returns [n1 / n2] and rounds up the answer *)
+val ceil_div : int -> int -> int
+
 (** [compare n1 n2] returns
     - negative if [n1 > n2]
     - 0        if [n1 = n2]
