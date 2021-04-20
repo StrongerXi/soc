@@ -458,3 +458,123 @@ let temp_func_to_vasms temp_func =
   let entry_label = Vasm.mk_label temp_func.entry in
   entry_label::body_vasms
 ;;
+
+
+let _get_max_rbp_offset_arg (arg : 'a arg) : int =
+  match arg with
+  | Mem_arg (Rbp, offset) -> Int.max 0 (-offset)
+                      (* ignore positive offset since stack grows downward *)
+  | Lbl_arg _             -> 0
+  | Imm_arg _             -> 0
+  | Reg_arg _             -> 0
+  | Mem_arg (_, _)        -> 0
+;;
+
+let _get_max_rbp_offset_instr (instr : 'a instr) : int =
+  match instr with
+  | Label _ -> 0
+  | Load (arg, _) -> _get_max_rbp_offset_arg arg
+  | Store (arg, _, _) -> _get_max_rbp_offset_arg arg
+  | Push _ -> 0
+  | Pop _ -> 0
+  | Binop (_, _, arg) -> _get_max_rbp_offset_arg arg
+  | Cmp (arg, _) -> _get_max_rbp_offset_arg arg
+  | Jmp _ -> 0
+  | JmpC _ -> 0
+  | SetC _ -> 0
+  | Call_reg _ -> 0
+  | Call_lbl _ -> 0
+  | Ret ->  0
+;;
+
+(* NOTE 
+ * - ignore push/pop since that changes rsp dynamically.
+ * - look for negative offset only since stack grows downward,
+ *   BUT RETURN POSITIVE offset for convenience. *)
+let _get_max_rbp_offset_instrs (instrs : 'a instr list) : int =
+  List.fold_left
+    (fun max instr ->
+       Int.max max (_get_max_rbp_offset_instr instr))
+    0 instrs
+;;
+
+(* Yeah yeah internal modules; but bootstrapping takes priority *)
+type spill_context =
+  { next_slot      : int (* we could cache this in func, but KISS *)
+  ; slot_map       : (Temp.t, int) Map.t (* keys ∈ [temps_to_spill] *)
+  ; rev_instrs     : Temp.t instr list
+  ; temps_to_spill : Temp.t Set.t
+  ; rax_temp       : Temp.t
+  }
+
+let _spill_ctx_get_or_alloc_slot_offset (ctx : spill_context) (temp : Temp.t)
+    : (spill_context * int) =
+  let slot_to_offset (slot : int) : int =
+    -slot * Constants.word_size
+  in
+  match Map.get temp ctx.slot_map with
+  | Some slot -> (ctx, slot_to_offset slot)
+  | None ->
+    let slot = ctx.next_slot in
+    let ctx = { ctx with next_slot = ctx.next_slot + 1;
+                         slot_map  = Map.add temp slot ctx.slot_map }
+    in (ctx, slot_to_offset slot)
+;;
+
+let _spill_ctx_add_instr (ctx : spill_context) (instr : Temp.t instr)
+  : spill_context =
+  { ctx with rev_instrs = instr::ctx.rev_instrs }
+;;
+
+let _spill_temp_read (ctx : spill_context) (temp : Temp.t) : spill_context =
+  if Set.mem temp ctx.temps_to_spill
+  then
+    let ctx, offset = _spill_ctx_get_or_alloc_slot_offset ctx temp in
+    let mem_arg = Mem_arg (Rbp, offset) in
+    _spill_ctx_add_instr ctx (Load (mem_arg, Greg temp))
+  else ctx
+;;
+
+let _spill_temp_write (ctx : spill_context) (temp : Temp.t) : spill_context =
+  if Set.mem temp ctx.temps_to_spill
+  then
+    let ctx, offset = _spill_ctx_get_or_alloc_slot_offset ctx temp in
+    _spill_ctx_add_instr ctx (Store (Reg_arg (Greg temp), Rbp, offset))
+  else ctx
+;;
+
+(* Calculate available stack slot and spill arguments if needed
+ * (think of them as being written at entry). *)
+let _spill_ctx_init temp_func (temps_to_spill : Temp.t Set.t) : spill_context =
+  let max_rbp_offset = _get_max_rbp_offset_instrs temp_func.instrs in
+  let max_slot = Int.ceil_div max_rbp_offset Constants.word_size in
+  let ctx = { next_slot  = max_slot + 1
+            ; slot_map   = Map.empty Temp.compare 
+            ; rev_instrs = []
+            ; temps_to_spill
+            ; rax_temp   = temp_func.rax
+            } in
+  let args_to_spill = List.fold_right Set.remove temp_func.args temps_to_spill in
+  Set.fold _spill_temp_write ctx args_to_spill (* order doesn't matter *)
+;;
+
+(* For any temp to spill
+ * - always load from stack before a read
+ * - always store to stack after a write
+ * These break up the live-interval of spilled temps into smaller chunks. 
+ *
+ * NOTE assigning new names to different intervals might help reg-alloc,
+ * but KISS for now. *)
+let _spill_instr (ctx : spill_context) (instr : Temp.t instr) : spill_context =
+  (* ASSUME instruction goes like read/compute/write *)
+  let reads, writes = _get_reads_and_writes_temp_instr ctx.rax_temp instr in
+  let ctx = List.fold_left _spill_temp_read ctx reads in
+  let ctx = _spill_ctx_add_instr ctx instr in
+  List.fold_left _spill_temp_write ctx writes
+;;
+
+let spill_temps temp_func temps_to_spill =
+  let ctx = _spill_ctx_init temp_func temps_to_spill in
+  let ctx = List.fold_left _spill_instr ctx temp_func.instrs in
+  { temp_func with instrs = List.rev ctx.rev_instrs }
+;;
