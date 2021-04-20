@@ -271,7 +271,7 @@ let _brute_pre_color_call_temps
  * 1. [caller_saved] and [callee_saved] are disjoint
  * 2. anoot_instrs has accurate liveness annotation (exposed for eaiser testing)
  *)
-let brute_alloc 
+let greedy_alloc 
     (annot_instrs : (Vasm.t * Liveness_analysis.annot) list)
     (caller_saved : 'a Set.t)
     (callee_saved : 'a Set.t)
