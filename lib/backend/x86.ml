@@ -187,17 +187,20 @@ let rec _emit_lir_expr (ctx : context) (e : Lir.expr) (dst_temp : Temp.t)
   | Call (label_temp, es) ->
     let ctx = _emit_prepare_x86_call_args ctx es in
     let instr = Call_reg label_temp in
-    _ctx_add_instr ctx instr
+    let ctx = _ctx_add_instr ctx instr in
+    _ctx_add_instr ctx (Load (Reg_arg (Greg ctx.rax_temp), Greg dst_temp))
 
   | NativeCall (func_label, es) ->
     let ctx = _emit_prepare_x86_call_args ctx es in
     let instr = Call_lbl func_label in
-    _ctx_add_instr ctx instr
+    let ctx = _ctx_add_instr ctx instr in
+    _ctx_add_instr ctx (Load (Reg_arg (Greg ctx.rax_temp), Greg dst_temp))
 
   | Mem_alloc nbytes ->
     let ctx = _emit_prepare_x86_call_args ctx [Imm nbytes] in
     let instr = Call_lbl (Label.get_native Constants.mem_alloc_name) in
-    _ctx_add_instr ctx instr
+    let ctx = _ctx_add_instr ctx instr in
+    _ctx_add_instr ctx (Load (Reg_arg (Greg ctx.rax_temp), Greg dst_temp))
 
 (*       ......
  * caller stack frame
