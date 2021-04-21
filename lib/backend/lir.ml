@@ -39,6 +39,7 @@ type prog =
   { funcs : func list
   ; entry : instr list
   ; temp_manager  : Temp.manager
+  ; label_manager : Label.manager
   }
 
 
@@ -117,7 +118,7 @@ let _ctx_gen_and_bind_temp (ctx : context) (ident : string)
 
 
 
-(* Some constants *)
+(* Some constants. TODO bug, need to tag it, as if it's integer. *)
 let _true_e    = Imm 1
 and _false_e   = Imm 0
 ;;
@@ -458,5 +459,7 @@ let from_cir_prog (cir_prog : Cir.prog) =
   let ctx = _transl_cir_expr_tailpos ctx cir_prog.expr in
   { funcs
   ; entry = _ctx_get_instrs ctx
-  ; temp_manager = ctx.temp_manager }
+  ; temp_manager = ctx.temp_manager
+  ; label_manager = ctx.label_manager
+  }
 ;;
