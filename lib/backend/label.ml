@@ -19,14 +19,21 @@ let _add_suffix t (extra : string) : t =
   { t with suffix }
 ;;
 
+let _native_suffix = "native"
+;;
+
 (* NOTE this must synch with the assembly label of the externally defined
  * function. *)
 let get_native (name : string) =
-  { name; suffix = "$" } (* disjoint from other [t] *)
+  { name; suffix = _native_suffix } (* disjoint from other [t] *)
+;;
+
+let is_native t =
+  t.suffix = _native_suffix
 ;;
 
 let to_epilogue t =
-  let suffix = String.append t.suffix "$epilogue" in
+  let suffix = String.append t.suffix "_epilogue" in
   { t with suffix } (* disjoint from other [t] *)
 ;;
 
@@ -63,4 +70,8 @@ let gen_and_bind manager (s : string) : (manager * t) =
 
 let get manager s =
   Map.get s manager.name_cache
+;;
+
+let compare t1 t2 =
+  String.compare (to_string t1) (to_string t2)
 ;;

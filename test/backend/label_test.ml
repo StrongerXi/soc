@@ -28,6 +28,18 @@ let tests = OUnit2.(>:::) "label_test" [
         OUnit2.assert_equal false ((Label.to_string foo_t) = (Label.to_string bar_t));
       );
 
+    OUnit2.(>::) "test_is_native" (fun _ ->
+        let manager = Label.init_manager in
+        let manager, t1 = Label.gen manager "s1" in
+        let _, t2 = Label.gen_and_bind manager "s1" in
+        let t2_epi = Label.to_epilogue t2 in
+        let foo_t = Label.get_native "foo" in
+        OUnit2.assert_equal false (Label.is_native t1);
+        OUnit2.assert_equal false (Label.is_native t2);
+        OUnit2.assert_equal true (Label.is_native foo_t);
+        OUnit2.assert_equal false (Label.is_native t2_epi);
+      );
+
     OUnit2.(>::) "test_to_epilogue" (fun _ ->
         let manager = Label.init_manager in
         let manager, t1 = Label.gen manager "s1" in
