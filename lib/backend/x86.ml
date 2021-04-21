@@ -52,7 +52,6 @@ type 'a instr =
   | JmpC of cond * Label.t
   | Call_reg of 'a
   | Call_lbl of Label.t
-  | SetC of cond * 'a
   | Ret
 
 type func =
@@ -91,6 +90,7 @@ type context =
 
   (* following are "mutable" *)
   ; temp_manager      : Temp.manager
+  ; label_manager     : Label.manager
   ; rev_instrs        : Temp.t instr list
   }
 
@@ -118,14 +118,14 @@ let rec _ensure_n_temps
 
 let _init_ctx
     (func_label : Label.t) (ordered_arg_temps : Temp.t list)
-    (temp_manager : Temp.manager)
+    (temp_manager : Temp.manager) (label_manager : Label.manager)
   : context =
   let temp_manager, rax_temp = Temp.gen temp_manager in
   let x86_arg_reg_num = List.length ordered_argument_physical_regs in
   let temp_manager, ordered_arg_temps =
     _ensure_n_temps temp_manager ordered_arg_temps x86_arg_reg_num in
   { func_label; rax_temp; ordered_arg_temps;
-    temp_manager; rev_instrs = [] }
+    temp_manager; label_manager; rev_instrs = [] }
 ;;
 
 let _ctx_add_instr (ctx : context) (instr : Temp.t instr) : context =
@@ -140,6 +140,11 @@ let _ctx_get_instrs (ctx : context) : Temp.t instr list =
 let _ctx_gen_temp (ctx : context) : (context * Temp.t)  =
   let temp_manager, temp = Temp.gen ctx.temp_manager in
   ({ ctx with temp_manager }, temp)
+;;
+
+let _ctx_gen_label (ctx : context) (name : string) : (context * Label.t) =
+  let label_manager, label = Label.gen ctx.label_manager name in
+  ({ ctx with label_manager }, label)
 ;;
 
 let _ctx_get_epilogue_label (ctx : context) : Label.t =
@@ -284,6 +289,36 @@ let _emit_lir_jump
     _ctx_add_instr ctx instr
 ;;
 
+
+(* ASSUME comparison was the last added instruction in [ctx], generate:
+ *
+ *     if [cond], goto Yes
+ *       set temp to 0
+ *       goto End
+ *     Yes: 
+ *       set temp to 1
+ *     End:
+ *)
+let _emit_set_on_cond 
+    (ctx : context) (cond : cond) (temp_to_set : Temp.t)
+  : context =
+
+    let ctx, yes_label  = _ctx_gen_label ctx "set_yes" in
+    let ctx, end_label  = _ctx_gen_label ctx "set_end" in
+    let cond_jump_i     = JmpC (cond, yes_label) in
+    let set_temp_zero_i = Load (Imm_arg 0, Greg temp_to_set) in
+    let jump_end_i      = Jmp end_label in
+    let set_temp_one_i  = Load (Imm_arg 1, Greg temp_to_set) in
+
+    let ctx = _ctx_add_instr ctx cond_jump_i in
+    let ctx = _ctx_add_instr ctx set_temp_zero_i in
+    let ctx = _ctx_add_instr ctx jump_end_i in
+    let ctx = _ctx_add_instr ctx (Label yes_label) in
+    let ctx = _ctx_add_instr ctx set_temp_one_i in
+    let ctx = _ctx_add_instr ctx (Label end_label) in
+    ctx
+;;
+
 let _emit_lir_set
     (ctx : context) (lir_cond : Lir.cond) (target_temp : Temp.t)
   : context =
@@ -294,13 +329,11 @@ let _emit_lir_set
 
   | Less (lhs_e, rhs_e) ->
     let ctx = _emit_comparison ctx lhs_e rhs_e in
-    let instr = SetC (Lt, target_temp) in
-    _ctx_add_instr ctx instr
-
+    _emit_set_on_cond ctx Lt target_temp
+    
   | Equal (lhs_e, rhs_e) ->
     let ctx = _emit_comparison ctx lhs_e rhs_e in
-    let instr = SetC (Eq, target_temp) in
-    _ctx_add_instr ctx instr
+    _emit_set_on_cond ctx Eq target_temp
 ;;
 
 
@@ -352,32 +385,49 @@ let _emit_lir_instrs (ctx : context) (lir_instrs : Lir.instr list) : context =
   List.fold_left _emit_lir_instr ctx lir_instrs
 ;;
 
-let _from_lir_func (lir_func : Lir.func) : temp_func =
+let _from_lir_func (label_manager : Label.manager) (lir_func : Lir.func)
+  : (temp_func * Label.manager) =
   let args = lir_func.ordered_args in
-  let ctx = _init_ctx lir_func.name args lir_func.temp_manager in
+  let ctx = _init_ctx lir_func.name args lir_func.temp_manager label_manager in
   let ctx = _emit_load_args_into_temps ctx args in
   let ctx = _emit_lir_instrs ctx lir_func.body in
   let instrs = _ctx_get_instrs ctx in
   let func_label = lir_func.name in
   let func = { entry = func_label; instrs; args; rax = ctx.rax_temp; } in
-  func
+  (func, ctx.label_manager)
+;;
+
+let _from_lir_funcs (label_manager : Label.manager) (lir_funcs : Lir.func list)
+  : (temp_func list * Label.manager) =
+  List.fold_left
+    (fun (funcs, label_manager) lir_func ->
+       let func, label_manager = _from_lir_func label_manager lir_func in
+       (func::funcs, label_manager))
+    ([], label_manager)
+    lir_funcs
 ;;
 
 let _from_lir_main_func
-    (temp_manager : Temp.manager) (lir_instrs : Lir.instr list)
+    (temp_manager : Temp.manager)
+    (label_manager : Label.manager)
+    (lir_instrs : Lir.instr list)
   : temp_func =
   (* TODO call "soml_init" here, or make this a function called by C runtime?
    * TBD when implementing runtime. *)
   let entry_label = Label.get_native Constants.entry_name in
-  let ctx = _init_ctx entry_label [] temp_manager in
+  let ctx = _init_ctx entry_label [] temp_manager label_manager in
   let ctx = _emit_lir_instrs ctx lir_instrs in
   let instrs = _ctx_get_instrs ctx in
   { entry = entry_label; instrs; args = []; rax = ctx.rax_temp; } 
 ;;
 
 let from_lir_prog (lir_prog : Lir.prog) : temp_prog =
-  let funcs = List.map _from_lir_func lir_prog.funcs in
-  let temp_main = _from_lir_main_func lir_prog.temp_manager lir_prog.entry in
+  let funcs, label_manager =
+    _from_lir_funcs lir_prog.label_manager lir_prog.funcs
+  in
+  let temp_main =
+    _from_lir_main_func lir_prog.temp_manager label_manager lir_prog.entry
+  in
   { temp_funcs = funcs; temp_main }
 ;;
 
@@ -404,7 +454,6 @@ let _get_reads_and_writes_temp_instr (rax : Temp.t) (instr : Temp.t instr)
   | Label _          -> ([], [])
   | Jmp _            -> ([], [])
   | JmpC (_, _)      -> ([], [])
-  | SetC (_, temp)   -> ([], [temp])
 
   | Push reg -> 
     let reads = _add_temps_in_temp_reg [] reg in
@@ -449,7 +498,7 @@ let _temp_instr_to_vasm (rax : Temp.t) (instr : Temp.t instr) : Vasm.t =
   match instr with
   | Label label -> Vasm.mk_label label
 
-  | Load _ | Store _ | Push _ | Pop _ | Binop _ | Cmp _ | SetC _ ->
+  | Load _ | Store _ | Push _ | Pop _ | Binop _ | Cmp _ ->
     Vasm.mk_instr reads writes
 
   | Call_reg _ | Call_lbl _ ->
@@ -490,7 +539,6 @@ let _get_max_rbp_offset_instr (instr : 'a instr) : int =
   | Cmp (arg, _) -> _get_max_rbp_offset_arg arg
   | Jmp _ -> 0
   | JmpC _ -> 0
-  | SetC _ -> 0
   | Call_reg _ -> 0
   | Call_lbl _ -> 0
   | Ret ->  0
@@ -700,9 +748,6 @@ let _instr_temp_to_pr
 
   | JmpC (cond, label) -> JmpC (cond, label)
 
-  | SetC (cond, temp) ->
-    SetC (cond, _temp_to_pr pr_assignment temp)
-
   | Call_reg temp -> 
     Call_reg (_temp_to_pr pr_assignment temp)
 
@@ -866,12 +911,6 @@ let _instr_to_str (instr : 'a instr) (gr_to_str : 'a -> string) : string =
     let instr_str = String.join_with ["j"; suffix; " "; label_str] "" in
     add_tab instr_str
 
-  | SetC (cond, gr) -> 
-    let suffix = _cond_to_suffix cond in
-    let gr_str = gr_to_str gr in
-    let instr_str = String.join_with ["set"; suffix; " "; gr_str] "" in
-    add_tab instr_str
-
   | Call_reg gr -> 
     let gr_str = gr_to_str gr in
     let instr_str = String.join_with ["call"; " "; gr_str] "" in
@@ -922,7 +961,7 @@ let _add_external_native_labels_in_instr
   | Cmp (arg, _)      -> _add_native_labels_in_arg labels arg
   | Call_lbl label    -> _add_label_if_native labels label
 
-  | Store _ | Push _ | Pop _ | Jmp _ | JmpC _ | SetC _ | Call_reg _ | Ret -> 
+  | Store _ | Push _ | Pop _ | Jmp _ | JmpC _ | Call_reg _ | Ret -> 
     labels
 ;;
 

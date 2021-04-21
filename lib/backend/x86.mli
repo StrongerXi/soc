@@ -50,8 +50,6 @@ type 'a instr =
       (* Jump to label if [cond] is satisfied. *)
   | Call_reg of 'a
   | Call_lbl of Label.t
-  | SetC of cond * 'a
-      (* Sets content of ['a] to 1 if [cond] is satisfied, else 0 *)
   | Ret
       (* Return control flow to caller site *)
 
