@@ -809,7 +809,7 @@ let _binop_to_str (binop : binop) : string =
   match binop with
   | Add -> "add"
   | Sub -> "sub"
-  | Mul -> "mul"
+  | Mul -> "imul" (* 'i' for signed integer multiplication *)
 ;;
 
 let _instr_to_str (instr : 'a instr) (gr_to_str : 'a -> string) : string =
