@@ -40,9 +40,9 @@ type 'a instr =
       (* Load (arg, reg) --> reg := arg *)
   | Store of 'a arg * 'a reg * int
       (* Store (arg, reg, offset) --> *[reg + offset] := arg *)
-  | Push of 'a
-  | Pop of 'a
-  | Binop of binop * 'a * 'a arg
+  | Push of 'a reg
+  | Pop of 'a reg
+  | Binop of binop * 'a reg * 'a arg
       (* Binop (op, reg, arg) --> reg := op gr arg *)
   | Cmp of 'a arg * 'a
   | Jmp of Label.t

@@ -44,9 +44,9 @@ type 'a instr =
   | Label of Label.t
   | Load of 'a arg * 'a reg
   | Store of 'a arg * 'a reg * int
-  | Push of 'a
-  | Pop of 'a
-  | Binop of binop * 'a * 'a arg
+  | Push of 'a reg
+  | Pop of 'a reg
+  | Binop of binop * 'a reg * 'a arg
   | Cmp of 'a arg * 'a
   | Jmp of Label.t
   | JmpC of cond * Label.t
@@ -222,7 +222,7 @@ and _emit_prepare_x86_call_args (init_ctx : context)
       (fun arg_e ctx ->
          let ctx, arg_v_temp = _ctx_gen_temp ctx in
          let ctx = _emit_lir_expr ctx arg_e arg_v_temp in
-         _ctx_add_instr ctx (Push arg_v_temp))
+         _ctx_add_instr ctx (Push (Greg arg_v_temp)))
       arg_es ctx
   in
   let rec go ctx arg_es (ordered_arg_temps : Temp.t list)  =
@@ -251,7 +251,7 @@ and _emit_lir_op (ctx : context)
     | Sub -> Sub
     | Mul -> Mul
   in
-  let instr = Binop (binop, dst_temp, Reg_arg (Greg rhs_temp)) in
+  let instr = Binop (binop, Greg dst_temp, Reg_arg (Greg rhs_temp)) in
   _ctx_add_instr ctx instr
 ;;
 
@@ -398,12 +398,18 @@ let _add_temps_in_temp_arg  (acc : Temp.t list) (arg : Temp.t arg)
 let _get_reads_and_writes_temp_instr (rax : Temp.t) (instr : Temp.t instr)
   : (Temp.t list * Temp.t list) =
   match instr with
-  | Label _        -> ([], [])
-  | Push reg       -> ([reg], [])
-  | Pop reg        -> ([], [reg])
-  | Jmp _          -> ([], [])
-  | JmpC (_, _)    -> ([], [])
-  | SetC (_, temp) -> ([], [temp])
+  | Label _          -> ([], [])
+  | Jmp _            -> ([], [])
+  | JmpC (_, _)      -> ([], [])
+  | SetC (_, temp)   -> ([], [temp])
+
+  | Push reg -> 
+    let reads = _add_temps_in_temp_reg [] reg in
+    (reads, [])
+
+  | Pop reg  ->
+    let writes = _add_temps_in_temp_reg [] reg in
+    ([], writes)
 
   | Load (arg, dst_reg) ->
     let reads = _add_temps_in_temp_arg [] arg in
@@ -415,10 +421,10 @@ let _get_reads_and_writes_temp_instr (rax : Temp.t) (instr : Temp.t instr)
     let writes = _add_temps_in_temp_reg [] dst_addr_reg in
     (reads, writes)
 
-  | Binop (_, temp, arg) ->
-    let reads = _add_temps_in_temp_arg [temp] arg in
-    let writes = [temp] in
-    (reads, writes)
+  | Binop (_, reg, arg) ->
+    let reg_temps = _add_temps_in_temp_reg [] reg in
+    let reads = _add_temps_in_temp_arg reg_temps arg in
+    (reads, reg_temps)
 
   | Cmp (arg, temp) ->
     let reads = _add_temps_in_temp_arg [temp] arg in
