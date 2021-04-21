@@ -38,8 +38,8 @@ type 'a instr =
   | Label of Label.t
   | Load of 'a arg * 'a reg
       (* Load (arg, reg) --> reg := arg *)
-  | Store of 'a arg * 'a reg * int
-      (* Store (arg, reg, offset) --> *[reg + offset] := arg *)
+  | Store of 'a reg * 'a reg * int
+      (* Store (sreg, dreg, offset) --> *[dreg + offset] := sreg *)
   | Push of 'a reg
   | Pop of 'a reg
   | Binop of binop * 'a reg * 'a arg
@@ -50,8 +50,6 @@ type 'a instr =
       (* Jump to label if [cond] is satisfied. *)
   | Call_reg of 'a
   | Call_lbl of Label.t
-  | SetC of cond * 'a
-      (* Sets content of ['a] to 1 if [cond] is satisfied, else 0 *)
   | Ret
       (* Return control flow to caller site *)
 
@@ -104,6 +102,9 @@ val spill_temps : temp_func -> Temp.t Set.t -> temp_func
 
     Error if any temp in [temp_func] is not in [pr_assignment]. *)
 val temp_func_to_func : temp_func -> (Temp.t, physical_reg) Map.t -> func
+
+(** [prog_to_str prog] outputs a valid X86 assembly text of [prog] *)
+val prog_to_str : prog -> string
 
 
 (* Some pre-defined X86 physical registers *)

@@ -57,6 +57,7 @@ type prog =
   { funcs         : func list
   ; entry         : instr list   (* no entry label, to be generated later *)
   ; temp_manager  : Temp.manager (* for [entry] *)
+  ; label_manager : Label.manager
   }
 
 
