@@ -622,3 +622,131 @@ let callee_saved_physical_regs =
 
 let rax_physical_reg = Rax
 ;;
+
+
+let _get_callee_saved_prs (pr_assignment : (Temp.t, physical_reg) Map.t)
+  : physical_reg Set.t =
+  Map.fold
+    (fun pr callee_saved ->
+       if Set.mem pr callee_saved_physical_regs
+       then Set.add pr callee_saved
+       else callee_saved)
+    pr_assignment
+    (Set.empty _compare_physical_reg)
+;;
+
+let _temp_to_pr (pr_assignment : (Temp.t, physical_reg) Map.t) (temp : Temp.t)
+  : physical_reg =
+  match Map.get temp pr_assignment with
+  | None -> failwith "[X86._temp_to_pr] no physical register for temp"
+  | Some pr -> pr
+;;
+
+let _reg_temp_to_pr
+    (pr_assignment : (Temp.t, physical_reg) Map.t) (reg : Temp.t reg)
+  : physical_reg reg =
+  match reg with
+  | Rsp -> Rsp
+  | Rbp -> Rbp
+  | Greg temp -> Greg (_temp_to_pr pr_assignment temp)
+;;
+
+let _arg_temp_to_pr
+    (pr_assignment : (Temp.t, physical_reg) Map.t) ( arg: Temp.t arg)
+  : physical_reg  arg=
+  match arg with
+  | Lbl_arg label -> Lbl_arg label
+  | Imm_arg n     -> Imm_arg n
+  | Reg_arg reg   -> Reg_arg (_reg_temp_to_pr pr_assignment reg)
+  | Mem_arg (reg, offset) ->
+    Mem_arg (_reg_temp_to_pr pr_assignment reg, offset)
+;;
+
+let _instr_temp_to_pr
+    (pr_assignment : (Temp.t, physical_reg) Map.t) (instr : Temp.t instr)
+  : physical_reg instr =
+  match instr with
+  | Label label -> Label label
+  | Load (arg, dst_reg) ->
+    let arg = _arg_temp_to_pr pr_assignment arg in
+    let dst_reg = _reg_temp_to_pr pr_assignment dst_reg in
+    Load (arg, dst_reg)
+
+  | Store (arg, dst_addr_reg, offset) ->
+    let arg = _arg_temp_to_pr pr_assignment arg in
+    let dst_addr_reg = _reg_temp_to_pr pr_assignment dst_addr_reg in
+    Store (arg, dst_addr_reg, offset)
+
+  | Push reg ->
+    Push (_reg_temp_to_pr pr_assignment reg)
+
+  | Pop reg ->
+    Pop (_reg_temp_to_pr pr_assignment reg)
+
+  | Binop (binop, reg, arg) ->
+    let arg = _arg_temp_to_pr pr_assignment arg in
+    let reg = _reg_temp_to_pr pr_assignment reg in
+    Binop (binop, reg, arg)
+
+  | Cmp (arg, temp) ->
+    let arg = _arg_temp_to_pr pr_assignment arg in
+    let pr = _temp_to_pr pr_assignment temp in
+    Cmp (arg, pr)
+
+  | Jmp label -> Jmp label
+
+  | JmpC (cond, label) -> JmpC (cond, label)
+
+  | SetC (cond, temp) ->
+    SetC (cond, _temp_to_pr pr_assignment temp)
+
+  | Call_reg temp -> 
+    Call_reg (_temp_to_pr pr_assignment temp)
+
+  | Call_lbl label -> Call_lbl label
+  | Ret -> Ret
+;;
+
+(*      ......
+ * caller stack frame
+ * ------------------
+ * | return address |
+ * ------------------ <- RBP + 1 * word_size = old_rsp
+ * |    saved rbp   | 
+ * ------------------ <- RBP + 0 * word_size 
+ *  func stack frame
+ *      ......        *)
+let temp_func_to_func temp_func pr_assignment =
+  let callee_saved = Set.to_list (_get_callee_saved_prs pr_assignment) in
+  (* TODO stack alignment? *)
+  let max_rbp_offset = _get_max_rbp_offset_instrs temp_func.instrs in
+  let spill_callee_saved =
+    List.map (fun pr -> Push (Greg pr)) callee_saved
+  in
+  let restore_callee_saved =
+    List.map (fun pr -> Pop (Greg pr)) (List.rev callee_saved)
+  in
+  let prologue =
+    List.append
+      [ 
+        Push Rbp;
+        Load (Reg_arg Rsp, Rbp);
+        Binop (Sub, Rsp, Imm_arg max_rbp_offset);
+      ] 
+      spill_callee_saved
+  in
+  let epilogue_label = Label.to_epilogue temp_func.entry in
+  let epilogue =
+    List.append
+    ((Label epilogue_label)::restore_callee_saved)
+    [
+      Load (Reg_arg Rbp, Rsp);
+      Pop Rbp;
+      Ret;
+    ]
+  in
+  let pr_instrs = List.map (_instr_temp_to_pr pr_assignment) temp_func.instrs in
+  let final_instrs = List.append prologue (List.append pr_instrs epilogue) in
+  { entry  = temp_func.entry;
+    instrs = final_instrs }
+;;

@@ -96,6 +96,15 @@ val temp_func_to_vasms : temp_func -> Vasm.t list
     Final translation into [func] will set up the stack in prologue. *)
 val spill_temps : temp_func -> Temp.t Set.t -> temp_func
 
+(** [temp_func_to_func temp_func pr_assignment] returns a [func] with all
+    temps in [temp_func] replaced with X86 physical register based on
+    [pr_assignment].
+
+    Also generates prologue and epilogue of a function.
+
+    Error if any temp in [temp_func] is not in [pr_assignment]. *)
+val temp_func_to_func : temp_func -> (Temp.t, physical_reg) Map.t -> func
+
 
 (* Some pre-defined X86 physical registers *)
 val callee_saved_physical_regs     : physical_reg Set.t
