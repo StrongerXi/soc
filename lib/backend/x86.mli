@@ -105,6 +105,9 @@ val spill_temps : temp_func -> Temp.t Set.t -> temp_func
     Error if any temp in [temp_func] is not in [pr_assignment]. *)
 val temp_func_to_func : temp_func -> (Temp.t, physical_reg) Map.t -> func
 
+(** [prog_to_str prog] outputs a valid X86 assembly text of [prog] *)
+val prog_to_str : prog -> string
+
 
 (* Some pre-defined X86 physical registers *)
 val callee_saved_physical_regs     : physical_reg Set.t

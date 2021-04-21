@@ -750,3 +750,208 @@ let temp_func_to_func temp_func pr_assignment =
   { entry  = temp_func.entry;
     instrs = final_instrs }
 ;;
+
+
+let _physical_reg_to_str (r : physical_reg) : string =
+  match r with
+  | Rax -> "RAX"
+  | Rbx -> "RBX"
+  | Rsi -> "RSI"
+  | Rdi -> "RDI"
+  | Rdx -> "RDX"
+  | Rcx -> "RCX"
+  | R8  -> "R8"
+  | R9  -> "R9"
+  | R10 -> "R10"
+  | R11 -> "R11"
+  | R12 -> "R12"
+  | R13 -> "R13"
+  | R14 -> "R14"
+  | R15 -> "R15"
+;;
+
+let _reg_to_str (reg : 'a reg) (gr_to_str : 'a -> string) : string =
+  match reg with
+  | Rsp -> "RSP"
+  | Rbp -> "RBP"
+  | Greg gr -> gr_to_str gr
+;;
+
+
+let _reg_offset_to_str
+    (reg : 'a reg) (offset : int) (gr_to_str : 'a -> string)
+  : string =
+  let reg_str = _reg_to_str reg gr_to_str in
+  let op_str, offset =
+    if offset < 0
+    then " - ", -offset
+    else " + ", offset
+  in
+  let offset_str = Int.to_string offset in
+  String.join_with ["["; reg_str; op_str; offset_str ; "]"] ""
+;;
+
+let _arg_to_str (arg : 'a arg) (gr_to_str : 'a -> string) : string =
+  match arg with
+  | Lbl_arg label        -> Label.to_string label
+  | Imm_arg n            -> Int.to_string n
+  | Reg_arg reg           -> _reg_to_str reg gr_to_str
+  | Mem_arg (reg, offset) -> _reg_offset_to_str reg offset gr_to_str
+;;
+
+let _cond_to_suffix (cond : cond) : string =
+  match cond with
+  | Eq -> "e"
+  | Lt -> "l"
+;;
+
+let _binop_to_str (binop : binop) : string =
+  match binop with
+  | Add -> "add"
+  | Sub -> "sub"
+  | Mul -> "mul"
+;;
+
+let _instr_to_str (instr : 'a instr) (gr_to_str : 'a -> string) : string =
+  let add_tab s = String.append "\t" s in
+  match instr with
+  | Label label -> String.append (Label.to_string label) ":"
+
+  | Load (arg, dst_reg) ->
+    let arg_str = _arg_to_str arg gr_to_str in
+    let dst_str = _reg_to_str dst_reg gr_to_str in
+    let instr_str = String.join_with ["mov "; dst_str; ", "; arg_str;] "" in
+    add_tab instr_str
+
+  | Store (arg, dst_addr_reg, offset) ->
+    let arg_str = _arg_to_str arg gr_to_str in
+    let dst_str = _reg_offset_to_str dst_addr_reg offset gr_to_str in
+    let instr_str = String.join_with ["mov "; dst_str; ", "; arg_str;] "" in
+    add_tab instr_str
+
+  | Push reg ->
+    let reg_str = _reg_to_str reg gr_to_str in
+    let instr_str = String.join_with ["push"; reg_str] " " in
+    add_tab instr_str
+
+  | Pop reg ->
+    let reg_str = _reg_to_str reg gr_to_str in
+    let instr_str = String.join_with ["pop"; reg_str] " " in
+    add_tab instr_str
+
+  | Binop (binop, reg, arg) ->
+    let arg_str = _arg_to_str arg gr_to_str in
+    let reg_str = _reg_to_str reg gr_to_str in
+    let binop_str = _binop_to_str binop in
+    let instr_str =
+      String.join_with [binop_str; " "; reg_str; ", "; arg_str;] "" in
+    add_tab instr_str
+
+  | Cmp (arg, pr) ->
+    let arg_str = _arg_to_str arg gr_to_str in
+    let pr_str = _physical_reg_to_str pr in
+    let instr_str = String.join_with ["cmp "; arg_str; ", "; pr_str;] "" in
+    add_tab instr_str
+
+  | Jmp label ->
+    let instr_str = String.append "jmp " (Label.to_string label)in
+    add_tab instr_str
+
+  | JmpC (cond, label) ->
+    let suffix = _cond_to_suffix cond in
+    let label_str = Label.to_string label in
+    let instr_str = String.join_with ["j"; suffix; " "; label_str] "" in
+    add_tab instr_str
+
+  | SetC (cond, gr) -> 
+    let suffix = _cond_to_suffix cond in
+    let gr_str = gr_to_str gr in
+    let instr_str = String.join_with ["set"; suffix; " "; gr_str] "" in
+    add_tab instr_str
+
+  | Call_reg gr -> 
+    let gr_str = gr_to_str gr in
+    let instr_str = String.join_with ["call"; " "; gr_str] "" in
+    add_tab instr_str
+
+  | Call_lbl label -> 
+    let label_str = Label.to_string label in
+    let instr_str = String.join_with ["call"; " "; label_str] "" in
+    add_tab instr_str
+
+  | Ret -> add_tab "ret"
+;;
+
+let _instrs_to_str (instrs : 'a instr list) (gr_to_str : 'a -> string)
+  : string =
+  let instr_strs = List.map (fun instr -> _instr_to_str instr gr_to_str) instrs in
+  String.join_with instr_strs "\n"
+;;
+
+let _func_to_str (func : func) : string =
+  let all_instrs = (Label func.entry)::func.instrs in
+  _instrs_to_str all_instrs _physical_reg_to_str
+;;
+
+
+let _add_label_if_native (labels : Label.t Set.t) (label : Label.t)
+  : Label.t Set.t =
+  if Label.is_native label 
+  then Set.add label labels
+  else labels
+;;
+
+let _add_native_labels_in_arg (labels : Label.t Set.t) (arg : 'a arg)
+  : Label.t Set.t =
+  match arg with
+  | Imm_arg _ | Reg_arg _ | Mem_arg _ -> labels
+  | Lbl_arg label ->
+    _add_label_if_native labels label
+;;
+
+let _add_external_native_labels_in_instr
+    (labels : Label.t Set.t) (instr : 'a instr)
+  : Label.t Set.t =
+  match instr with
+  | Label _           -> labels
+  | Load (arg, _)     -> _add_native_labels_in_arg labels arg
+  | Store (arg, _, _) -> _add_native_labels_in_arg labels arg
+  | Binop (_, _, arg) -> _add_native_labels_in_arg labels arg
+  | Cmp (arg, _)      -> _add_native_labels_in_arg labels arg
+  | Call_lbl label    -> _add_label_if_native labels label
+
+  | Push _ | Pop _ | Jmp _ | JmpC _ | SetC _ | Call_reg _ | Ret -> 
+    labels
+;;
+
+let _add_external_native_labels_in_func
+    (labels : Label.t Set.t) (func : func) : Label.t Set.t =
+  List.fold_left _add_external_native_labels_in_instr labels func.instrs
+;;
+
+let _find_external_native_labels_in_prog (prog : prog) : Label.t Set.t =
+  let labels = Set.empty Label.compare in
+  let labels =
+    List.fold_left _add_external_native_labels_in_func labels prog.funcs
+  in
+  _add_external_native_labels_in_func labels prog.main
+;;
+
+let _get_prog_metadata (prog : prog) : string =
+  let external_native_label_decls = 
+    List.map
+      (fun label -> String.append "extern " (Label.to_string label))
+      (Set.to_list (_find_external_native_labels_in_prog prog))
+  in
+  let metadata_lines = "section .text"::external_native_label_decls in
+  String.join_with metadata_lines "\n"
+;;
+
+(* "ur" stands for usable_register *)
+let prog_to_str (prog : prog) : string =
+  let metadata_str = _get_prog_metadata prog in
+  let all_funcs = List.append prog.funcs [prog.main] in
+  let func_strs = List.map _func_to_str all_funcs in
+  let funcs_str = String.join_with func_strs "\n\n" in
+  String.join_with [metadata_str; funcs_str] "\n\n"
+;;
