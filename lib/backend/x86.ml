@@ -43,7 +43,7 @@ type binop =
 type 'a instr = 
   | Label of Label.t
   | Load of 'a arg * 'a reg
-  | Store of 'a arg * 'a reg * int
+  | Store of 'a reg * 'a reg * int
   | Push of 'a reg
   | Pop of 'a reg
   | Binop of binop * 'a reg * 'a arg
@@ -324,14 +324,17 @@ let _emit_lir_instr (ctx : context) (lir_instr : Lir.instr) : context =
     let ctx, dst_addr_temp = _ctx_gen_temp ctx in
     let ctx = _emit_lir_expr ctx e e_temp in
     let ctx = _emit_lir_expr ctx dst_addr_e dst_addr_temp in
-    let instr = Store (Reg_arg(Greg e_temp), Greg dst_addr_temp, 0) in
+    let instr = Store (Greg e_temp, Greg dst_addr_temp, 0) in
     _ctx_add_instr ctx instr
 
   | Store_label (label, dst_addr_e) ->
     let ctx, dst_addr_temp = _ctx_gen_temp ctx in
     let ctx = _emit_lir_expr ctx dst_addr_e dst_addr_temp in
-    let instr = Store (Lbl_arg(label), Greg dst_addr_temp, 0) in
-    _ctx_add_instr ctx instr
+    let ctx, label_temp = _ctx_gen_temp ctx in
+    let load_label_i = Load (Lbl_arg(label), Greg label_temp) in
+    let store_label_i = Store (Greg label_temp, Greg dst_addr_temp, 0) in
+    let ctx = _ctx_add_instr ctx load_label_i in
+    _ctx_add_instr ctx store_label_i
 
   | Jump (lir_cond, target_label) ->
     _emit_lir_jump ctx lir_cond target_label
@@ -416,8 +419,8 @@ let _get_reads_and_writes_temp_instr (rax : Temp.t) (instr : Temp.t instr)
     let writes = _add_temps_in_temp_reg [] dst_reg in
     (reads, writes)
 
-  | Store (arg, dst_addr_reg, _) ->
-    let reads = _add_temps_in_temp_arg [] arg in
+  | Store (src_reg, dst_addr_reg, _) ->
+    let reads = _add_temps_in_temp_reg [] src_reg in
     let writes = _add_temps_in_temp_reg [] dst_addr_reg in
     (reads, writes)
 
@@ -480,7 +483,7 @@ let _get_max_rbp_offset_instr (instr : 'a instr) : int =
   match instr with
   | Label _ -> 0
   | Load (arg, _) -> _get_max_rbp_offset_arg arg
-  | Store (arg, _, _) -> _get_max_rbp_offset_arg arg
+  | Store (_, _, _) -> 0
   | Push _ -> 0
   | Pop _ -> 0
   | Binop (_, _, arg) -> _get_max_rbp_offset_arg arg
@@ -545,7 +548,7 @@ let _spill_temp_write (ctx : spill_context) (temp : Temp.t) : spill_context =
   if Set.mem temp ctx.temps_to_spill
   then
     let ctx, offset = _spill_ctx_get_or_alloc_slot_offset ctx temp in
-    _spill_ctx_add_instr ctx (Store (Reg_arg (Greg temp), Rbp, offset))
+    _spill_ctx_add_instr ctx (Store (Greg temp, Rbp, offset))
   else ctx
 ;;
 
@@ -672,10 +675,10 @@ let _instr_temp_to_pr
     let dst_reg = _reg_temp_to_pr pr_assignment dst_reg in
     Load (arg, dst_reg)
 
-  | Store (arg, dst_addr_reg, offset) ->
-    let arg = _arg_temp_to_pr pr_assignment arg in
+  | Store (src_reg, dst_addr_reg, offset) ->
+    let src_reg = _reg_temp_to_pr pr_assignment src_reg in
     let dst_addr_reg = _reg_temp_to_pr pr_assignment dst_addr_reg in
-    Store (arg, dst_addr_reg, offset)
+    Store (src_reg, dst_addr_reg, offset)
 
   | Push reg ->
     Push (_reg_temp_to_pr pr_assignment reg)
@@ -823,10 +826,10 @@ let _instr_to_str (instr : 'a instr) (gr_to_str : 'a -> string) : string =
     let instr_str = String.join_with ["mov "; dst_str; ", "; arg_str;] "" in
     add_tab instr_str
 
-  | Store (arg, dst_addr_reg, offset) ->
-    let arg_str = _arg_to_str arg gr_to_str in
+  | Store (src_reg, dst_addr_reg, offset) ->
+    let src_str = _reg_to_str src_reg gr_to_str in
     let dst_str = _reg_offset_to_str dst_addr_reg offset gr_to_str in
-    let instr_str = String.join_with ["mov "; dst_str; ", "; arg_str;] "" in
+    let instr_str = String.join_with ["mov "; dst_str; ", "; src_str;] "" in
     add_tab instr_str
 
   | Push reg ->
@@ -915,12 +918,11 @@ let _add_external_native_labels_in_instr
   match instr with
   | Label _           -> labels
   | Load (arg, _)     -> _add_native_labels_in_arg labels arg
-  | Store (arg, _, _) -> _add_native_labels_in_arg labels arg
   | Binop (_, _, arg) -> _add_native_labels_in_arg labels arg
   | Cmp (arg, _)      -> _add_native_labels_in_arg labels arg
   | Call_lbl label    -> _add_label_if_native labels label
 
-  | Push _ | Pop _ | Jmp _ | JmpC _ | SetC _ | Call_reg _ | Ret -> 
+  | Store _ | Push _ | Pop _ | Jmp _ | JmpC _ | SetC _ | Call_reg _ | Ret -> 
     labels
 ;;
 

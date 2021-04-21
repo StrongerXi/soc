@@ -38,8 +38,8 @@ type 'a instr =
   | Label of Label.t
   | Load of 'a arg * 'a reg
       (* Load (arg, reg) --> reg := arg *)
-  | Store of 'a arg * 'a reg * int
-      (* Store (arg, reg, offset) --> *[reg + offset] := arg *)
+  | Store of 'a reg * 'a reg * int
+      (* Store (sreg, dreg, offset) --> *[dreg + offset] := sreg *)
   | Push of 'a reg
   | Pop of 'a reg
   | Binop of binop * 'a reg * 'a arg
