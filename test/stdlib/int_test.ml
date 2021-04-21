@@ -13,6 +13,14 @@ let tests = OUnit2.(>:::) "int_test" [
         OUnit2.assert_equal ~-4 (Int.min ~-2 ~-4);
       );
 
+    OUnit2.(>::) "test_ceil_div" (fun _ ->
+        OUnit2.assert_equal 2 (Int.ceil_div 6 5);
+        OUnit2.assert_equal 1 (Int.ceil_div 5 5);
+        OUnit2.assert_equal 1 (Int.ceil_div 4 5);
+        OUnit2.assert_equal 1 (Int.ceil_div 1 5);
+        OUnit2.assert_equal 0 (Int.ceil_div 0 5);
+      );
+
     OUnit2.(>::) "test_compare" (fun _ ->
         OUnit2.assert_equal true ((Int.compare 5 5) = 0);
         OUnit2.assert_equal true ((Int.compare 3 7) < 0);

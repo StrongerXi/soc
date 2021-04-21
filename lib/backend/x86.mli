@@ -40,10 +40,10 @@ type 'a instr =
       (* Load (arg, reg) --> reg := arg *)
   | Store of 'a arg * 'a reg * int
       (* Store (arg, reg, offset) --> *[reg + offset] := arg *)
-  | Push of 'a
-  | Pop of 'a
-  | Binop of binop * 'a * 'a arg
-      (* Binop (op, gr, arg) --> gr := op gr arg *)
+  | Push of 'a reg
+  | Pop of 'a reg
+  | Binop of binop * 'a reg * 'a arg
+      (* Binop (op, reg, arg) --> reg := op gr arg *)
   | Cmp of 'a arg * 'a
   | Jmp of Label.t
   | JmpC of cond * Label.t
@@ -90,3 +90,24 @@ val from_lir_prog : Lir.prog -> temp_prog
 
 (** Includes entry label in output vasms. *)
 val temp_func_to_vasms : temp_func -> Vasm.t list
+
+(** Guaranteed to spill onto slots aligned by word size.
+    NOTE stack is not set up, although stack slots are used.
+    Final translation into [func] will set up the stack in prologue. *)
+val spill_temps : temp_func -> Temp.t Set.t -> temp_func
+
+(** [temp_func_to_func temp_func pr_assignment] returns a [func] with all
+    temps in [temp_func] replaced with X86 physical register based on
+    [pr_assignment].
+
+    Also generates prologue and epilogue of a function.
+
+    Error if any temp in [temp_func] is not in [pr_assignment]. *)
+val temp_func_to_func : temp_func -> (Temp.t, physical_reg) Map.t -> func
+
+
+(* Some pre-defined X86 physical registers *)
+val callee_saved_physical_regs     : physical_reg Set.t
+val caller_saved_physical_regs     : physical_reg Set.t
+val ordered_argument_physical_regs : physical_reg list
+val rax_physical_reg               : physical_reg
