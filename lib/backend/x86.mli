@@ -95,3 +95,10 @@ val temp_func_to_vasms : temp_func -> Vasm.t list
     NOTE stack is not set up, although stack slots are used.
     Final translation into [func] will set up the stack in prologue. *)
 val spill_temps : temp_func -> Temp.t Set.t -> temp_func
+
+
+(* Some pre-defined X86 physical registers *)
+val callee_saved_physical_regs     : physical_reg Set.t
+val caller_saved_physical_regs     : physical_reg Set.t
+val ordered_argument_physical_regs : physical_reg list
+val rax_physical_reg               : physical_reg

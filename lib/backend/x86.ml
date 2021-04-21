@@ -578,3 +578,41 @@ let spill_temps temp_func temps_to_spill =
   let ctx = List.fold_left _spill_instr ctx temp_func.instrs in
   { temp_func with instrs = List.rev ctx.rev_instrs }
 ;;
+
+
+let _physical_reg_to_int (pr : physical_reg) : int =
+  match pr with
+  | Rax -> 0
+  | Rbx -> 1
+  | Rsi -> 2
+  | Rdi -> 3
+  | Rdx -> 4
+  | Rcx -> 5
+  | R8  -> 6
+  | R9  -> 7
+  | R10 -> 8
+  | R11 -> 9
+  | R12 -> 10
+  | R13 -> 11
+  | R14 -> 12
+  | R15 -> 13
+;;
+
+let _compare_physical_reg r1 r2 =
+  Int.compare (_physical_reg_to_int r1) (_physical_reg_to_int r2)
+;;
+
+let _physical_reg_list_to_set (prs : physical_reg list) : physical_reg Set.t =
+  List.fold_right Set.add prs (Set.empty _compare_physical_reg)
+;;
+
+let caller_saved_physical_regs =
+  _physical_reg_list_to_set [Rdi; Rsi; Rdx; Rcx; R8; R9; Rax; R11; R12]
+;;
+
+let callee_saved_physical_regs =
+  _physical_reg_list_to_set [Rbx; R12; R13; R14; R15]
+;;
+
+let rax_physical_reg = Rax
+;;
