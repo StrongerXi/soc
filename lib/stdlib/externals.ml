@@ -23,6 +23,12 @@ let read_entire_file (filename : string) : string =
   s
 ;;
 
+let write_entire_file (filename : string) (content : string) : unit =
+  let oc = open_out filename in
+  output_string oc content;
+  close_out oc;
+;;
+
 let print s =
   Stdlib.print_string s;
   Stdlib.flush Stdlib.stdout
