@@ -317,9 +317,16 @@ let _add_primops_closures (ctx : context) : (context * (string * expr) list) =
 ;;
 
 let _add_natives_closures (ctx : context) : (context * (string * expr) list) =
-  (* name, label_str, arity *)
-  let natives = [("=", "equal", 2)] in
-
+  (* name, label_str, arity 
+   * NOTE 
+   * - name must synch up with [Typer_ctx]'s initial environment.
+   * - label_str must synch up with runtime's "builtin.h". *)
+  let natives =
+    [
+      ("=", "equal", 2);
+      ("print", "print", 1);
+    ]
+  in
   let add_and_make_native_closure
       (ctx : context) (label_str : string) (arity : int)
     : (context * mk_closure) =

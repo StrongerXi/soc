@@ -231,10 +231,16 @@ let _add_primops_into_var_env (var_env : (string, scheme) Map.t)
 let _add_natives_into_var_env (var_env : (string, scheme) Map.t)
   : (string, scheme) Map.t =
   let tyvar = Ast.Typ_var (Some "a") in
-  let eq_typ =
-    Ast.Typ_arrow (tyvar, (Ast.Typ_arrow (tyvar, Builtin_types.bool_typ)))
+  let name_typ_pairs =
+    [ (* these names must synch up with [Cir]'s natives *)
+      ("=", Ast.Typ_arrow (tyvar, (Ast.Typ_arrow (tyvar, Builtin_types.bool_typ))));
+      ("print", Ast.Typ_arrow (tyvar, tyvar));
+    ]
   in
-  Map.add "=" (_generalize_typ eq_typ (Set.empty String.compare)) var_env
+  List.fold_left
+    (fun var_env (name, typ) ->
+       Map.add name (_generalize_typ typ (Set.empty String.compare)) var_env)
+    var_env name_typ_pairs
 ;;
 
 (* Initialize with some built-in stuff, an ad hoc solution *)

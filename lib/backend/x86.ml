@@ -391,10 +391,12 @@ let _from_lir_func (label_manager : Label.manager) (lir_func : Lir.func)
   let ctx = _init_ctx lir_func.name args lir_func.temp_manager label_manager in
   let ctx = _emit_load_args_into_temps ctx args in
   let ctx = _emit_lir_instrs ctx lir_func.body in
-  let instrs = _ctx_get_instrs ctx in
-  let func_label = lir_func.name in
-  let func = { entry = func_label; instrs; args; rax = ctx.rax_temp; } in
-  (func, ctx.label_manager)
+  let func = { entry  = lir_func.name
+             ; instrs = _ctx_get_instrs ctx
+             ; args   = ctx.ordered_arg_temps
+             ; rax    = ctx.rax_temp
+             }
+  in (func, ctx.label_manager)
 ;;
 
 let _from_lir_funcs (label_manager : Label.manager) (lir_funcs : Lir.func list)
@@ -417,8 +419,11 @@ let _from_lir_main_func
   let entry_label = Label.get_native Constants.entry_name in
   let ctx = _init_ctx entry_label [] temp_manager label_manager in
   let ctx = _emit_lir_instrs ctx lir_instrs in
-  let instrs = _ctx_get_instrs ctx in
-  { entry = entry_label; instrs; args = []; rax = ctx.rax_temp; } 
+  { entry  = ctx.func_label
+  ; instrs = _ctx_get_instrs ctx
+  ; args   = ctx.ordered_arg_temps
+  ; rax    = ctx.rax_temp
+  } 
 ;;
 
 let from_lir_prog (lir_prog : Lir.prog) : temp_prog =
@@ -468,10 +473,11 @@ let _get_reads_and_writes_temp_instr (rax : Temp.t) (instr : Temp.t instr)
     let writes = _add_temps_in_temp_reg [] dst_reg in
     (reads, writes)
 
+    (* storing to memory, so no reg is written *)
   | Store (src_reg, dst_addr_reg, _) ->
     let reads = _add_temps_in_temp_reg [] src_reg in
-    let writes = _add_temps_in_temp_reg [] dst_addr_reg in
-    (reads, writes)
+    let reads = _add_temps_in_temp_reg reads dst_addr_reg in
+    (reads, [])
 
   | Binop (_, reg, arg) ->
     let reg_temps = _add_temps_in_temp_reg [] reg in
@@ -984,7 +990,14 @@ let _get_prog_metadata (prog : prog) : string =
       (fun label -> String.append "extern " (Label.to_string label))
       (Set.to_list (_find_external_native_labels_in_prog prog))
   in
-  let metadata_lines = "section .text"::external_native_label_decls in
+  let global_native_label_decls =
+    [String.append "global " (Label.to_string prog.main.entry)]
+  in
+  let metadata_lines =
+    List.append 
+      ("section .text"::external_native_label_decls)
+      global_native_label_decls
+  in
   String.join_with metadata_lines "\n"
 ;;
 
