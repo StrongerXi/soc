@@ -317,7 +317,8 @@ let _add_primops_closures (ctx : context) : (context * (string * expr) list) =
 ;;
 
 let _add_natives_closures (ctx : context) : (context * (string * expr) list) =
-  (* name, label_str, arity *)
+  (* name, label_str, arity 
+   * NOTE label_str must synch up with runtime's "builtin.h" *)
   let natives = [("=", "equal", 2)] in
 
   let add_and_make_native_closure
