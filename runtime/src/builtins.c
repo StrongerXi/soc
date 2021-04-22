@@ -10,7 +10,7 @@ value equal(value v1, value v2) {
 
 value print(value v) {
   if (is_int(v)) {
-    printf("int:<%d>\n", untag_int(v));
+    printf("%d\n", untag_int(v));
   } else {
     printf("<function>\n");
   }
