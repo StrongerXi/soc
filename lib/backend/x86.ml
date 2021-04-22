@@ -468,10 +468,11 @@ let _get_reads_and_writes_temp_instr (rax : Temp.t) (instr : Temp.t instr)
     let writes = _add_temps_in_temp_reg [] dst_reg in
     (reads, writes)
 
+    (* storing to memory, so no reg is written *)
   | Store (src_reg, dst_addr_reg, _) ->
     let reads = _add_temps_in_temp_reg [] src_reg in
-    let writes = _add_temps_in_temp_reg [] dst_addr_reg in
-    (reads, writes)
+    let reads = _add_temps_in_temp_reg reads dst_addr_reg in
+    (reads, [])
 
   | Binop (_, reg, arg) ->
     let reg_temps = _add_temps_in_temp_reg [] reg in
