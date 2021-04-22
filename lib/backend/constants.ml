@@ -6,6 +6,10 @@
 let word_size = 8
 ;;
 
+(** rsp must be aligned to this number before call instruction *)
+let stack_alignment = 16
+;;
+
 
 (* The followings should be used as native labels.
  * NOTE they must synch up with C runtime's export definition. *)

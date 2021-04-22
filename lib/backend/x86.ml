@@ -189,22 +189,23 @@ let rec _emit_lir_expr (ctx : context) (e : Lir.expr) (dst_temp : Temp.t)
   | Op (op, lhs_e, rhs_e) ->
     _emit_lir_op ctx op lhs_e rhs_e dst_temp
 
-  | Call (label_temp, es) ->
-    let ctx = _emit_prepare_x86_call_args ctx es in
-    let instr = Call_reg label_temp in
-    let ctx = _ctx_add_instr ctx instr in
-    _ctx_add_instr ctx (Load (Reg_arg (Greg ctx.rax_temp), Greg dst_temp))
+  | Call (label_temp, arg_es) ->
+    _emit_generic_call ctx arg_es (Call_reg label_temp) dst_temp
 
-  | NativeCall (func_label, es) ->
-    let ctx = _emit_prepare_x86_call_args ctx es in
-    let instr = Call_lbl func_label in
-    let ctx = _ctx_add_instr ctx instr in
-    _ctx_add_instr ctx (Load (Reg_arg (Greg ctx.rax_temp), Greg dst_temp))
+  | NativeCall (func_label, arg_es) ->
+    _emit_generic_call ctx arg_es (Call_lbl func_label) dst_temp
 
   | Mem_alloc nbytes ->
-    let ctx = _emit_prepare_x86_call_args ctx [Imm nbytes] in
-    let instr = Call_lbl (Label.get_native Constants.mem_alloc_name) in
-    let ctx = _ctx_add_instr ctx instr in
+    let func_label = Label.get_native Constants.mem_alloc_name in
+    _emit_generic_call ctx [Imm nbytes] (Call_lbl func_label) dst_temp
+
+(* abstract over the call instruction *)
+and _emit_generic_call (ctx : context)
+    (arg_es : Lir.expr list) (call_instr : Temp.t instr) (dst_temp : Temp.t)
+  : context =
+    let ctx, arg_bytes = _emit_prepare_x86_call_args ctx arg_es in
+    let ctx = _ctx_add_instr ctx call_instr in
+    let ctx = _ctx_add_instr ctx (Binop (Add, Rsp, Imm_arg arg_bytes)) in
     _ctx_add_instr ctx (Load (Reg_arg (Greg ctx.rax_temp), Greg dst_temp))
 
 (*       ......
@@ -217,22 +218,33 @@ let rec _emit_lir_expr (ctx : context) (e : Lir.expr) (dst_temp : Temp.t)
  * |    saved rbp   | 
  * ------------------ <- RBP + 0 * word_size 
  * callee stack frame
- *      ......        *)
+ *      ......        
+ * NOTE stack alignment will be enforced.
+ * Return how many bytes the aligned extra args took up on stack. *)
 and _emit_prepare_x86_call_args (init_ctx : context)
     (init_arg_es : Lir.expr list)
-  : context =
+  : (context * int) =
   (* last argument is pushed first, so 1st arg is closest to frame base *)
   let _emit_push_onto_stack ctx arg_es =
-    List.fold_right
-      (fun arg_e ctx ->
-         let ctx, arg_v_temp = _ctx_gen_temp ctx in
-         let ctx = _emit_lir_expr ctx arg_e arg_v_temp in
-         _ctx_add_instr ctx (Push (Greg arg_v_temp)))
-      arg_es ctx
+    let ctx =
+      List.fold_right
+        (fun arg_e ctx ->
+           let ctx, arg_v_temp = _ctx_gen_temp ctx in
+           let ctx = _emit_lir_expr ctx arg_e arg_v_temp in
+           _ctx_add_instr ctx (Push (Greg arg_v_temp)))
+        arg_es ctx
+    in
+    let extra_arg_offset = (List.length arg_es) * Constants.word_size in
+    let align_offset =
+      Int.offset_to_align extra_arg_offset Constants.stack_alignment
+    in (* sometimes redundant, but KISS for now *)
+    let align_rsp_i = Binop (Sub, Rsp, Imm_arg align_offset) in
+    let ctx = _ctx_add_instr ctx align_rsp_i in
+    (ctx, extra_arg_offset + align_offset)
   in
   let rec go ctx arg_es (ordered_arg_temps : Temp.t list)  =
     match arg_es, ordered_arg_temps  with
-    | [], _ -> ctx
+    | [], _ -> (ctx, 0) (* 0 is always aligned *)
     | _, [] -> _emit_push_onto_stack ctx arg_es
     | arg_e::rest_arg_es, arg_temp::rest_arg_temps ->
       let ctx = _emit_lir_expr ctx arg_e arg_temp in
@@ -761,22 +773,32 @@ let _instr_temp_to_pr
   | Ret -> Ret
 ;;
 
+
 (*      ......
  * caller stack frame
- * ------------------
+ * ------------------ <- rsp % 16 = 0
  * | return address |
  * ------------------ <- RBP + 1 * word_size = old_rsp
  * |    saved rbp   | 
- * ------------------ <- RBP + 0 * word_size 
+ * ------------------ <- RBP + 0 * word_size, rsp % 16 = 0
  *  func stack frame
- *      ......        *)
+ *      ......        
+ *
+ * NOTE
+ * RSP must be aligned to 16 bytes on a 'call' instruction.
+ * We maintain [rsp % 16] as an invariant after prelude, and it must be enforced
+ * again before calls, e.g., after pushing args onto stack, if any. *)
 let temp_func_to_func temp_func pr_assignment =
+  (* calculate offset *)
   let callee_saved = Set.to_list (_get_callee_saved_prs pr_assignment) in
-  (* TODO stack alignment? *)
   let max_rbp_offset = _get_max_rbp_offset_instrs temp_func.instrs in
-  let spill_callee_saved =
-    List.map (fun pr -> Push (Greg pr)) callee_saved
+  let callee_saved_size = Constants.word_size * List.length callee_saved in
+  let frame_size = max_rbp_offset + callee_saved_size in
+  let aligned_rbp_offset = 
+    max_rbp_offset + (Int.offset_to_align frame_size Constants.stack_alignment)
   in
+  (* generate prologue and epilogue *)
+  let spill_callee_saved = List.map (fun pr -> Push (Greg pr)) callee_saved in
   let restore_callee_saved =
     List.map (fun pr -> Pop (Greg pr)) (List.rev callee_saved)
   in
@@ -785,7 +807,7 @@ let temp_func_to_func temp_func pr_assignment =
       [ 
         Push Rbp;
         Load (Reg_arg Rsp, Rbp);
-        Binop (Sub, Rsp, Imm_arg max_rbp_offset);
+        Binop (Sub, Rsp, Imm_arg aligned_rbp_offset);
       ] 
       spill_callee_saved
   in
@@ -799,6 +821,7 @@ let temp_func_to_func temp_func pr_assignment =
       Ret;
     ]
   in
+  (* stitch everything together *)
   let pr_instrs = List.map (_instr_temp_to_pr pr_assignment) temp_func.instrs in
   let final_instrs = List.append prologue (List.append pr_instrs epilogue) in
   { entry  = temp_func.entry;
