@@ -16,13 +16,14 @@
 #define RUNTIME_EXTERNAL(name) asm(#name "_native")
 
 // Generic soml value
-#define VALUE unsigned int
+typedef int value;
 
-VALUE SOML_TRUE;
-VALUE SOML_FALSE;
+value SOML_TRUE;
+value SOML_FALSE;
 
-VALUE tag_int(int);
-int is_int(VALUE);
-int is_obj(VALUE);
+value tag_int(int);
+int untag_int(value);
+int is_int(value);
+int is_obj(value);
 
 #endif
