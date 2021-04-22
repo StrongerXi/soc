@@ -264,17 +264,21 @@ and _transl_cir_if
  *
  * [...translate func_ce...]
  * [...translate arg_cen...]
- * label_temp := *[func_e]
- * Call(label_temp, [func_e; arg_e0; ... arg_en])
+ * cls_temp   := cls_e
+ * label_temp := *[cls_temp]
+ * Call(label_temp, [cls_temp; arg_e0; ... arg_en])
  *)
 and _transl_cir_apply
-    (ctx : context) (func_ce : Cir.expr) (arg_ces : Cir.expr list)
+    (ctx : context) (cls_ce : Cir.expr) (arg_ces : Cir.expr list)
   : (context * expr) =
-  let ctx, func_e = _transl_cir_expr ctx func_ce in
+  let ctx, cls_e = _transl_cir_expr ctx cls_ce in
+  let ctx, cls_temp = _ctx_gen_temp ctx in
+  let ctx = _ctx_add_instr ctx (Load (cls_e, cls_temp)) in
+  let cls_temp_e = Tmp cls_temp in
   let ctx, arg_es = _transl_cir_apply_args ctx arg_ces in
   let ctx, label_temp = _ctx_gen_temp ctx in
-  let ctx = _ctx_add_instr ctx (LoadMem (func_e, label_temp)) in
-  let call_e = Call (label_temp, func_e::arg_es) in
+  let ctx = _ctx_add_instr ctx (LoadMem (cls_temp_e, label_temp)) in
+  let call_e = Call (label_temp, cls_temp_e::arg_es) in
   (ctx, call_e)
 
 and _transl_cir_native_apply
