@@ -12,6 +12,9 @@
    cir_test temp_test label_test graph_test vasm_test liveness_analysis_test
    reg_alloc_test
 
+   ; integration
+   test_integration
+
    ; helper functions
    test_aux
   )
