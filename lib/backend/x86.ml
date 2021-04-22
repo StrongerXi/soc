@@ -990,7 +990,14 @@ let _get_prog_metadata (prog : prog) : string =
       (fun label -> String.append "extern " (Label.to_string label))
       (Set.to_list (_find_external_native_labels_in_prog prog))
   in
-  let metadata_lines = "section .text"::external_native_label_decls in
+  let global_native_label_decls =
+    [String.append "global " (Label.to_string prog.main.entry)]
+  in
+  let metadata_lines =
+    List.append 
+      ("section .text"::external_native_label_decls)
+      global_native_label_decls
+  in
   String.join_with metadata_lines "\n"
 ;;
 
