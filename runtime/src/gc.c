@@ -26,9 +26,6 @@ void gc_init(unsigned int heap_size) {
   _did_init = 1;
   // extra space for potential alignment
   char* heap = (char*) malloc(heap_size + HEAP_ALIGNMENT);
-  printf("[gc_init] allocated %d bytes starting at %p\n",
-      heap_size + HEAP_ALIGNMENT, heap);
-
   if (heap == NULL) {
     fprintf(stderr,
         "[gc_init] failed to allocate heap with size %d\n", heap_size);
@@ -49,6 +46,5 @@ char* gc_alloc(unsigned int size) {
     fprintf(stderr, "[gc_alloc] Ran out of heap memory\n");
     exit(1);
   }
-  printf("alloced = %p\n", alloced);
   return alloced;
 }
