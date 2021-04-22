@@ -391,10 +391,12 @@ let _from_lir_func (label_manager : Label.manager) (lir_func : Lir.func)
   let ctx = _init_ctx lir_func.name args lir_func.temp_manager label_manager in
   let ctx = _emit_load_args_into_temps ctx args in
   let ctx = _emit_lir_instrs ctx lir_func.body in
-  let instrs = _ctx_get_instrs ctx in
-  let func_label = lir_func.name in
-  let func = { entry = func_label; instrs; args; rax = ctx.rax_temp; } in
-  (func, ctx.label_manager)
+  let func = { entry  = lir_func.name
+             ; instrs = _ctx_get_instrs ctx
+             ; args   = ctx.ordered_arg_temps
+             ; rax    = ctx.rax_temp
+             }
+  in (func, ctx.label_manager)
 ;;
 
 let _from_lir_funcs (label_manager : Label.manager) (lir_funcs : Lir.func list)
@@ -417,8 +419,11 @@ let _from_lir_main_func
   let entry_label = Label.get_native Constants.entry_name in
   let ctx = _init_ctx entry_label [] temp_manager label_manager in
   let ctx = _emit_lir_instrs ctx lir_instrs in
-  let instrs = _ctx_get_instrs ctx in
-  { entry = entry_label; instrs; args = []; rax = ctx.rax_temp; } 
+  { entry  = ctx.func_label
+  ; instrs = _ctx_get_instrs ctx
+  ; args   = ctx.ordered_arg_temps
+  ; rax    = ctx.rax_temp
+  } 
 ;;
 
 let from_lir_prog (lir_prog : Lir.prog) : temp_prog =

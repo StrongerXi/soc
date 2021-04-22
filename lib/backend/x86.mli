@@ -59,7 +59,7 @@ type 'a instr =
 type temp_func = 
   { entry  : Label.t
   ; instrs : Temp.t instr list (* doesn't start with [entry] label *)
-  ; args   : Temp.t list
+  ; args   : Temp.t list       (* for each arg reg; might not all be used *)
   ; rax    : Temp.t
   }
 
