@@ -1,8 +1,15 @@
-closure <closure_37> = {
-  args = (native_arg_36, native_arg_35)
+closure <closure_39> = {
+  args = (native_arg_38, native_arg_37)
   free_vars = ()
   body = {
-    (<native:equal> native_arg_36 native_arg_35)
+    (<native:equal> native_arg_38 native_arg_37)
+  }
+}
+closure <closure_36> = {
+  args = (native_arg_35)
+  free_vars = ()
+  body = {
+    (<native:print> native_arg_35)
   }
 }
 closure <closure_34> = {
@@ -88,7 +95,8 @@ let + = (MK_CLOSURE <closure_34> )
     < = (MK_CLOSURE <closure_25> )
     || = (MK_CLOSURE <closure_22> )
     && = (MK_CLOSURE <closure_19> )
-    = = (MK_CLOSURE <closure_37> )
+    = = (MK_CLOSURE <closure_39> )
+    print = (MK_CLOSURE <closure_36> )
 in let rec f_1 = (MK_CLOSURE <closure_16> g_0)
            g_0 = (MK_CLOSURE <closure_15> f_1)
    in let f1_4 = (MK_CLOSURE <closure_14> +)

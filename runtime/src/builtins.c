@@ -7,3 +7,12 @@ value equal(value v1, value v2) {
   // e.g., record, tuple, or variants.
   return (v1 == v2) ?  SOML_TRUE : SOML_FALSE;
 }
+
+value print(value v) {
+  if (is_int(v)) {
+    printf("int:<%d>\n", untag_int(v));
+  } else {
+    printf("<function>\n");
+  }
+  return v;
+}
