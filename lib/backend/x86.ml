@@ -189,22 +189,22 @@ let rec _emit_lir_expr (ctx : context) (e : Lir.expr) (dst_temp : Temp.t)
   | Op (op, lhs_e, rhs_e) ->
     _emit_lir_op ctx op lhs_e rhs_e dst_temp
 
-  | Call (label_temp, es) ->
-    let ctx, arg_bytes = _emit_prepare_x86_call_args ctx es in
-    let ctx = _ctx_add_instr ctx (Call_reg label_temp) in
-    let ctx = _ctx_add_instr ctx (Binop (Add, Rsp, Imm_arg arg_bytes)) in
-    _ctx_add_instr ctx (Load (Reg_arg (Greg ctx.rax_temp), Greg dst_temp))
+  | Call (label_temp, arg_es) ->
+    _emit_generic_call ctx arg_es (Call_reg label_temp) dst_temp
 
-  | NativeCall (func_label, es) ->
-    let ctx, arg_bytes = _emit_prepare_x86_call_args ctx es in
-    let ctx = _ctx_add_instr ctx (Call_lbl func_label) in
-    let ctx = _ctx_add_instr ctx (Binop (Add, Rsp, Imm_arg arg_bytes)) in
-    _ctx_add_instr ctx (Load (Reg_arg (Greg ctx.rax_temp), Greg dst_temp))
+  | NativeCall (func_label, arg_es) ->
+    _emit_generic_call ctx arg_es (Call_lbl func_label) dst_temp
 
   | Mem_alloc nbytes ->
-    let ctx, arg_bytes = _emit_prepare_x86_call_args ctx [Imm nbytes] in
     let func_label = Label.get_native Constants.mem_alloc_name in
-    let ctx = _ctx_add_instr ctx (Call_lbl func_label) in
+    _emit_generic_call ctx [Imm nbytes] (Call_lbl func_label) dst_temp
+
+(* abstract over the call instruction *)
+and _emit_generic_call (ctx : context)
+    (arg_es : Lir.expr list) (call_instr : Temp.t instr) (dst_temp : Temp.t)
+  : context =
+    let ctx, arg_bytes = _emit_prepare_x86_call_args ctx arg_es in
+    let ctx = _ctx_add_instr ctx call_instr in
     let ctx = _ctx_add_instr ctx (Binop (Add, Rsp, Imm_arg arg_bytes)) in
     _ctx_add_instr ctx (Load (Reg_arg (Greg ctx.rax_temp), Greg dst_temp))
 
