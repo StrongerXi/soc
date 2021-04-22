@@ -37,3 +37,35 @@ let cir_file filepath =
 let lir_file filepath =
   Result.map Lir.from_cir_prog (cir_file filepath)
 ;;
+
+
+let rec _x86_temp_func_to_func (temp_func : X86.temp_func) : X86.func =
+  let vasms = X86.temp_func_to_vasms temp_func in
+  let annotated_vasms = Liveness_analysis.analyze_vasm vasms in
+  let pre_color = Map.empty Temp.compare in
+  let pre_color = Map.add temp_func.rax X86.rax_physical_reg pre_color in
+  let pre_color =
+    List.fold_left
+      (fun pre_color (arg_temp, arg_reg) ->
+         Map.add arg_temp arg_reg pre_color)
+      pre_color
+      (List.combine temp_func.args X86.ordered_argument_physical_regs)
+  in
+  match Reg_alloc.greedy_alloc
+          annotated_vasms 
+          X86.caller_saved_physical_regs
+          X86.callee_saved_physical_regs
+          pre_color with
+  | Ok temp_to_reg -> X86.temp_func_to_func temp_func temp_to_reg 
+  | Error temps_to_spill ->
+    let updated_temp_func = X86.spill_temps temp_func temps_to_spill in
+    _x86_temp_func_to_func updated_temp_func
+;;
+
+let lir_to_x86 lir_prog = 
+  let x86_temp_prog = X86.from_lir_prog lir_prog in
+  { X86.funcs = List.map _x86_temp_func_to_func x86_temp_prog.temp_funcs
+  ; main      = _x86_temp_func_to_func x86_temp_prog.temp_main
+  }
+;;
+
