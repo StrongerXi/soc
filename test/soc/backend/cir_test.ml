@@ -2,7 +2,7 @@ open Pervasives
 
 (* [filename] can assume CWD is where this file is *)
 let _get_full_path (filename : string) : string =
-  String.append "../../../test/backend/cir-resources/" filename
+  String.append "../../../test/soc/backend/cir-resources/" filename
 ;;
 
 let _check_cir_pp (filepath_no_suffix : string) : unit =

@@ -2,7 +2,7 @@ open Pervasives
 
 (** [filename] can assume CWD is where this file is *)
 let _get_full_path (filename : string) : string =
-  String.append "../../../test/frontend/parsing/parser-resources/" filename
+  String.append "../../../test/soc/frontend/parsing/parser-resources/" filename
 ;;
 
 let _check_parser_pp_ast (filepath_no_suffix : string) : unit =

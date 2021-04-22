@@ -5,6 +5,8 @@
 # - assemble <source.s> and link with runtime static library
 # - produce <source.exe> as final executable
 
+# terminate immediately on any error
+set -e
 
 # Get the absolute path to the this script
 SCRIPT_DIR=$(dirname "$BASH_SOURCE")
@@ -17,8 +19,7 @@ SOML_LIB=${SCRIPT_DIR}/runtime/build/libsoml.a
 
 CLANG_FLAGS="-Wl,-no_pie"
 
-make -C ${SCRIPT_DIR}/runtime
-dune exec ${SCRIPT_DIR}/bin/soc.exe $@
+${SCRIPT_DIR}/_build/default/bin/soc.exe $@
 nasm -f macho64 -o $SOML_OBJ $SOML_ASSEM
 clang $CLANG_FLAGS -o $SOML_EXE $SOML_OBJ $SOML_LIB
 

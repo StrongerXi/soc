@@ -2,7 +2,7 @@ open Pervasives
 
 (* [filename] can assume CWD is where this file is *)
 let _get_full_path (filename : string) : string =
-  String.append "../../../test/frontend/interp/ast-interp-resources/" filename
+  String.append "../../../test/soc/frontend/interp/ast-interp-resources/" filename
 ;;
 
 (* print output to stdout *)
