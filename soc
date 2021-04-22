@@ -1,0 +1,25 @@
+#/bin/sh
+
+# Usage: <script> <source.soml>
+# - compiles <source.soml> to x86 assembly in <source.s>
+# - assemble <source.s> and link with runtime static library
+# - produce <source.exe> as final executable
+
+
+# Get the absolute path to the this script
+SCRIPT_DIR=$(dirname "$BASH_SOURCE")
+
+SOML_SRC=$1
+SOML_ASSEM=${SOML_SRC%.soml}.s
+SOML_OBJ=${SOML_SRC%.soml}.o
+SOML_EXE=${SOML_SRC%.soml}.exe
+SOML_LIB=${SCRIPT_DIR}/runtime/build/libsoml.a
+
+CLANG_FLAGS="-Wl,-no_pie"
+
+make -C ${SCRIPT_DIR}/runtime
+dune exec ${SCRIPT_DIR}/bin/soc.exe $@
+nasm -f macho64 -o $SOML_OBJ $SOML_ASSEM
+clang $CLANG_FLAGS -o $SOML_EXE $SOML_OBJ $SOML_LIB
+
+rm $SOML_OBJ
