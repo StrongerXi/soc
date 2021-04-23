@@ -1,0 +1,10 @@
+
+(test
+ (name test_integration)
+ (libraries ounit2 soc test_aux)
+ (deps 
+  (source_tree ../../lib)
+  (source_tree ../../runtime)
+  (glob_files ./resources/*)
+ )
+)

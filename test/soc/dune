@@ -1,0 +1,18 @@
+(tests
+  (names
+   ; stdlib
+   list_test option_test set_test map_test int_test char_test string_test
+   result_test filename_test
+
+   ; frontend
+   location_test span_test lexer_test parser_test ast_interp_test typer_test
+   substs_test
+
+   ; backend
+   cir_test temp_test label_test graph_test vasm_test liveness_analysis_test
+   reg_alloc_test
+  )
+  (libraries ounit2 soc test_aux)
+)
+
+(include_subdirs unqualified)
