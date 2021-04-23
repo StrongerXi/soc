@@ -1,0 +1,10 @@
+#/bin/sh
+
+# Get the absolute path to the this script
+SCRIPT_DIR=$(dirname "$BASH_SOURCE")
+
+# terminate immediately on any error
+set -e
+
+make -C ${SCRIPT_DIR}/runtime
+dune runtest --root ${SCRIPT_DIR}
