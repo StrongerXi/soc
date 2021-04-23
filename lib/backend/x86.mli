@@ -27,6 +27,11 @@ type binop =
   | Sub
   | Mul
 
+(* supported target of a call instruction *)
+type 'a call_target =
+  | Reg of 'a
+  | Lbl of Label.t
+
 (* NOTE 
  * 0. We parameterize over general-purpose registers, i.e., virtual or physical.
  *    This differentiates x86 programs before and after register allocation.
@@ -48,8 +53,9 @@ type 'a instr =
   | Jmp of Label.t
   | JmpC of cond * Label.t
       (* Jump to label if [cond] is satisfied. *)
-  | Call_reg of 'a
-  | Call_lbl of Label.t
+  | Call of 'a call_target * 'a list
+      (* Target and arguments that are passed in registers.
+       * The arguments are used for debugging for liveness analysis purposes *)
   | Ret
       (* Return control flow to caller site *)
 

@@ -40,6 +40,10 @@ type binop =
   | Sub
   | Mul
 
+type 'a call_target =
+  | Reg of 'a
+  | Lbl of Label.t
+
 type 'a instr = 
   | Label of Label.t
   | Load of 'a arg * 'a reg
@@ -50,8 +54,7 @@ type 'a instr =
   | Cmp of 'a arg * 'a
   | Jmp of Label.t
   | JmpC of cond * Label.t
-  | Call_reg of 'a
-  | Call_lbl of Label.t
+  | Call of 'a call_target * 'a list
   | Ret
 
 type func =
@@ -190,21 +193,21 @@ let rec _emit_lir_expr (ctx : context) (e : Lir.expr) (dst_temp : Temp.t)
     _emit_lir_op ctx op lhs_e rhs_e dst_temp
 
   | Call (label_temp, arg_es) ->
-    _emit_generic_call ctx arg_es (Call_reg label_temp) dst_temp
+    _emit_generic_call ctx arg_es (Reg label_temp) dst_temp
 
   | NativeCall (func_label, arg_es) ->
-    _emit_generic_call ctx arg_es (Call_lbl func_label) dst_temp
+    _emit_generic_call ctx arg_es (Lbl func_label) dst_temp
 
   | Mem_alloc nbytes ->
     let func_label = Label.get_native Constants.mem_alloc_name in
-    _emit_generic_call ctx [Imm nbytes] (Call_lbl func_label) dst_temp
+    _emit_generic_call ctx [Imm nbytes] (Lbl func_label) dst_temp
 
-(* abstract over the call instruction *)
+(* abstract over the call target *)
 and _emit_generic_call (ctx : context)
-    (arg_es : Lir.expr list) (call_instr : Temp.t instr) (dst_temp : Temp.t)
+    (arg_es : Lir.expr list) (target : Temp.t call_target) (dst_temp : Temp.t)
   : context =
-    let ctx, arg_bytes = _emit_prepare_x86_call_args ctx arg_es in
-    let ctx = _ctx_add_instr ctx call_instr in
+    let ctx, arg_temps, arg_bytes = _emit_prepare_x86_call_args ctx arg_es in
+    let ctx = _ctx_add_instr ctx (Call (target, arg_temps)) in
     let ctx = _ctx_add_instr ctx (Binop (Add, Rsp, Imm_arg arg_bytes)) in
     _ctx_add_instr ctx (Load (Reg_arg (Greg ctx.rax_temp), Greg dst_temp))
 
@@ -220,10 +223,14 @@ and _emit_generic_call (ctx : context)
  * callee stack frame
  *      ......        
  * NOTE stack alignment will be enforced.
- * Return how many bytes the aligned extra args took up on stack. *)
+ * Return 
+ * - Temps which holds the register arguments in order.
+ *   Args spilled onto stack are ignored, since they don't need to be in any
+ *   register during the call instruction -- they are saved on stack.
+ * - How many bytes the aligned extra args took up on stack. *)
 and _emit_prepare_x86_call_args (init_ctx : context)
     (init_arg_es : Lir.expr list)
-  : (context * int) =
+  : (context * Temp.t list * int) =
   (* last argument is pushed first, so 1st arg is closest to frame base *)
   let _emit_push_onto_stack ctx arg_es =
     let ctx =
@@ -244,11 +251,15 @@ and _emit_prepare_x86_call_args (init_ctx : context)
   in
   let rec go ctx arg_es (ordered_arg_temps : Temp.t list)  =
     match arg_es, ordered_arg_temps  with
-    | [], _ -> (ctx, 0) (* 0 is always aligned *)
-    | _, [] -> _emit_push_onto_stack ctx arg_es
+    | [], _ -> (ctx, [], 0) (* 0 is always aligned *)
+    | _, [] -> 
+      let ctx, arg_bytes = _emit_push_onto_stack ctx arg_es in
+      (ctx, [], arg_bytes)
+
     | arg_e::rest_arg_es, arg_temp::rest_arg_temps ->
       let ctx = _emit_lir_expr ctx arg_e arg_temp in
-      go ctx rest_arg_es rest_arg_temps
+      let ctx, reg_arg_temps, arg_bytes = go ctx rest_arg_es rest_arg_temps in
+      (ctx, arg_temp::reg_arg_temps, arg_bytes)
   in
   let x86_arg_temps =
     List.combine init_ctx.ordered_arg_temps ordered_argument_physical_regs
@@ -465,6 +476,13 @@ let _add_temps_in_temp_arg  (acc : Temp.t list) (arg : Temp.t arg)
   | Mem_arg (reg, _) -> _add_temps_in_temp_reg acc reg
 ;;
 
+let _add_temps_in_call_target (acc : Temp.t list) (target : Temp.t call_target)
+  : Temp.t list =
+  match target with
+  | Reg temp -> temp::acc
+  | Lbl _ -> acc
+;;
+
 let _get_reads_and_writes_temp_instr (rax : Temp.t) (instr : Temp.t instr)
   : (Temp.t list * Temp.t list) =
   match instr with
@@ -506,9 +524,12 @@ let _get_reads_and_writes_temp_instr (rax : Temp.t) (instr : Temp.t instr)
    *    for RAX, because our instr doesn't specify "dst_reg" of call).
    *    Basically we leave it to the register allocator to ensure that
    *    caller-saved registers are properly assigned or spilled *)
-  | Call_reg temp -> ([temp], [rax])
-  | Call_lbl _    -> ([],     [rax])
-  | Ret           -> ([rax],  [])
+  | Call (target, reg_arg_temps) ->
+    let reads = _add_temps_in_call_target reg_arg_temps target in
+    let writes = [rax] in
+    (reads, writes)
+
+  | Ret -> ([rax],  [])
 ;;
 
 let _temp_instr_to_vasm (rax : Temp.t) (instr : Temp.t instr) : Vasm.t =
@@ -519,8 +540,7 @@ let _temp_instr_to_vasm (rax : Temp.t) (instr : Temp.t instr) : Vasm.t =
   | Load _ | Store _ | Push _ | Pop _ | Binop _ | Cmp _ ->
     Vasm.mk_instr reads writes
 
-  | Call_reg _ | Call_lbl _ ->
-    Vasm.mk_call reads writes
+  | Call _ -> Vasm.mk_call reads writes
 
   | Jmp target -> Vasm.mk_dir_jump reads writes target
   | JmpC (_, target) -> Vasm.mk_cond_jump reads writes target
@@ -557,8 +577,7 @@ let _get_max_rbp_offset_instr (instr : 'a instr) : int =
   | Cmp (arg, _) -> _get_max_rbp_offset_arg arg
   | Jmp _ -> 0
   | JmpC _ -> 0
-  | Call_reg _ -> 0
-  | Call_lbl _ -> 0
+  | Call _ -> 0
   | Ret ->  0
 ;;
 
@@ -731,6 +750,14 @@ let _arg_temp_to_pr
     Mem_arg (_reg_temp_to_pr pr_assignment reg, offset)
 ;;
 
+let _call_target_temp_to_pr
+    (pr_assignment : (Temp.t, physical_reg) Map.t) (target: Temp.t call_target)
+  : physical_reg call_target =
+  match target with
+  | Reg temp  -> Reg (_temp_to_pr pr_assignment temp)
+  | Lbl label -> Lbl label
+;;
+
 let _instr_temp_to_pr
     (pr_assignment : (Temp.t, physical_reg) Map.t) (instr : Temp.t instr)
   : physical_reg instr =
@@ -766,10 +793,11 @@ let _instr_temp_to_pr
 
   | JmpC (cond, label) -> JmpC (cond, label)
 
-  | Call_reg temp -> 
-    Call_reg (_temp_to_pr pr_assignment temp)
+  | Call (target, reg_arg_temps) -> 
+    let reg_args = List.map (_temp_to_pr pr_assignment) reg_arg_temps in
+    let target = _call_target_temp_to_pr pr_assignment target in
+    Call (target, reg_args)
 
-  | Call_lbl label -> Call_lbl label
   | Ret -> Ret
 ;;
 
@@ -889,6 +917,13 @@ let _binop_to_str (binop : binop) : string =
   | Mul -> "imul" (* 'i' for signed integer multiplication *)
 ;;
 
+let _call_target_to_str (target : 'a call_target) (gr_to_str : 'a -> string)
+  : string =
+  match target with
+  | Reg gr -> gr_to_str gr
+  | Lbl label -> Label.to_string label
+;;
+
 let _instr_to_str (instr : 'a instr) (gr_to_str : 'a -> string) : string =
   let add_tab s = String.append "\t" s in
   match instr with
@@ -940,14 +975,9 @@ let _instr_to_str (instr : 'a instr) (gr_to_str : 'a -> string) : string =
     let instr_str = String.join_with ["j"; suffix; " "; label_str] "" in
     add_tab instr_str
 
-  | Call_reg gr -> 
-    let gr_str = gr_to_str gr in
-    let instr_str = String.join_with ["call"; " "; gr_str] "" in
-    add_tab instr_str
-
-  | Call_lbl label -> 
-    let label_str = Label.to_string label in
-    let instr_str = String.join_with ["call"; " "; label_str] "" in
+  | Call (target, _) -> (* args are used for liveness analysis or debugging *)
+    let target_str = _call_target_to_str target gr_to_str in
+    let instr_str = String.join_with ["call"; " "; target_str] "" in
     add_tab instr_str
 
   | Ret -> add_tab "ret"
@@ -980,6 +1010,14 @@ let _add_native_labels_in_arg (labels : Label.t Set.t) (arg : 'a arg)
     _add_label_if_native labels label
 ;;
 
+let _add_native_labels_in_call_target 
+    (labels : Label.t Set.t) (target : 'a call_target)
+  : Label.t Set.t =
+  match target with
+  | Reg _ -> labels
+  | Lbl label -> _add_label_if_native labels label
+;;
+
 let _add_external_native_labels_in_instr
     (labels : Label.t Set.t) (instr : 'a instr)
   : Label.t Set.t =
@@ -988,9 +1026,9 @@ let _add_external_native_labels_in_instr
   | Load (arg, _)     -> _add_native_labels_in_arg labels arg
   | Binop (_, _, arg) -> _add_native_labels_in_arg labels arg
   | Cmp (arg, _)      -> _add_native_labels_in_arg labels arg
-  | Call_lbl label    -> _add_label_if_native labels label
+  | Call (target, _)  -> _add_native_labels_in_call_target labels target
 
-  | Store _ | Push _ | Pop _ | Jmp _ | JmpC _ | Call_reg _ | Ret -> 
+  | Store _ | Push _ | Pop _ | Jmp _ | JmpC _ | Ret -> 
     labels
 ;;
 

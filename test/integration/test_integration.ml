@@ -1,5 +1,5 @@
 
-let _soc_path = "../../../soc"
+let _soc_path = "../../../../soc"
 ;;
 
 (* NOTE must close output fd *)
@@ -83,7 +83,7 @@ let _exec_write_and_check_output
 
 (* Compile "[test_name].soml", run the executable, and check output *)
 let _run_test (test_name : string) : unit =
-  let path_prefix = "../../../test/integration/resources/" ^ test_name in
+  let path_prefix = "../../../../test/integration/resources/" ^ test_name in
   let source_path = path_prefix ^ ".soml" in
   let exe_path = path_prefix ^ ".exe" in
   let ref_output_path = path_prefix ^ ".expect" in
@@ -116,7 +116,6 @@ let _create_ounit_test (test_name : string) : OUnit2.test =
 let tests = OUnit2.(>:::) "test_integration"
     (Stdlib.List.map _create_ounit_test
        [ 
-         "basic";
        ])
 
 let _ =
