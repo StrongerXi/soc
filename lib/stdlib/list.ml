@@ -156,5 +156,5 @@ let init size f =
 let to_string xs f =
   let elem_strs = map f xs in
   let elems_str = String.join_with elem_strs "; " in
-  String.join_with ["["; elems_str; "]"] ""
+  String.concat ["["; elems_str; "]"]
 ;;
