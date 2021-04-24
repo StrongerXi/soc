@@ -857,7 +857,7 @@ let temp_func_to_func temp_func pr_assignment =
 ;;
 
 
-let _physical_reg_to_str (r : physical_reg) : string =
+let physical_reg_to_str (r : physical_reg) : string =
   match r with
   | Rax -> "RAX"
   | Rbx -> "RBX"
@@ -991,7 +991,7 @@ let _instrs_to_str (instrs : 'a instr list) (gr_to_str : 'a -> string)
 
 let _func_to_str (func : func) : string =
   let all_instrs = (Label func.entry)::func.instrs in
-  _instrs_to_str all_instrs _physical_reg_to_str
+  _instrs_to_str all_instrs physical_reg_to_str
 ;;
 
 
