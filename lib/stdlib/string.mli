@@ -19,3 +19,6 @@ val compare : string -> string -> int
 (** [join_with [s1; ...; sn] sep] is [s1 ^ sep ^ ... ^ sep ^ sn] where [^]
     stands for the append operation *)
 val join_with : string list -> string -> string
+
+(** [concat ss] = [join_with ss ""] *)
+val concat : string list -> string

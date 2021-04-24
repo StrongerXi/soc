@@ -38,3 +38,7 @@ let join_with init_ss sep =
         go acc ss
     in go fst_s rst_ss
 ;;
+
+let concat ss =
+  join_with ss ""
+;;
