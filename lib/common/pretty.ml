@@ -635,3 +635,12 @@ let pp_lir_prog prog =
   _pp_lir_prog p prog;
   p.buffer
 ;;
+
+
+let pp_vasm_liveness_annot vasm_annot_pairs =
+  List.to_string vasm_annot_pairs
+    (fun (vasm, (annot : Liveness_analysis.annot)) -> 
+       let vasm_str = Vasm.pp vasm in
+       let annot_str = Set.to_string Temp.to_string annot.live_out in
+       String.join_with [vasm_str; annot_str] " # ")
+;;
