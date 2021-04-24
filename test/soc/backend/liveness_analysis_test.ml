@@ -1,19 +1,13 @@
 open Pervasives
 
-let _annotated_vasm_to_str
-    ((vasm : Vasm.t), (annot : Liveness_analysis.annot))
-  : string =
-  let vasm_str = Vasm.pp vasm in
-  let annot_str = Set.to_string Temp.to_string annot.live_out in
-  String.join_with [vasm_str; annot_str] " # "
-;;
-
 let _annotated_vasms_to_str
     (avs : (Vasm.t * Liveness_analysis.annot) list)
   : string =
-  let av_strs = List.map _annotated_vasm_to_str avs in
-  let avs_str = String.join_with av_strs ";\n" in
-  String.join_with ["["; avs_str; "]"] ""
+  List.to_string avs
+    (fun (vasm, annot) -> 
+       let vasm_str = Vasm.pp vasm in
+       let annot_str = Set.to_string Temp.to_string annot.live_out in
+       String.join_with [vasm_str; annot_str] " # ")
 ;;
 
 let _annotated_vasm_equal

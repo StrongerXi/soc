@@ -144,11 +144,7 @@ let pp_parser_error (err : Errors.parser_error) =
   let pp_expected_tokens (toks : Token.desc list) : string =
     match toks with
     | [] -> "<unknown>"
-    | _ ->
-      let tok_strs =
-        List.map (fun tok -> _pp_token_desc_impl tok Hide_content) toks in
-      let inner = String.join_with tok_strs "; " in
-      String.join_with ["["; inner; "]"] ""
+    | _ -> List.to_string toks (fun tok -> _pp_token_desc_impl tok Hide_content)
   in
   match err with
   | Parser_invalid_integer (text, span) ->
