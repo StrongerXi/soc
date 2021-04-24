@@ -39,4 +39,4 @@ $(DEPS) : $(OBJDIR)/%.d : $(SRCDIR)/%.c
 .PHONY : clean
 
 clean :
-	rm $(OBJS) $(DEPS) $(STATIC_LIB) 
+	rm -f $(OBJS) $(DEPS) $(STATIC_LIB) 
