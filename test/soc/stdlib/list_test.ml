@@ -155,6 +155,13 @@ let tests = OUnit2.(>:::) "list_tests" [
         OUnit2.assert_equal [] (List.init 0 Int.to_string);
         OUnit2.assert_equal ["0"; "1"; "2"] (List.init 3 Int.to_string);
       );
+
+    OUnit2.(>::) "test_to_string" (fun _ ->
+        OUnit2.assert_equal "[]" (List.to_string [] (fun _ -> "1"));
+        OUnit2.assert_equal
+          "[1; 2; 3]"
+          (List.to_string [1; 2; 3] Int.to_string);
+      );
   ]
 
 let _ =

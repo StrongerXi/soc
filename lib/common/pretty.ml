@@ -64,29 +64,27 @@ let _print_newline (p : printer) : unit =
 let pp_lexer_error (err : Errors.lexer_error) : string =
   match err with
   | Lexer_unexpected_char (expect, actual, loc) ->
-    String.join_with
+    String.concat
       [ "[Lexer] Expected '"; (Char.to_string expect);
         "', but got '"; (Char.to_string actual); "'";
         " at "; (Location.to_string loc); ]
-      ""
+
   | Lexer_unexpected_eof (where, expected) ->
-    String.join_with
+    String.concat
       [ "[Lexer] Unexpected EOF while expecting "; (Char.to_string expected);
         " at "; (Location.to_string where); ]
-      ""
+
   | Lexer_invalid_start (start, loc) ->
-    String.join_with
+    String.concat
       [ "[Lexer] Invalid start of token: '"; (Char.to_string start);
         "' at "; (Location.to_string loc); ]
-      ""
 ;;
 
 
 let _pp_span (span : Span.t) : string =
-  String.join_with
+  String.concat
     [ "<"; (Location.to_string span.start); "-";
       (Location.to_string span.final); ">" ]
-    ""
 ;;
 
 (* Whether to show content of [Token.Int], etc. *)
@@ -97,8 +95,8 @@ type token_desc_visibility =
 let _pp_token_desc_impl desc (visibility : token_desc_visibility) =
   let pp_tok_with_content (tok : string) (content : string) =
     match visibility with
-    | Hide_content -> String.join_with ["<"; tok; ">"] ""
-    | Show_content -> String.join_with ["<"; tok; " ("; content; ")>"] ""
+    | Hide_content -> String.concat ["<"; tok; ">"]
+    | Show_content -> String.concat ["<"; tok; " ("; content; ")>"]
   in
   match desc with
   | Token.AmperAmper -> "<AmperAmper>"
@@ -134,55 +132,49 @@ let pp_token_desc desc =
 ;;
 
 let pp_token (tok : Token.t) =
-  String.join_with
+  String.concat
     [ "{"; (pp_token_desc tok.token_desc);
       " at "; (_pp_span tok.token_span); "}"; ]
-    ""
 ;;
 
 let pp_parser_error (err : Errors.parser_error) =
   let pp_expected_tokens (toks : Token.desc list) : string =
     match toks with
     | [] -> "<unknown>"
-    | _ ->
-      let tok_strs =
-        List.map (fun tok -> _pp_token_desc_impl tok Hide_content) toks in
-      let inner = String.join_with tok_strs "; " in
-      String.join_with ["["; inner; "]"] ""
+    | _ -> List.to_string toks (fun tok -> _pp_token_desc_impl tok Hide_content)
   in
   match err with
   | Parser_invalid_integer (text, span) ->
-    String.join_with
+    String.concat
       [ "[Parser]: Invalid integer token <"; text; "> at "; (_pp_span span); ]
-      ""
+
   | Parser_unexpected_token (actual, expects) ->
-    String.join_with
+    String.concat
       [ "[Parser]: Unexpected token "; (pp_token actual);
         " where expected tokens are "; (pp_expected_tokens expects); ]
-      ""
+
   | Parser_unexpected_eof (eof_loc, expects) ->
-    String.join_with
+    String.concat
       [ "[Parser]: Unexpected EOF at "; (Location.to_string eof_loc);
         " where expected tokens are "; (pp_expected_tokens expects); ]
-      ""
 ;;
 
 let pp_ast_interp_error (err : Errors.ast_interp_error) =
   match err with
   | Ast_interp_unbound_var (name, span) ->
-    String.join_with
+    String.concat
       [ "[Ast_interp]: Unbound variable <"; name; "> at "; (_pp_span span); ]
-      ""
+
   | Ast_interp_type_mismatch (expect, actual, span) ->
-    String.join_with
+    String.concat
       [ "[Ast_interp]: Expected type <"; expect; ">";
         " but got <"; actual; "> at "; (_pp_span span); ]
-      ""
+
   | Ast_interp_arity_mismatch (expect, actual, span) ->
-    String.join_with
+    String.concat
       [ "[Ast_interp]: Expected arity "; (Int.to_string expect);
         " but got "; (Int.to_string actual); " at "; (_pp_span span); ]
-      ""
+
   | Ast_interp_letrec_invalid_rhs span ->
     String.append "Invalid rhs of let rec binding at " (_pp_span span)
 ;;
@@ -363,23 +355,24 @@ let pp_ast_expr_with_typ_annot (expr : Ast.expression) =
 let pp_typer_error (err : Errors.typer_error) =
   match err with
   | Typer_unbound_var (name, span) ->
-    String.join_with
+    String.concat
       [ "[Typer]: Unbound variable <"; name; "> at "; (_pp_span span); ]
-      ""
+
   | Typer_type_mismatch (expect, actual, span) ->
-    String.join_with
+    String.concat
       [ "[Typer]: Expected type <"; (pp_ast_typ expect); ">";
         " but got <"; (pp_ast_typ actual); "> at "; (_pp_span span); ]
-      ""
+
   | Typer_illegal_letrec_rhs span ->
     String.append "[Typer]: Illegal rhs of let rec binding at " (_pp_span span)
+
   | Typer_tyvar_occurs (expect, actual, actual_span, tv_name, occurree) ->
-    String.join_with
+    String.concat
       [ "[Typer]: Expected type <"; (pp_ast_typ expect); ">";
         " but got <"; (pp_ast_typ actual); "> at "; (_pp_span actual_span);
         ". The type variable '"; tv_name;
         " occurs within "; (pp_ast_typ occurree) ]
-      ""
+
 ;;
 
 
@@ -641,4 +634,13 @@ let pp_lir_prog prog =
   let p = _create_printer () true in
   _pp_lir_prog p prog;
   p.buffer
+;;
+
+
+let pp_vasm_liveness_annot vasm_annot_pairs =
+  List.to_string vasm_annot_pairs
+    (fun (vasm, (annot : Liveness_analysis.annot)) -> 
+       let vasm_str = Vasm.pp vasm in
+       let annot_str = Set.to_string Temp.to_string annot.live_out in
+       String.join_with [vasm_str; annot_str] " # ")
 ;;

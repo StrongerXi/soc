@@ -43,8 +43,7 @@ let _check_spills
       String.join_with (List.map Temp.to_string expect_spills) ", " in
     let actual_str = Set.to_string Temp.to_string spills in
     let error_msg =
-      String.join_with
-        ["expected: ["; expect_str; "]; actual: "; actual_str] ""
+      String.concat ["expected: ["; expect_str; "]; actual: "; actual_str]
     in
     OUnit2.assert_bool error_msg (same_length && is_subset);
   | Ok coloring -> _err_unexpected_coloring coloring
@@ -68,15 +67,14 @@ let _check_coloring
     let pair_strs =
       List.map
         (fun (temp, color) ->
-           String.join_with
-             ["("; Temp.to_string temp; ", "; Int.to_string color; ")"] "")
+           String.concat
+             ["("; Temp.to_string temp; ", "; Int.to_string color; ")"])
         expected_coloring
     in
     let expect_str = String.join_with pair_strs ", " in
     let actual_str = Map.to_string Temp.to_string Int.to_string coloring in
     let error_msg =
-      String.join_with
-        ["expected: ["; expect_str; "]; actual: "; actual_str] ""
+      String.concat ["expected: ["; expect_str; "]; actual: "; actual_str]
     in
     OUnit2.assert_bool error_msg (same_length && is_subset);
 ;;

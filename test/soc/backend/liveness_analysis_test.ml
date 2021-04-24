@@ -1,21 +1,5 @@
 open Pervasives
 
-let _annotated_vasm_to_str
-    ((vasm : Vasm.t), (annot : Liveness_analysis.annot))
-  : string =
-  let vasm_str = Vasm.pp vasm in
-  let annot_str = Set.to_string Temp.to_string annot.live_out in
-  String.join_with [vasm_str; annot_str] " # "
-;;
-
-let _annotated_vasms_to_str
-    (avs : (Vasm.t * Liveness_analysis.annot) list)
-  : string =
-  let av_strs = List.map _annotated_vasm_to_str avs in
-  let avs_str = String.join_with av_strs ";\n" in
-  String.join_with ["["; avs_str; "]"] ""
-;;
-
 let _annotated_vasm_equal
   ((v1 : Vasm.t), (a1 : Liveness_analysis.annot))
   ((v2 : Vasm.t), (a2 : Liveness_analysis.annot))
@@ -68,7 +52,7 @@ let tests = OUnit2.(>:::) "Liveness_analysis_test" [
         let vasms = List.map (fun (instr, _) -> instr) expected in
         let annotated_vasms = Liveness_analysis.analyze_vasm vasms in
         OUnit2.assert_equal
-          ~printer:_annotated_vasms_to_str
+          ~printer:Pretty.pp_vasm_liveness_annot
           ~cmp:(Test_aux.list_equal _annotated_vasm_equal)
           expected annotated_vasms
       );
@@ -138,7 +122,7 @@ let tests = OUnit2.(>:::) "Liveness_analysis_test" [
         let vasms = List.map (fun (instr, _) -> instr) expected in
         let annotated_vasms = Liveness_analysis.analyze_vasm vasms in
         OUnit2.assert_equal
-          ~printer:_annotated_vasms_to_str
+          ~printer:Pretty.pp_vasm_liveness_annot
           ~cmp:(Test_aux.list_equal _annotated_vasm_equal)
           expected annotated_vasms
       );

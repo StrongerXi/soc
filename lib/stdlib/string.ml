@@ -26,12 +26,19 @@ let compare s1 s2 =
   go 0
 ;;
 
-let join_with ss sep =
-  match ss with
+let join_with init_ss sep =
+  match init_ss with
   | [] -> ""
-  | s::ss ->
-  List.fold_left
-    (fun acc s -> append (append acc sep) s)
-    s
-    ss
+  | fst_s::rst_ss ->
+    let rec go acc ss =
+      match ss with
+      | [] -> acc
+      | s::ss ->
+        let acc = append (append acc sep) s in
+        go acc ss
+    in go fst_s rst_ss
+;;
+
+let concat ss =
+  join_with ss ""
 ;;

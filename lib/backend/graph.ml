@@ -27,8 +27,7 @@ let empty_graph () =
 let _get_node_info (t : 'a t) (n : node) (func : string) : 'a node_info =
   match Map.get n t.node_infos with
   | None ->
-    failwith 
-      (String.join_with ["[Graph."; func; "] node not bound in graph"] "")
+    failwith (String.concat ["[Graph."; func; "] node not bound in graph"])
   | Some info -> info
 ;;
 

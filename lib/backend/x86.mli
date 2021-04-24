@@ -112,6 +112,9 @@ val temp_func_to_func : temp_func -> (Temp.t, physical_reg) Map.t -> func
 (** [prog_to_str prog] outputs a valid X86 assembly text of [prog] *)
 val prog_to_str : prog -> string
 
+(* For debugging *)
+val temp_func_to_str : temp_func -> string
+val physical_reg_to_str : physical_reg -> string
 
 (* Some pre-defined X86 physical registers *)
 val callee_saved_physical_regs     : physical_reg Set.t

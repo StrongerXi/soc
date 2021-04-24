@@ -1,3 +1,4 @@
+open Pervasives
 
 (* functions to format datatypes from various parts of the compiler *)
 
@@ -19,3 +20,4 @@ val pp_typer_error      : Errors.typer_error -> string
 (* Backend stuff *)
 val pp_cir : Cir.prog -> string
 val pp_lir_prog : Lir.prog -> string
+val pp_vasm_liveness_annot : (Vasm.t * Liveness_analysis.annot) list -> string

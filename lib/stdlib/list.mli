@@ -79,3 +79,7 @@ val combine : 'a list -> 'b list -> ('a * 'b) list
 
 (** [init len f] is [f 0; f 1; ...; f (len-1)], evaluated left to right. *)
 val init : int -> (int -> 'a) -> 'a list
+
+(** [to_string xs f] returns a string representation of [xs], using [f] to
+    format individual elemeents. *)
+val to_string : 'a list -> ('a -> string) -> string

@@ -91,9 +91,9 @@ let _ctx_remove_dead_temps (ctx : 'a context) (killed : Temp.t Set.t)
            if Set.mem killed_temp ctx.temps_to_spill then avalb_colors
            else
              failwith 
-               (String.join_with
+               (String.concat
                   ["[Reg_alloc._ctx_remove_killed_temps] Unspilled killed Temp "
-                  ; (Temp.to_string killed_temp); " should've been colored";] "")
+                  ; (Temp.to_string killed_temp); " should've been colored";])
          | Some color ->
            Set.add color avalb_colors)
       ctx.avalb_colors (Set.to_list killed)

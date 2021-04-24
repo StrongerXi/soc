@@ -857,7 +857,7 @@ let temp_func_to_func temp_func pr_assignment =
 ;;
 
 
-let _physical_reg_to_str (r : physical_reg) : string =
+let physical_reg_to_str (r : physical_reg) : string =
   match r with
   | Rax -> "RAX"
   | Rbx -> "RBX"
@@ -893,7 +893,7 @@ let _reg_offset_to_str
     else " + ", offset
   in
   let offset_str = Int.to_string offset in
-  String.join_with ["["; reg_str; op_str; offset_str ; "]"] ""
+  String.concat ["["; reg_str; op_str; offset_str ; "]"]
 ;;
 
 let _arg_to_str (arg : 'a arg) (gr_to_str : 'a -> string) : string =
@@ -932,37 +932,36 @@ let _instr_to_str (instr : 'a instr) (gr_to_str : 'a -> string) : string =
   | Load (arg, dst_reg) ->
     let arg_str = _arg_to_str arg gr_to_str in
     let dst_str = _reg_to_str dst_reg gr_to_str in
-    let instr_str = String.join_with ["mov "; dst_str; ", "; arg_str;] "" in
+    let instr_str = String.concat ["mov "; dst_str; ", "; arg_str;] in
     add_tab instr_str
 
   | Store (src_reg, dst_addr_reg, offset) ->
     let src_str = _reg_to_str src_reg gr_to_str in
     let dst_str = _reg_offset_to_str dst_addr_reg offset gr_to_str in
-    let instr_str = String.join_with ["mov "; dst_str; ", "; src_str;] "" in
+    let instr_str = String.concat ["mov "; dst_str; ", "; src_str;] in
     add_tab instr_str
 
   | Push reg ->
     let reg_str = _reg_to_str reg gr_to_str in
-    let instr_str = String.join_with ["push"; reg_str] " " in
+    let instr_str = String.concat ["push"; " "; reg_str] in
     add_tab instr_str
 
   | Pop reg ->
     let reg_str = _reg_to_str reg gr_to_str in
-    let instr_str = String.join_with ["pop"; reg_str] " " in
+    let instr_str = String.concat ["pop"; " "; reg_str] in
     add_tab instr_str
 
   | Binop (binop, reg, arg) ->
     let arg_str = _arg_to_str arg gr_to_str in
     let reg_str = _reg_to_str reg gr_to_str in
     let binop_str = _binop_to_str binop in
-    let instr_str =
-      String.join_with [binop_str; " "; reg_str; ", "; arg_str;] "" in
+    let instr_str = String.concat [binop_str; " "; reg_str; ", "; arg_str;] in
     add_tab instr_str
 
-  | Cmp (arg, pr) ->
+  | Cmp (arg, gr) ->
     let arg_str = _arg_to_str arg gr_to_str in
-    let pr_str = _physical_reg_to_str pr in
-    let instr_str = String.join_with ["cmp "; arg_str; ", "; pr_str;] "" in
+    let gr_str = gr_to_str gr in
+    let instr_str = String.concat ["cmp "; arg_str; ", "; gr_str;] in
     add_tab instr_str
 
   | Jmp label ->
@@ -972,12 +971,12 @@ let _instr_to_str (instr : 'a instr) (gr_to_str : 'a -> string) : string =
   | JmpC (cond, label) ->
     let suffix = _cond_to_suffix cond in
     let label_str = Label.to_string label in
-    let instr_str = String.join_with ["j"; suffix; " "; label_str] "" in
+    let instr_str = String.concat ["j"; suffix; " "; label_str] in
     add_tab instr_str
 
   | Call (target, _) -> (* args are used for liveness analysis or debugging *)
     let target_str = _call_target_to_str target gr_to_str in
-    let instr_str = String.join_with ["call"; " "; target_str] "" in
+    let instr_str = String.concat ["call"; " "; target_str] in
     add_tab instr_str
 
   | Ret -> add_tab "ret"
@@ -991,7 +990,7 @@ let _instrs_to_str (instrs : 'a instr list) (gr_to_str : 'a -> string)
 
 let _func_to_str (func : func) : string =
   let all_instrs = (Label func.entry)::func.instrs in
-  _instrs_to_str all_instrs _physical_reg_to_str
+  _instrs_to_str all_instrs physical_reg_to_str
 ;;
 
 
@@ -1069,4 +1068,9 @@ let prog_to_str (prog : prog) : string =
   let func_strs = List.map _func_to_str all_funcs in
   let funcs_str = String.join_with func_strs "\n\n" in
   String.join_with [metadata_str; funcs_str] "\n\n"
+;;
+
+let temp_func_to_str temp_func =
+  let all_instrs = (Label temp_func.entry)::temp_func.instrs in
+  _instrs_to_str all_instrs Temp.to_string
 ;;
