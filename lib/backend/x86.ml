@@ -958,10 +958,10 @@ let _instr_to_str (instr : 'a instr) (gr_to_str : 'a -> string) : string =
     let instr_str = String.concat [binop_str; " "; reg_str; ", "; arg_str;] in
     add_tab instr_str
 
-  | Cmp (arg, pr) ->
+  | Cmp (arg, gr) ->
     let arg_str = _arg_to_str arg gr_to_str in
-    let pr_str = physical_reg_to_str pr in
-    let instr_str = String.concat ["cmp "; arg_str; ", "; pr_str;] in
+    let gr_str = gr_to_str gr in
+    let instr_str = String.concat ["cmp "; arg_str; ", "; gr_str;] in
     add_tab instr_str
 
   | Jmp label ->
@@ -1068,4 +1068,9 @@ let prog_to_str (prog : prog) : string =
   let func_strs = List.map _func_to_str all_funcs in
   let funcs_str = String.join_with func_strs "\n\n" in
   String.join_with [metadata_str; funcs_str] "\n\n"
+;;
+
+let temp_func_to_str temp_func =
+  let all_instrs = (Label temp_func.entry)::temp_func.instrs in
+  _instrs_to_str all_instrs Temp.to_string
 ;;
