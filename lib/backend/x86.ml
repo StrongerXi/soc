@@ -81,6 +81,65 @@ type temp_prog =
   }
 
 
+let _map_grs_in_reg (f : 'a -> 'b) (reg : 'a reg) : 'b reg =
+  match reg with
+  | Rsp -> Rsp
+  | Rbp -> Rbp
+  | Greg gr -> Greg (f gr)
+;;
+
+let _map_grs_in_arg (f : 'a -> 'b) (arg : 'a arg) : 'b arg =
+  match arg with
+  | Lbl_arg label    -> Lbl_arg label
+  | Imm_arg n        -> Imm_arg n
+  | Reg_arg reg      -> Reg_arg (_map_grs_in_reg f reg)
+  | Mem_arg (reg, n) -> Mem_arg (_map_grs_in_reg f reg, n)
+;;
+
+let _map_grs_in_call_target (f : 'a -> 'b) (target : 'a call_target)
+  : 'b call_target =
+  match target with
+  | Reg gr  -> Reg (f gr)
+  | Lbl label -> Lbl label
+;;
+
+let _map_grs_in_instr (f : 'a -> 'b) (instr : 'a instr) : ('b instr) =
+  match instr with
+  | Label label        -> Label label
+  | Jmp label          -> Jmp label
+  | JmpC (cond, label) -> JmpC (cond, label)
+
+  | Push reg -> Push (_map_grs_in_reg f reg)
+  | Pop reg  -> Pop (_map_grs_in_reg f reg)
+
+  | Load (arg, dst_reg) ->
+    let arg = _map_grs_in_arg f arg in
+    let dst_reg = _map_grs_in_reg f dst_reg in
+    Load (arg, dst_reg)
+
+  | Store (src_reg, dst_addr_reg, offset) ->
+    let src_reg = _map_grs_in_reg f src_reg in
+    let dst_addr_reg = _map_grs_in_reg f dst_addr_reg in
+    Store (src_reg, dst_addr_reg, offset)
+
+  | Binop (op, reg, arg) ->
+    let arg = _map_grs_in_arg f arg in
+    let reg = _map_grs_in_reg f reg in
+    Binop (op, reg, arg)
+
+  | Cmp (arg, gr) ->
+    let arg = _map_grs_in_arg f arg in
+    Cmp (arg, f gr)
+
+  | Call (target, reg_arg_grs) ->
+    let target = _map_grs_in_call_target f target in
+    let reg_arg_grs = List.map f reg_arg_grs in
+    Call (target, reg_arg_grs)
+
+  | Ret -> Ret
+;;
+
+
 (* context for translation from [Lir.func] to [temp_func] *)
 type context =
   { func_label        : Label.t
@@ -733,84 +792,16 @@ let _get_callee_saved_prs (pr_assignment : (Temp.t, physical_reg) Map.t)
     (Set.empty _compare_physical_reg)
 ;;
 
-let _temp_to_pr (pr_assignment : (Temp.t, physical_reg) Map.t) (temp : Temp.t)
-  : physical_reg =
-  match Map.get temp pr_assignment with
-  | None -> failwith "[X86._temp_to_pr] no physical register for temp"
-  | Some pr -> pr
-;;
-
-let _reg_temp_to_pr
-    (pr_assignment : (Temp.t, physical_reg) Map.t) (reg : Temp.t reg)
-  : physical_reg reg =
-  match reg with
-  | Rsp -> Rsp
-  | Rbp -> Rbp
-  | Greg temp -> Greg (_temp_to_pr pr_assignment temp)
-;;
-
-let _arg_temp_to_pr
-    (pr_assignment : (Temp.t, physical_reg) Map.t) ( arg: Temp.t arg)
-  : physical_reg  arg=
-  match arg with
-  | Lbl_arg label -> Lbl_arg label
-  | Imm_arg n     -> Imm_arg n
-  | Reg_arg reg   -> Reg_arg (_reg_temp_to_pr pr_assignment reg)
-  | Mem_arg (reg, offset) ->
-    Mem_arg (_reg_temp_to_pr pr_assignment reg, offset)
-;;
-
-let _call_target_temp_to_pr
-    (pr_assignment : (Temp.t, physical_reg) Map.t) (target: Temp.t call_target)
-  : physical_reg call_target =
-  match target with
-  | Reg temp  -> Reg (_temp_to_pr pr_assignment temp)
-  | Lbl label -> Lbl label
-;;
-
 let _instr_temp_to_pr
     (pr_assignment : (Temp.t, physical_reg) Map.t) (instr : Temp.t instr)
   : physical_reg instr =
-  match instr with
-  | Label label -> Label label
-  | Load (arg, dst_reg) ->
-    let arg = _arg_temp_to_pr pr_assignment arg in
-    let dst_reg = _reg_temp_to_pr pr_assignment dst_reg in
-    Load (arg, dst_reg)
-
-  | Store (src_reg, dst_addr_reg, offset) ->
-    let src_reg = _reg_temp_to_pr pr_assignment src_reg in
-    let dst_addr_reg = _reg_temp_to_pr pr_assignment dst_addr_reg in
-    Store (src_reg, dst_addr_reg, offset)
-
-  | Push reg ->
-    Push (_reg_temp_to_pr pr_assignment reg)
-
-  | Pop reg ->
-    Pop (_reg_temp_to_pr pr_assignment reg)
-
-  | Binop (binop, reg, arg) ->
-    let arg = _arg_temp_to_pr pr_assignment arg in
-    let reg = _reg_temp_to_pr pr_assignment reg in
-    Binop (binop, reg, arg)
-
-  | Cmp (arg, temp) ->
-    let arg = _arg_temp_to_pr pr_assignment arg in
-    let pr = _temp_to_pr pr_assignment temp in
-    Cmp (arg, pr)
-
-  | Jmp label -> Jmp label
-
-  | JmpC (cond, label) -> JmpC (cond, label)
-
-  | Call (target, reg_arg_temps) -> 
-    let reg_args = List.map (_temp_to_pr pr_assignment) reg_arg_temps in
-    let target = _call_target_temp_to_pr pr_assignment target in
-    Call (target, reg_args)
-
-  | Ret -> Ret
+  let temp_to_pr (temp : Temp.t) : physical_reg =
+    match Map.get temp pr_assignment with
+    | None -> failwith "[X86._temp_to_pr] no physical register for temp"
+    | Some pr -> pr
+  in
+  _map_grs_in_instr temp_to_pr instr
 ;;
-
 
 (*      ......
  * caller stack frame
