@@ -245,7 +245,7 @@ and _transl_binop_with_short_circuit
   (ctx, Tmp result_temp)
 
 (* [...translate cnd...]
- * If cond_expr = 0 jump to false
+ * If cond_expr = false_e jump to false
  * [...translate thn...]
  * result_temp := thn_expr
  * jump to end
@@ -266,13 +266,14 @@ and _transl_cir_if
   let cond_eq_false_e = Equal (cnd_e, _false_e) in
   let ctx = _ctx_add_instr ctx (Jump (cond_eq_false_e, false_label)) in
   let ctx, thn_e = _transl_cir_expr ctx thn_ce in
-  let ctx = _ctx_add_instr ctx (Load (thn_e, result_temp)) in
-  let ctx = _ctx_add_instr ctx (Jump (cond_eq_false_e, end_label)) in
-  let ctx = _ctx_add_instr ctx (Label false_label) in
+  let ctx = _ctx_add_instrs ctx [ Load (thn_e, result_temp);
+                                  Jump (True, end_label);
+                                  Label false_label; ]
+  in
   let ctx, els_e = _transl_cir_expr ctx els_ce in
-  let ctx = _ctx_add_instr ctx (Load (els_e, result_temp)) in
-  let ctx = _ctx_add_instr ctx (Label end_label) in
-  (ctx, Tmp result_temp)
+  let ctx = _ctx_add_instrs ctx [ Load (els_e, result_temp);
+                                  Label end_label; ]
+  in (ctx, Tmp result_temp)
 
 (* NOTE must synch up with [_emit_cls_prelude]
  *
