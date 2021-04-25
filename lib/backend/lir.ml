@@ -118,8 +118,8 @@ let _ctx_gen_and_bind_temp (ctx : context) (ident : string)
 
 
 (* Some constants. TODO bug, need to tag it, as if it's integer. *)
-let _true_e    = Imm 1
-and _false_e   = Imm 0
+let _true_e    = Imm 3
+and _false_e   = Imm 1
 ;;
 
 
