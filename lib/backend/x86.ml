@@ -68,10 +68,11 @@ type prog =
   }
 
 type temp_func = 
-  { entry  : Label.t
-  ; instrs : Temp.t instr list
-  ; args   : Temp.t list
-  ; rax    : Temp.t
+  { entry        : Label.t
+  ; instrs       : Temp.t instr list
+  ; args         : Temp.t list
+  ; rax          : Temp.t
+  ; temp_manager : Temp.manager
   }
 
 type temp_prog = 
@@ -414,10 +415,11 @@ let _from_lir_func (label_manager : Label.manager) (lir_func : Lir.func)
   let ctx = _init_ctx lir_func.name args lir_func.temp_manager label_manager in
   let ctx = _emit_load_args_into_temps ctx args in
   let ctx = _emit_lir_instrs ctx lir_func.body in
-  let func = { entry  = lir_func.name
-             ; instrs = _ctx_get_instrs ctx
-             ; args   = ctx.ordered_arg_temps
-             ; rax    = ctx.rax_temp
+  let func = { entry        = lir_func.name
+             ; instrs       = _ctx_get_instrs ctx
+             ; args         = ctx.ordered_arg_temps
+             ; rax          = ctx.rax_temp
+             ; temp_manager = lir_func.temp_manager
              }
   in (func, ctx.label_manager)
 ;;
@@ -442,10 +444,11 @@ let _from_lir_main_func
   let entry_label = Label.get_native Constants.entry_name in
   let ctx = _init_ctx entry_label [] temp_manager label_manager in
   let ctx = _emit_lir_instrs ctx lir_instrs in
-  { entry  = ctx.func_label
-  ; instrs = _ctx_get_instrs ctx
-  ; args   = ctx.ordered_arg_temps
-  ; rax    = ctx.rax_temp
+  { entry        = ctx.func_label
+  ; instrs       = _ctx_get_instrs ctx
+  ; args         = ctx.ordered_arg_temps
+  ; rax          = ctx.rax_temp
+  ; temp_manager = ctx.temp_manager
   } 
 ;;
 
