@@ -116,6 +116,7 @@ let _create_ounit_test (test_name : string) : OUnit2.test =
 let tests = OUnit2.(>:::) "test_integration"
     (Stdlib.List.map _create_ounit_test
        [ 
+         "basic";
        ])
 
 let _ =
