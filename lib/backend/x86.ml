@@ -771,9 +771,8 @@ let _spill_ctx_init temp_func (temps_to_spill : Temp.t Set.t) : spill_context =
             ; temp_manager = temp_func.temp_manager
             }
   in
-  let args_to_spill = List.fold_right Set.remove temp_func.args temps_to_spill in
-  let ctx, temp_slot_pairs =
-    _get_or_gen_slots_for_temps_to_spill ctx args_to_spill in
+  let args = List.fold_right Set.add temp_func.args (Set.empty Temp.compare) in
+  let ctx, temp_slot_pairs = _get_or_gen_slots_for_temps_to_spill ctx args in
   List.fold_left (* order doesn't matter *)
     (fun ctx (temp, slot) -> _spill_to_slot ctx temp slot)
   ctx temp_slot_pairs
