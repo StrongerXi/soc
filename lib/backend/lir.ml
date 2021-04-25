@@ -25,7 +25,6 @@ type instr =
   | Store of expr * expr
   | Store_label of Label.t * expr
   | Jump of cond * Label.t
-  | Set of cond * Temp.t
   | Ret of expr
 
 type func =

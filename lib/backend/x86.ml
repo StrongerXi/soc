@@ -394,54 +394,6 @@ let _emit_lir_jump
     _ctx_add_instr ctx instr
 ;;
 
-
-(* ASSUME comparison was the last added instruction in [ctx], generate:
- *
- *     if [cond], goto Yes
- *       set temp to 0
- *       goto End
- *     Yes: 
- *       set temp to 1
- *     End:
- *)
-let _emit_set_on_cond 
-    (ctx : context) (cond : cond) (temp_to_set : Temp.t)
-  : context =
-
-    let ctx, yes_label  = _ctx_gen_label ctx "set_yes" in
-    let ctx, end_label  = _ctx_gen_label ctx "set_end" in
-    let cond_jump_i     = JmpC (cond, yes_label) in
-    let set_temp_zero_i = Load (Imm_arg 0, Greg temp_to_set) in
-    let jump_end_i      = Jmp end_label in
-    let set_temp_one_i  = Load (Imm_arg 1, Greg temp_to_set) in
-
-    let ctx = _ctx_add_instr ctx cond_jump_i in
-    let ctx = _ctx_add_instr ctx set_temp_zero_i in
-    let ctx = _ctx_add_instr ctx jump_end_i in
-    let ctx = _ctx_add_instr ctx (Label yes_label) in
-    let ctx = _ctx_add_instr ctx set_temp_one_i in
-    let ctx = _ctx_add_instr ctx (Label end_label) in
-    ctx
-;;
-
-let _emit_lir_set
-    (ctx : context) (lir_cond : Lir.cond) (target_temp : Temp.t)
-  : context =
-  match lir_cond with
-  | True -> 
-    let instr = Load (Imm_arg 1, Greg target_temp) in
-    _ctx_add_instr ctx instr
-
-  | Less (lhs_e, rhs_e) ->
-    let ctx = _emit_comparison ctx lhs_e rhs_e in
-    _emit_set_on_cond ctx Lt target_temp
-    
-  | Equal (lhs_e, rhs_e) ->
-    let ctx = _emit_comparison ctx lhs_e rhs_e in
-    _emit_set_on_cond ctx Eq target_temp
-;;
-
-
 let _emit_lir_instr (ctx : context) (lir_instr : Lir.instr) : context =
   (* TODO this could generate seriously inefficient code.
    * To optimize, e.g., consider emit certain expr into arg instead of reg *)
@@ -476,9 +428,6 @@ let _emit_lir_instr (ctx : context) (lir_instr : Lir.instr) : context =
 
   | Jump (lir_cond, target_label) ->
     _emit_lir_jump ctx lir_cond target_label
-
-  | Set (lir_cond, target_temp) ->
-    _emit_lir_set ctx lir_cond target_temp
 
   | Ret e ->
     let ctx = _emit_lir_expr ctx e ctx.rax_temp in

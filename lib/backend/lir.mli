@@ -37,8 +37,6 @@ type instr =
       (* Store_label (label, dst_addr) --> *[dst_addr] := label *)
   | Jump of cond * Label.t
       (* Jump to label if [cond] is satisfied. *)
-  | Set of cond * Temp.t
-      (* Sets content of [temp] to 1 if [cond] is satisfied, else 0 *)
   | Ret of expr
       (* Return the result of [expr] to callee function *)
 

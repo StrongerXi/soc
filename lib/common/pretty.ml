@@ -593,11 +593,6 @@ let _pp_lir_instr (p : printer) (instr : Lir.instr) : unit =
     _pp_lir_cond p cond;
     _print_newline p;
 
-  | Set (cond, temp) ->
-    _print_strs p ["SET "; Temp.to_string temp; " BASED ON "];
-    _pp_lir_cond p cond;
-    _print_newline p;
-
   | Ret expr ->
     _print_str p "RET ";
     _pp_lir_expr p expr;
