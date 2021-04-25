@@ -646,40 +646,44 @@ let temp_func_to_vasms temp_func =
 ;;
 
 
-let _get_max_rbp_offset_arg (arg : 'a arg) : int =
-  match arg with
-  | Mem_arg (Rbp, offset) -> Int.max 0 (-offset)
-                      (* ignore positive offset since stack grows downward *)
-  | Lbl_arg _             -> 0
-  | Imm_arg _             -> 0
-  | Reg_arg _             -> 0
-  | Mem_arg (_, _)        -> 0
-;;
-
-let _get_max_rbp_offset_instr (instr : 'a instr) : int =
-  match instr with
-  | Label _ -> 0
-  | Load (arg, _) -> _get_max_rbp_offset_arg arg
-  | Store (_, _, _) -> 0
-  | Push _ -> 0
-  | Pop _ -> 0
-  | Binop (_, _, arg) -> _get_max_rbp_offset_arg arg
-  | Cmp (arg, _) -> _get_max_rbp_offset_arg arg
-  | Jmp _ -> 0
-  | JmpC _ -> 0
-  | Call _ -> 0
-  | Ret ->  0
-;;
-
 (* NOTE 
  * - ignore push/pop since that changes rsp dynamically.
  * - look for negative offset only since stack grows downward,
  *   BUT RETURN POSITIVE offset for convenience. *)
 let _get_max_rbp_offset_instrs (instrs : 'a instr list) : int =
-  List.fold_left
-    (fun max instr ->
-       Int.max max (_get_max_rbp_offset_instr instr))
-    0 instrs
+
+  let _get_offset (offset : int) : int =
+    Int.max 0 (-offset)
+  in
+
+  let _get_rbp_offset_arg (arg : 'a arg) : int =
+    match arg with
+    | Mem_arg (Rbp, offset) -> _get_offset offset
+                        (* ignore positive offset since stack grows downward *)
+    | Lbl_arg _             -> 0
+    | Imm_arg _             -> 0
+    | Reg_arg _             -> 0
+    | Mem_arg (_, _)        -> 0
+  in
+  
+  let _get_rbp_offset_instr (instr : 'a instr) : int =
+    match instr with
+    | Label _ -> 0
+    | Load (arg, _) -> _get_rbp_offset_arg arg
+    | Store (_, Rbp, offset) -> _get_offset offset
+    | Store (_, _, _) -> 0
+    | Push _ -> 0
+    | Pop _ -> 0
+    | Binop (_, _, arg) -> _get_rbp_offset_arg arg
+    | Cmp (arg, _) -> _get_rbp_offset_arg arg
+    | Jmp _ -> 0
+    | JmpC _ -> 0
+    | Call _ -> 0
+    | Ret ->  0
+  in
+
+  let offsets = List.map _get_rbp_offset_instr instrs in
+  List.fold_left Int.max 0 offsets
 ;;
 
 (* Yeah yeah internal modules; but bootstrapping takes priority *)
