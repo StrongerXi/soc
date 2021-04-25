@@ -714,9 +714,15 @@ let _restore_from_slot (ctx : spill_context) (slot : int) (dst_temp : Temp.t)
 let _restore_all_spilled (ctx : spill_context) (temps : Temp.t Set.t)
   : (spill_context * (Temp.t, Temp.t) Map.t) =
 
+  let _get_slot_or_err ctx temp : int =
+    match Map.get temp ctx.slot_map with
+    | Some slot -> slot
+    | None -> failwith "[X86._restore_all_spilled] spill must precede restore"
+  in
+
   let _restore_temp ctx temp (old_to_new_temps : (Temp.t, Temp.t) Map.t)
     : (spill_context * (Temp.t, Temp.t) Map.t) =
-    let ctx, slot = _spill_ctx_get_or_alloc_slot ctx temp in
+    let slot = _get_slot_or_err ctx temp in
     let ctx, dst_temp = 
       if Set.mem temp ctx.fixed_temps then (ctx, temp)
       else _spill_ctx_gen_temp ctx
@@ -725,6 +731,7 @@ let _restore_all_spilled (ctx : spill_context) (temps : Temp.t Set.t)
     if Temp.compare temp dst_temp = 0 then (ctx, old_to_new_temps)
     else (ctx, Map.add temp dst_temp old_to_new_temps)
   in
+
   Set.fold
     (fun (ctx, old_to_new_temps) temp ->
        if Set.mem temp ctx.temps_to_spill
