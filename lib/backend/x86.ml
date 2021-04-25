@@ -460,15 +460,15 @@ let from_lir_prog (lir_prog : Lir.prog) : temp_prog =
 ;;
 
 
-let _add_temps_in_temp_reg (acc : Temp.t list) (reg : Temp.t reg)
-  : Temp.t list =
+let _add_temps_in_temp_reg (acc : Temp.t Set.t) (reg : Temp.t reg)
+  : Temp.t Set.t =
   match reg with
   | Rsp | Rbp -> acc
-  | Greg temp -> temp::acc
+  | Greg temp -> Set.add temp acc
 ;;
 
-let _add_temps_in_temp_arg  (acc : Temp.t list) (arg : Temp.t arg)
-  : Temp.t list =
+let _add_temps_in_temp_arg  (acc : Temp.t Set.t) (arg : Temp.t arg)
+  : Temp.t Set.t =
   match arg with
   | Lbl_arg _        -> acc
   | Imm_arg _        -> acc
@@ -476,47 +476,49 @@ let _add_temps_in_temp_arg  (acc : Temp.t list) (arg : Temp.t arg)
   | Mem_arg (reg, _) -> _add_temps_in_temp_reg acc reg
 ;;
 
-let _add_temps_in_call_target (acc : Temp.t list) (target : Temp.t call_target)
-  : Temp.t list =
+let _add_temps_in_call_target (acc : Temp.t Set.t) (target : Temp.t call_target)
+  : Temp.t Set.t =
   match target with
-  | Reg temp -> temp::acc
+  | Reg temp -> Set.add temp acc
   | Lbl _ -> acc
 ;;
 
 let _get_reads_and_writes_temp_instr (rax : Temp.t) (instr : Temp.t instr)
-  : (Temp.t list * Temp.t list) =
+  : (Temp.t Set.t * Temp.t Set.t) =
+  let reads, writes = (Set.empty Temp.compare, Set.empty Temp.compare) in
   match instr with
-  | Label _          -> ([], [])
-  | Jmp _            -> ([], [])
-  | JmpC (_, _)      -> ([], [])
+  | Label _          -> (reads, writes)
+  | Jmp _            -> (reads, writes)
+  | JmpC (_, _)      -> (reads, writes)
 
   | Push reg -> 
-    let reads = _add_temps_in_temp_reg [] reg in
-    (reads, [])
+    let reads = _add_temps_in_temp_reg reads reg in
+    (reads, writes)
 
   | Pop reg  ->
-    let writes = _add_temps_in_temp_reg [] reg in
-    ([], writes)
+    let writes = _add_temps_in_temp_reg writes reg in
+    (reads, writes)
 
   | Load (arg, dst_reg) ->
-    let reads = _add_temps_in_temp_arg [] arg in
-    let writes = _add_temps_in_temp_reg [] dst_reg in
+    let reads = _add_temps_in_temp_arg reads arg in
+    let writes = _add_temps_in_temp_reg writes dst_reg in
     (reads, writes)
 
     (* storing to memory, so no reg is written *)
   | Store (src_reg, dst_addr_reg, _) ->
-    let reads = _add_temps_in_temp_reg [] src_reg in
+    let reads = _add_temps_in_temp_reg reads src_reg in
     let reads = _add_temps_in_temp_reg reads dst_addr_reg in
-    (reads, [])
+    (reads, writes)
 
   | Binop (_, reg, arg) ->
-    let reg_temps = _add_temps_in_temp_reg [] reg in
-    let reads = _add_temps_in_temp_arg reg_temps arg in
-    (reads, reg_temps)
+    let reads = _add_temps_in_temp_reg reads reg in
+    let reads = _add_temps_in_temp_arg reads arg in
+    let writes = _add_temps_in_temp_reg writes reg in
+    (reads, writes)
 
   | Cmp (arg, temp) ->
-    let reads = _add_temps_in_temp_arg [temp] arg in
-    let writes = [] in
+    let reads = Set.add temp reads in
+    let reads = _add_temps_in_temp_arg reads arg in
     (reads, writes)
 
   (* Q: What about caller-saved registers?
@@ -525,15 +527,19 @@ let _get_reads_and_writes_temp_instr (rax : Temp.t) (instr : Temp.t instr)
    *    Basically we leave it to the register allocator to ensure that
    *    caller-saved registers are properly assigned or spilled *)
   | Call (target, reg_arg_temps) ->
-    let reads = _add_temps_in_call_target reg_arg_temps target in
-    let writes = [rax] in
+    let reads = List.fold_right Set.add reg_arg_temps reads in
+    let reads = _add_temps_in_call_target reads target in
+    let writes = Set.add rax writes in
     (reads, writes)
 
-  | Ret -> ([rax],  [])
+  | Ret ->
+    let reads = Set.add rax reads in
+    (reads, writes)
 ;;
 
 let _temp_instr_to_vasm (rax : Temp.t) (instr : Temp.t instr) : Vasm.t =
   let reads, writes = _get_reads_and_writes_temp_instr rax instr in
+  let reads, writes = Set.to_list reads, Set.to_list writes in
   match instr with
   | Label label -> Vasm.mk_label label
 
@@ -662,6 +668,7 @@ let _spill_ctx_init temp_func (temps_to_spill : Temp.t Set.t) : spill_context =
 let _spill_instr (ctx : spill_context) (instr : Temp.t instr) : spill_context =
   (* ASSUME instruction goes like read/compute/write *)
   let reads, writes = _get_reads_and_writes_temp_instr ctx.rax_temp instr in
+  let reads, writes = Set.to_list reads, Set.to_list writes in
   let ctx = List.fold_left _spill_temp_read ctx reads in
   let ctx = _spill_ctx_add_instr ctx instr in
   List.fold_left _spill_temp_write ctx writes
