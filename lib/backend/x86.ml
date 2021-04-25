@@ -68,16 +68,76 @@ type prog =
   }
 
 type temp_func = 
-  { entry  : Label.t
-  ; instrs : Temp.t instr list
-  ; args   : Temp.t list
-  ; rax    : Temp.t
+  { entry        : Label.t
+  ; instrs       : Temp.t instr list
+  ; args         : Temp.t list
+  ; rax          : Temp.t
+  ; temp_manager : Temp.manager
   }
 
 type temp_prog = 
   { temp_funcs : temp_func list
   ; temp_main  : temp_func
   }
+
+
+let _map_grs_in_reg (f : 'a -> 'b) (reg : 'a reg) : 'b reg =
+  match reg with
+  | Rsp -> Rsp
+  | Rbp -> Rbp
+  | Greg gr -> Greg (f gr)
+;;
+
+let _map_grs_in_arg (f : 'a -> 'b) (arg : 'a arg) : 'b arg =
+  match arg with
+  | Lbl_arg label    -> Lbl_arg label
+  | Imm_arg n        -> Imm_arg n
+  | Reg_arg reg      -> Reg_arg (_map_grs_in_reg f reg)
+  | Mem_arg (reg, n) -> Mem_arg (_map_grs_in_reg f reg, n)
+;;
+
+let _map_grs_in_call_target (f : 'a -> 'b) (target : 'a call_target)
+  : 'b call_target =
+  match target with
+  | Reg gr  -> Reg (f gr)
+  | Lbl label -> Lbl label
+;;
+
+let _map_grs_in_instr (f : 'a -> 'b) (instr : 'a instr) : ('b instr) =
+  match instr with
+  | Label label        -> Label label
+  | Jmp label          -> Jmp label
+  | JmpC (cond, label) -> JmpC (cond, label)
+
+  | Push reg -> Push (_map_grs_in_reg f reg)
+  | Pop reg  -> Pop (_map_grs_in_reg f reg)
+
+  | Load (arg, dst_reg) ->
+    let arg = _map_grs_in_arg f arg in
+    let dst_reg = _map_grs_in_reg f dst_reg in
+    Load (arg, dst_reg)
+
+  | Store (src_reg, dst_addr_reg, offset) ->
+    let src_reg = _map_grs_in_reg f src_reg in
+    let dst_addr_reg = _map_grs_in_reg f dst_addr_reg in
+    Store (src_reg, dst_addr_reg, offset)
+
+  | Binop (op, reg, arg) ->
+    let arg = _map_grs_in_arg f arg in
+    let reg = _map_grs_in_reg f reg in
+    Binop (op, reg, arg)
+
+  | Cmp (arg, gr) ->
+    let arg = _map_grs_in_arg f arg in
+    Cmp (arg, f gr)
+
+  | Call (target, reg_arg_grs) ->
+    let target = _map_grs_in_call_target f target in
+    let reg_arg_grs = List.map f reg_arg_grs in
+    Call (target, reg_arg_grs)
+
+  | Ret -> Ret
+;;
 
 
 (* context for translation from [Lir.func] to [temp_func] *)
@@ -414,10 +474,11 @@ let _from_lir_func (label_manager : Label.manager) (lir_func : Lir.func)
   let ctx = _init_ctx lir_func.name args lir_func.temp_manager label_manager in
   let ctx = _emit_load_args_into_temps ctx args in
   let ctx = _emit_lir_instrs ctx lir_func.body in
-  let func = { entry  = lir_func.name
-             ; instrs = _ctx_get_instrs ctx
-             ; args   = ctx.ordered_arg_temps
-             ; rax    = ctx.rax_temp
+  let func = { entry        = lir_func.name
+             ; instrs       = _ctx_get_instrs ctx
+             ; args         = ctx.ordered_arg_temps
+             ; rax          = ctx.rax_temp
+             ; temp_manager = lir_func.temp_manager
              }
   in (func, ctx.label_manager)
 ;;
@@ -442,10 +503,11 @@ let _from_lir_main_func
   let entry_label = Label.get_native Constants.entry_name in
   let ctx = _init_ctx entry_label [] temp_manager label_manager in
   let ctx = _emit_lir_instrs ctx lir_instrs in
-  { entry  = ctx.func_label
-  ; instrs = _ctx_get_instrs ctx
-  ; args   = ctx.ordered_arg_temps
-  ; rax    = ctx.rax_temp
+  { entry        = ctx.func_label
+  ; instrs       = _ctx_get_instrs ctx
+  ; args         = ctx.ordered_arg_temps
+  ; rax          = ctx.rax_temp
+  ; temp_manager = ctx.temp_manager
   } 
 ;;
 
@@ -460,15 +522,15 @@ let from_lir_prog (lir_prog : Lir.prog) : temp_prog =
 ;;
 
 
-let _add_temps_in_temp_reg (acc : Temp.t list) (reg : Temp.t reg)
-  : Temp.t list =
+let _add_temps_in_temp_reg (acc : Temp.t Set.t) (reg : Temp.t reg)
+  : Temp.t Set.t =
   match reg with
   | Rsp | Rbp -> acc
-  | Greg temp -> temp::acc
+  | Greg temp -> Set.add temp acc
 ;;
 
-let _add_temps_in_temp_arg  (acc : Temp.t list) (arg : Temp.t arg)
-  : Temp.t list =
+let _add_temps_in_temp_arg  (acc : Temp.t Set.t) (arg : Temp.t arg)
+  : Temp.t Set.t =
   match arg with
   | Lbl_arg _        -> acc
   | Imm_arg _        -> acc
@@ -476,47 +538,49 @@ let _add_temps_in_temp_arg  (acc : Temp.t list) (arg : Temp.t arg)
   | Mem_arg (reg, _) -> _add_temps_in_temp_reg acc reg
 ;;
 
-let _add_temps_in_call_target (acc : Temp.t list) (target : Temp.t call_target)
-  : Temp.t list =
+let _add_temps_in_call_target (acc : Temp.t Set.t) (target : Temp.t call_target)
+  : Temp.t Set.t =
   match target with
-  | Reg temp -> temp::acc
+  | Reg temp -> Set.add temp acc
   | Lbl _ -> acc
 ;;
 
 let _get_reads_and_writes_temp_instr (rax : Temp.t) (instr : Temp.t instr)
-  : (Temp.t list * Temp.t list) =
+  : (Temp.t Set.t * Temp.t Set.t) =
+  let reads, writes = (Set.empty Temp.compare, Set.empty Temp.compare) in
   match instr with
-  | Label _          -> ([], [])
-  | Jmp _            -> ([], [])
-  | JmpC (_, _)      -> ([], [])
+  | Label _          -> (reads, writes)
+  | Jmp _            -> (reads, writes)
+  | JmpC (_, _)      -> (reads, writes)
 
   | Push reg -> 
-    let reads = _add_temps_in_temp_reg [] reg in
-    (reads, [])
+    let reads = _add_temps_in_temp_reg reads reg in
+    (reads, writes)
 
   | Pop reg  ->
-    let writes = _add_temps_in_temp_reg [] reg in
-    ([], writes)
+    let writes = _add_temps_in_temp_reg writes reg in
+    (reads, writes)
 
   | Load (arg, dst_reg) ->
-    let reads = _add_temps_in_temp_arg [] arg in
-    let writes = _add_temps_in_temp_reg [] dst_reg in
+    let reads = _add_temps_in_temp_arg reads arg in
+    let writes = _add_temps_in_temp_reg writes dst_reg in
     (reads, writes)
 
     (* storing to memory, so no reg is written *)
   | Store (src_reg, dst_addr_reg, _) ->
-    let reads = _add_temps_in_temp_reg [] src_reg in
+    let reads = _add_temps_in_temp_reg reads src_reg in
     let reads = _add_temps_in_temp_reg reads dst_addr_reg in
-    (reads, [])
+    (reads, writes)
 
   | Binop (_, reg, arg) ->
-    let reg_temps = _add_temps_in_temp_reg [] reg in
-    let reads = _add_temps_in_temp_arg reg_temps arg in
-    (reads, reg_temps)
+    let reads = _add_temps_in_temp_reg reads reg in
+    let reads = _add_temps_in_temp_arg reads arg in
+    let writes = _add_temps_in_temp_reg writes reg in
+    (reads, writes)
 
   | Cmp (arg, temp) ->
-    let reads = _add_temps_in_temp_arg [temp] arg in
-    let writes = [] in
+    let reads = Set.add temp reads in
+    let reads = _add_temps_in_temp_arg reads arg in
     (reads, writes)
 
   (* Q: What about caller-saved registers?
@@ -525,15 +589,19 @@ let _get_reads_and_writes_temp_instr (rax : Temp.t) (instr : Temp.t instr)
    *    Basically we leave it to the register allocator to ensure that
    *    caller-saved registers are properly assigned or spilled *)
   | Call (target, reg_arg_temps) ->
-    let reads = _add_temps_in_call_target reg_arg_temps target in
-    let writes = [rax] in
+    let reads = List.fold_right Set.add reg_arg_temps reads in
+    let reads = _add_temps_in_call_target reads target in
+    let writes = Set.add rax writes in
     (reads, writes)
 
-  | Ret -> ([rax],  [])
+  | Ret ->
+    let reads = Set.add rax reads in
+    (reads, writes)
 ;;
 
 let _temp_instr_to_vasm (rax : Temp.t) (instr : Temp.t instr) : Vasm.t =
   let reads, writes = _get_reads_and_writes_temp_instr rax instr in
+  let reads, writes = Set.to_list reads, Set.to_list writes in
   match instr with
   | Label label -> Vasm.mk_label label
 
@@ -595,24 +663,29 @@ let _get_max_rbp_offset_instrs (instrs : 'a instr list) : int =
 (* Yeah yeah internal modules; but bootstrapping takes priority *)
 type spill_context =
   { next_slot      : int (* we could cache this in func, but KISS *)
-  ; slot_map       : (Temp.t, int) Map.t (* keys ∈ [temps_to_spill] *)
+  ; slot_map       : (Temp.t, int) Map.t    (* keys ∈ [temps_to_spill] *)
+  ; fixed_temps    : Temp.t Set.t
   ; rev_instrs     : Temp.t instr list
   ; temps_to_spill : Temp.t Set.t
   ; rax_temp       : Temp.t
+  ; temp_manager   : Temp.manager
   }
 
-let _spill_ctx_get_or_alloc_slot_offset (ctx : spill_context) (temp : Temp.t)
+let _spill_ctx_gen_temp (ctx : spill_context) : (spill_context * Temp.t) =
+  let temp_manager, temp = Temp.gen ctx.temp_manager in
+  let ctx = { ctx with temp_manager } in
+  (ctx, temp)
+;;
+
+let _spill_ctx_get_or_alloc_slot (ctx : spill_context) (temp : Temp.t)
     : (spill_context * int) =
-  let slot_to_offset (slot : int) : int =
-    -slot * Constants.word_size
-  in
   match Map.get temp ctx.slot_map with
-  | Some slot -> (ctx, slot_to_offset slot)
+  | Some slot -> (ctx, slot)
   | None ->
     let slot = ctx.next_slot in
     let ctx = { ctx with next_slot = ctx.next_slot + 1;
                          slot_map  = Map.add temp slot ctx.slot_map }
-    in (ctx, slot_to_offset slot)
+    in (ctx, slot)
 ;;
 
 let _spill_ctx_add_instr (ctx : spill_context) (instr : Temp.t instr)
@@ -620,21 +693,65 @@ let _spill_ctx_add_instr (ctx : spill_context) (instr : Temp.t instr)
   { ctx with rev_instrs = instr::ctx.rev_instrs }
 ;;
 
-let _spill_temp_read (ctx : spill_context) (temp : Temp.t) : spill_context =
-  if Set.mem temp ctx.temps_to_spill
-  then
-    let ctx, offset = _spill_ctx_get_or_alloc_slot_offset ctx temp in
-    let mem_arg = Mem_arg (Rbp, offset) in
-    _spill_ctx_add_instr ctx (Load (mem_arg, Greg temp))
-  else ctx
+let _spill_slot_to_rbp_offset (slot : int) : int =
+  -slot * Constants.word_size
 ;;
 
-let _spill_temp_write (ctx : spill_context) (temp : Temp.t) : spill_context =
-  if Set.mem temp ctx.temps_to_spill
-  then
-    let ctx, offset = _spill_ctx_get_or_alloc_slot_offset ctx temp in
-    _spill_ctx_add_instr ctx (Store (Greg temp, Rbp, offset))
-  else ctx
+let _spill_to_slot (ctx : spill_context) (src_temp : Temp.t) (slot : int)
+  : spill_context =
+  let rbp_offset = _spill_slot_to_rbp_offset slot in
+  _spill_ctx_add_instr ctx (Store (Greg src_temp, Rbp, rbp_offset))
+;;
+
+let _restore_from_slot (ctx : spill_context) (slot : int) (dst_temp : Temp.t)
+  : spill_context =
+  let rbp_offset = _spill_slot_to_rbp_offset slot in
+  let mem_arg = Mem_arg (Rbp, rbp_offset) in
+  _spill_ctx_add_instr ctx (Load (mem_arg, Greg dst_temp))
+;;
+
+
+let _restore_all_spilled (ctx : spill_context) (temps : Temp.t Set.t)
+  : (spill_context * (Temp.t, Temp.t) Map.t) =
+
+  let _get_slot_or_err ctx temp : int =
+    match Map.get temp ctx.slot_map with
+    | Some slot -> slot
+    | None -> failwith "[X86._restore_all_spilled] spill must precede restore"
+  in
+
+  let _restore_temp ctx temp (old_to_new_temps : (Temp.t, Temp.t) Map.t)
+    : (spill_context * (Temp.t, Temp.t) Map.t) =
+    let slot = _get_slot_or_err ctx temp in
+    let ctx, dst_temp = 
+      if Set.mem temp ctx.fixed_temps then (ctx, temp)
+      else _spill_ctx_gen_temp ctx
+    in
+    let ctx = _restore_from_slot ctx slot dst_temp in
+    if Temp.compare temp dst_temp = 0 then (ctx, old_to_new_temps)
+    else (ctx, Map.add temp dst_temp old_to_new_temps)
+  in
+
+  Set.fold
+    (fun (ctx, old_to_new_temps) temp ->
+       if Set.mem temp ctx.temps_to_spill
+       then _restore_temp ctx temp old_to_new_temps
+       else (ctx, old_to_new_temps))
+    (ctx, Map.empty Temp.compare)
+    temps
+;;
+
+let _get_or_gen_slots_for_temps_to_spill
+    (ctx : spill_context) (temps : Temp.t Set.t)
+  : (spill_context * ((Temp.t * int) list))  =
+  Set.fold
+    (fun (ctx, temp_slot_pairs) temp ->
+       if Set.mem temp ctx.temps_to_spill
+       then 
+         let ctx, slot = _spill_ctx_get_or_alloc_slot ctx temp in
+         (ctx, (temp, slot)::temp_slot_pairs)
+       else (ctx, temp_slot_pairs))
+    (ctx, []) temps
 ;;
 
 (* Calculate available stack slot and spill arguments if needed
@@ -642,35 +759,64 @@ let _spill_temp_write (ctx : spill_context) (temp : Temp.t) : spill_context =
 let _spill_ctx_init temp_func (temps_to_spill : Temp.t Set.t) : spill_context =
   let max_rbp_offset = _get_max_rbp_offset_instrs temp_func.instrs in
   let max_slot = Int.ceil_div max_rbp_offset Constants.word_size in
-  let ctx = { next_slot  = max_slot + 1
-            ; slot_map   = Map.empty Temp.compare 
-            ; rev_instrs = []
+  let ctx = { next_slot    = max_slot + 1
+            ; slot_map     = Map.empty Temp.compare 
+            ; fixed_temps  =
+                List.fold_right Set.add 
+                  (temp_func.rax::temp_func.args)
+                  (Set.empty Temp.compare)
+            ; rev_instrs   = []
             ; temps_to_spill
-            ; rax_temp   = temp_func.rax
-            } in
-  let args_to_spill = List.fold_right Set.remove temp_func.args temps_to_spill in
-  Set.fold _spill_temp_write ctx args_to_spill (* order doesn't matter *)
+            ; rax_temp     = temp_func.rax
+            ; temp_manager = temp_func.temp_manager
+            }
+  in
+  let args = List.fold_right Set.add temp_func.args (Set.empty Temp.compare) in
+  let ctx, temp_slot_pairs = _get_or_gen_slots_for_temps_to_spill ctx args in
+  List.fold_left (* order doesn't matter *)
+    (fun ctx (temp, slot) -> _spill_to_slot ctx temp slot)
+  ctx temp_slot_pairs
 ;;
 
 (* For any temp to spill
  * - always load from stack before a read
  * - always store to stack after a write
- * These break up the live-interval of spilled temps into smaller chunks. 
- *
- * NOTE assigning new names to different intervals might help reg-alloc,
- * but KISS for now. *)
+ * These break up the live-interval of spilled temps into smaller chunks. *)
 let _spill_instr (ctx : spill_context) (instr : Temp.t instr) : spill_context =
   (* ASSUME instruction goes like read/compute/write *)
   let reads, writes = _get_reads_and_writes_temp_instr ctx.rax_temp instr in
-  let ctx = List.fold_left _spill_temp_read ctx reads in
+  let ctx, changed_temp_map = _restore_all_spilled ctx reads in
+  let old_to_new_temp temp =
+    match Map.get temp changed_temp_map with
+    | None          -> temp
+    | Some new_temp -> new_temp
+  in
+  let instr = _map_grs_in_instr old_to_new_temp instr in
+  (* Might have restored some read temps into new temps.
+   * XXX Decision: break up 1 life-interval only?
+   * - always spill after write or spill only after first write, and map all
+   *   other uses of spilled temp into a new temp (restore into new temp too) *)
   let ctx = _spill_ctx_add_instr ctx instr in
-  List.fold_left _spill_temp_write ctx writes
+  (* X86's read and write regs may overlap, i.e., we can't map only read temps
+   * to new temps (e.g., ADD T1 T2 -> ADD T3 T4). As a result, we might need to
+   * spill new temps, but we keep track of the old ones because they are used
+   * later in the program, (or we need to udpate spill set and keep another
+   * map in context, too much work) *)
+  let ctx, temp_slot_pairs = _get_or_gen_slots_for_temps_to_spill ctx writes in
+  let temp_slot_pairs =
+    List.map (fun (temp, slot) -> (old_to_new_temp temp, slot)) temp_slot_pairs
+  in
+  List.fold_left (* order doesn't matter *)
+    (fun ctx (temp, slot) -> _spill_to_slot ctx temp slot)
+  ctx temp_slot_pairs
 ;;
 
 let spill_temps temp_func temps_to_spill =
   let ctx = _spill_ctx_init temp_func temps_to_spill in
   let ctx = List.fold_left _spill_instr ctx temp_func.instrs in
-  { temp_func with instrs = List.rev ctx.rev_instrs }
+  { temp_func with instrs       = List.rev ctx.rev_instrs 
+                 ; temp_manager = ctx.temp_manager
+  }
 ;;
 
 
@@ -723,84 +869,16 @@ let _get_callee_saved_prs (pr_assignment : (Temp.t, physical_reg) Map.t)
     (Set.empty _compare_physical_reg)
 ;;
 
-let _temp_to_pr (pr_assignment : (Temp.t, physical_reg) Map.t) (temp : Temp.t)
-  : physical_reg =
-  match Map.get temp pr_assignment with
-  | None -> failwith "[X86._temp_to_pr] no physical register for temp"
-  | Some pr -> pr
-;;
-
-let _reg_temp_to_pr
-    (pr_assignment : (Temp.t, physical_reg) Map.t) (reg : Temp.t reg)
-  : physical_reg reg =
-  match reg with
-  | Rsp -> Rsp
-  | Rbp -> Rbp
-  | Greg temp -> Greg (_temp_to_pr pr_assignment temp)
-;;
-
-let _arg_temp_to_pr
-    (pr_assignment : (Temp.t, physical_reg) Map.t) ( arg: Temp.t arg)
-  : physical_reg  arg=
-  match arg with
-  | Lbl_arg label -> Lbl_arg label
-  | Imm_arg n     -> Imm_arg n
-  | Reg_arg reg   -> Reg_arg (_reg_temp_to_pr pr_assignment reg)
-  | Mem_arg (reg, offset) ->
-    Mem_arg (_reg_temp_to_pr pr_assignment reg, offset)
-;;
-
-let _call_target_temp_to_pr
-    (pr_assignment : (Temp.t, physical_reg) Map.t) (target: Temp.t call_target)
-  : physical_reg call_target =
-  match target with
-  | Reg temp  -> Reg (_temp_to_pr pr_assignment temp)
-  | Lbl label -> Lbl label
-;;
-
 let _instr_temp_to_pr
     (pr_assignment : (Temp.t, physical_reg) Map.t) (instr : Temp.t instr)
   : physical_reg instr =
-  match instr with
-  | Label label -> Label label
-  | Load (arg, dst_reg) ->
-    let arg = _arg_temp_to_pr pr_assignment arg in
-    let dst_reg = _reg_temp_to_pr pr_assignment dst_reg in
-    Load (arg, dst_reg)
-
-  | Store (src_reg, dst_addr_reg, offset) ->
-    let src_reg = _reg_temp_to_pr pr_assignment src_reg in
-    let dst_addr_reg = _reg_temp_to_pr pr_assignment dst_addr_reg in
-    Store (src_reg, dst_addr_reg, offset)
-
-  | Push reg ->
-    Push (_reg_temp_to_pr pr_assignment reg)
-
-  | Pop reg ->
-    Pop (_reg_temp_to_pr pr_assignment reg)
-
-  | Binop (binop, reg, arg) ->
-    let arg = _arg_temp_to_pr pr_assignment arg in
-    let reg = _reg_temp_to_pr pr_assignment reg in
-    Binop (binop, reg, arg)
-
-  | Cmp (arg, temp) ->
-    let arg = _arg_temp_to_pr pr_assignment arg in
-    let pr = _temp_to_pr pr_assignment temp in
-    Cmp (arg, pr)
-
-  | Jmp label -> Jmp label
-
-  | JmpC (cond, label) -> JmpC (cond, label)
-
-  | Call (target, reg_arg_temps) -> 
-    let reg_args = List.map (_temp_to_pr pr_assignment) reg_arg_temps in
-    let target = _call_target_temp_to_pr pr_assignment target in
-    Call (target, reg_args)
-
-  | Ret -> Ret
+  let temp_to_pr (temp : Temp.t) : physical_reg =
+    match Map.get temp pr_assignment with
+    | None -> failwith "[X86._temp_to_pr] no physical register for temp"
+    | Some pr -> pr
+  in
+  _map_grs_in_instr temp_to_pr instr
 ;;
-
 
 (*      ......
  * caller stack frame
