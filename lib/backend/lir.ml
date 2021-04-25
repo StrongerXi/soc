@@ -173,8 +173,8 @@ and _transl_cir_primop (ctx : context)
 
   | SubInt ->
     let ctx, rhs_e = _transl_cir_expr ctx rhs_ce in
-    (* (2a + 1) - (2b + 1) = 2(a-b) = (2(a+b) - 1) + 1 *)
-    (ctx, Op (Add, (Op (Add, lhs_e, rhs_e)), Imm 1))
+    (* (2a + 1) - (2b + 1) = 2(a-b) = (2(a-b) - 1) + 1 *)
+    (ctx, Op (Add, (Op (Sub, lhs_e, rhs_e)), Imm 1))
 
   | MulInt ->
     let ctx, rhs_e = _transl_cir_expr ctx rhs_ce in
