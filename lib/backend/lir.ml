@@ -25,7 +25,6 @@ type instr =
   | Store of expr * expr
   | Store_label of Label.t * expr
   | Jump of cond * Label.t
-  | Set of cond * Temp.t
   | Ret of expr
 
 type func =
@@ -119,8 +118,8 @@ let _ctx_gen_and_bind_temp (ctx : context) (ident : string)
 
 
 (* Some constants. TODO bug, need to tag it, as if it's integer. *)
-let _true_e    = Imm 1
-and _false_e   = Imm 0
+let _true_e    = Imm 3
+and _false_e   = Imm 1
 ;;
 
 
@@ -187,18 +186,33 @@ and _transl_cir_primop (ctx : context)
 
   (* TODO could optimize And/Or if it's in an if condition -- jump straight
    * to corresponding branch when short-circuiting *)
-  | LogicAnd ->
-    _transl_binop_with_short_circuit ctx lhs_e rhs_ce _false_e "and"
+  | LogicAnd -> _transl_binop_with_short_circuit ctx lhs_e rhs_ce _false_e "and"
+  | LogicOr  -> _transl_binop_with_short_circuit ctx lhs_e rhs_ce _true_e "or"
+  | LtInt    -> _transl_lt ctx lhs_e rhs_ce
 
-  | LogicOr ->
-    _transl_binop_with_short_circuit ctx lhs_e rhs_ce _true_e "or"
-
-  | LtInt ->
-    let ctx, rhs_e = _transl_cir_expr ctx rhs_ce in
-    let ctx, result_temp = _ctx_gen_temp ctx in
-    let set_instr = Set (Less (lhs_e, rhs_e), result_temp) in
-    let ctx = _ctx_add_instr ctx set_instr in
-    (ctx, Tmp result_temp)
+(* 
+ *   [...translate rhs...]
+ *   if lhs < rhs jump to lt-true
+ *   result_temp := false
+ *   jump to lt-end
+ * lt-true:
+ *   result_temp := true
+ * lt-end: ... *)
+and _transl_lt (ctx : context) (lhs_e : expr) (rhs_ce : Cir.expr)
+  : (context * expr) =
+  let ctx, rhs_e = _transl_cir_expr ctx rhs_ce in
+  let ctx, true_label = _ctx_gen_label ctx "lt_true" in
+  let ctx, end_label = _ctx_gen_label ctx "lt_end" in
+  let ctx, result_temp = _ctx_gen_temp ctx in
+  let lhs_lt_rhs = Less (lhs_e, rhs_e) in
+  let ctx = _ctx_add_instrs ctx [ Jump (lhs_lt_rhs, true_label);
+                                  Load (_false_e, result_temp);
+                                  Jump (True, end_label);
+                                  Label true_label;
+                                  Load (_true_e, result_temp);
+                                  Label end_label; ]
+  in
+  (ctx, Tmp result_temp)
     
 (* Macro to help codegen:
  *
@@ -231,7 +245,7 @@ and _transl_binop_with_short_circuit
   (ctx, Tmp result_temp)
 
 (* [...translate cnd...]
- * If cond_expr = 0 jump to false
+ * If cond_expr = false_e jump to false
  * [...translate thn...]
  * result_temp := thn_expr
  * jump to end
@@ -252,13 +266,14 @@ and _transl_cir_if
   let cond_eq_false_e = Equal (cnd_e, _false_e) in
   let ctx = _ctx_add_instr ctx (Jump (cond_eq_false_e, false_label)) in
   let ctx, thn_e = _transl_cir_expr ctx thn_ce in
-  let ctx = _ctx_add_instr ctx (Load (thn_e, result_temp)) in
-  let ctx = _ctx_add_instr ctx (Jump (cond_eq_false_e, end_label)) in
-  let ctx = _ctx_add_instr ctx (Label false_label) in
+  let ctx = _ctx_add_instrs ctx [ Load (thn_e, result_temp);
+                                  Jump (True, end_label);
+                                  Label false_label; ]
+  in
   let ctx, els_e = _transl_cir_expr ctx els_ce in
-  let ctx = _ctx_add_instr ctx (Load (els_e, result_temp)) in
-  let ctx = _ctx_add_instr ctx (Label end_label) in
-  (ctx, Tmp result_temp)
+  let ctx = _ctx_add_instrs ctx [ Load (els_e, result_temp);
+                                  Label end_label; ]
+  in (ctx, Tmp result_temp)
 
 (* NOTE must synch up with [_emit_cls_prelude]
  *
