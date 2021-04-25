@@ -660,6 +660,7 @@ let _get_max_rbp_offset_instr (instr : 'a instr) : int =
   match instr with
   | Label _ -> 0
   | Load (arg, _) -> _get_max_rbp_offset_arg arg
+  | Store (_, Rbp, offset) -> Int.max 0 (-offset)
   | Store (_, _, _) -> 0
   | Push _ -> 0
   | Pop _ -> 0
