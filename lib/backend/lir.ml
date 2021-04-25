@@ -187,18 +187,33 @@ and _transl_cir_primop (ctx : context)
 
   (* TODO could optimize And/Or if it's in an if condition -- jump straight
    * to corresponding branch when short-circuiting *)
-  | LogicAnd ->
-    _transl_binop_with_short_circuit ctx lhs_e rhs_ce _false_e "and"
+  | LogicAnd -> _transl_binop_with_short_circuit ctx lhs_e rhs_ce _false_e "and"
+  | LogicOr  -> _transl_binop_with_short_circuit ctx lhs_e rhs_ce _true_e "or"
+  | LtInt    -> _transl_lt ctx lhs_e rhs_ce
 
-  | LogicOr ->
-    _transl_binop_with_short_circuit ctx lhs_e rhs_ce _true_e "or"
-
-  | LtInt ->
-    let ctx, rhs_e = _transl_cir_expr ctx rhs_ce in
-    let ctx, result_temp = _ctx_gen_temp ctx in
-    let set_instr = Set (Less (lhs_e, rhs_e), result_temp) in
-    let ctx = _ctx_add_instr ctx set_instr in
-    (ctx, Tmp result_temp)
+(* 
+ *   [...translate rhs...]
+ *   if lhs < rhs jump to lt-true
+ *   result_temp := false
+ *   jump to lt-end
+ * lt-true:
+ *   result_temp := true
+ * lt-end: ... *)
+and _transl_lt (ctx : context) (lhs_e : expr) (rhs_ce : Cir.expr)
+  : (context * expr) =
+  let ctx, rhs_e = _transl_cir_expr ctx rhs_ce in
+  let ctx, true_label = _ctx_gen_label ctx "lt_true" in
+  let ctx, end_label = _ctx_gen_label ctx "lt_end" in
+  let ctx, result_temp = _ctx_gen_temp ctx in
+  let lhs_lt_rhs = Less (lhs_e, rhs_e) in
+  let ctx = _ctx_add_instrs ctx [ Jump (lhs_lt_rhs, true_label);
+                                  Load (_false_e, result_temp);
+                                  Jump (True, end_label);
+                                  Label true_label;
+                                  Load (_true_e, result_temp);
+                                  Label end_label; ]
+  in
+  (ctx, Tmp result_temp)
     
 (* Macro to help codegen:
  *
