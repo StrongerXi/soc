@@ -309,23 +309,45 @@ and _emit_prepare_x86_call_args (init_ctx : context)
     let ctx = _ctx_add_instr ctx align_rsp_i in
     (ctx, extra_arg_offset + align_offset)
   in
-  let rec go ctx arg_es (ordered_arg_temps : Temp.t list)  =
+
+  (* NOTE Hopefully coalescing or other optimization could eliminate some
+   * redundant moves here. Also can consider evaluating arg-expr with most
+   * nested calls first, to avoid arg-temps living across calls *)
+  let move_temps_ret_dsts ctx (src_to_dst_pairs : (Temp.t * Temp.t) list)
+    : (context * Temp.t list) =
+    List.fold_left
+      (fun (ctx, dsts) (src_temp, dst_temp) ->
+         let instr = Load (Reg_arg (Greg src_temp), Greg dst_temp) in
+         let ctx = _ctx_add_instr ctx instr in
+         (ctx, dst_temp::dsts))
+    (ctx, []) src_to_dst_pairs
+  in
+
+  let rec go ctx arg_es
+      (ordered_arg_temps : Temp.t list)
+      (arg_temp_pairs : (Temp.t * Temp.t) list) =
     match arg_es, ordered_arg_temps  with
-    | [], _ -> (ctx, [], 0) (* 0 is always aligned *)
+    | [], _ ->
+      let ctx, arg_temps  = move_temps_ret_dsts ctx arg_temp_pairs in
+      (ctx, arg_temps, 0) (* 0 is always aligned *)
+
     | _, [] -> 
       let ctx, arg_bytes = _emit_push_onto_stack ctx arg_es in
-      (ctx, [], arg_bytes)
+      let ctx, arg_temps = move_temps_ret_dsts ctx arg_temp_pairs in
+      (ctx, arg_temps, arg_bytes)
 
     | arg_e::rest_arg_es, arg_temp::rest_arg_temps ->
-      let ctx = _emit_lir_expr ctx arg_e arg_temp in
-      let ctx, reg_arg_temps, arg_bytes = go ctx rest_arg_es rest_arg_temps in
-      (ctx, arg_temp::reg_arg_temps, arg_bytes)
+      let ctx, temp = _ctx_gen_temp ctx in
+      let ctx = _emit_lir_expr ctx arg_e temp in
+      let arg_temp_pairs = (temp, arg_temp)::arg_temp_pairs in
+      go ctx rest_arg_es rest_arg_temps arg_temp_pairs
   in
+
   let x86_arg_temps =
     List.combine init_ctx.ordered_arg_temps ordered_argument_physical_regs
     |> List.map (fun (temp, _) -> temp)
   in
-  go init_ctx init_arg_es x86_arg_temps
+  go init_ctx init_arg_es x86_arg_temps []
 
 and _emit_lir_op (ctx : context)
     (op : Lir.op) (lhs_e : Lir.expr) (rhs_e : Lir.expr) (dst_temp : Temp.t)
