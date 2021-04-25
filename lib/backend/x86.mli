@@ -54,8 +54,8 @@ type 'a instr =
   | JmpC of cond * Label.t
       (* Jump to label if [cond] is satisfied. *)
   | Call of 'a call_target * 'a list
-      (* Target and arguments that are passed in registers.
-       * The arguments are used for debugging for liveness analysis purposes *)
+      (* Target and arguments that are passed in registers in no specific order.
+       * The arguments are used for debugging or liveness analysis purposes *)
   | Ret
       (* Return control flow to caller site *)
 
