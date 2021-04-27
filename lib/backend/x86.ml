@@ -476,8 +476,10 @@ let _from_lir_main_func
     (label_manager : Label.manager)
     (body_instrs : Lir.instr list)
   : temp_func =
-  (* TODO call "soml_init" here, or make this a function called by C runtime?
-   * TBD when implementing runtime. *)
+  (* NOTE assume the entry function 
+   * - is invoked by runtime with the designated label
+   * - has no args 
+   * MUST synch with C runtime *)
   let main_entry = Label.get_native Constants.entry_name in
   _from_lir_func_impl label_manager temp_manager main_entry [] body_instrs
   |> (fun (temp_func, _) -> temp_func)
