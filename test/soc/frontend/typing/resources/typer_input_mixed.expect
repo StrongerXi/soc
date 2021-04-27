@@ -1,10 +1,10 @@
 [Typer]: Expected type <int> but got <bool> at <(7, 3)-(7, 7)>
-[Typer]: Expected type <int -> 'X31 -> 'X30> but got <int -> int> at <(22, 1)-(22, 1)>
+[Typer]: Expected type <int -> 'X_31 -> 'X_30> but got <int -> int> at <(22, 1)-(22, 1)>
 [Typer]: Illegal rhs of let rec binding at <(32, 13)-(32, 15)>
 [Typer]: Illegal rhs of let rec binding at <(35, 13)-(35, 17)>
-[Typer]: Expected type <'X42> but got <'X42 -> 'X41 -> 'X40> at <(35, 15)-(35, 15)>. The type variable 'X42 occurs within 'X42 -> 'X41 -> 'X40
-[Typer]: Expected type <'X42 -> int -> 'X40> but got <'X40> at <(35, 13)-(35, 17)>. The type variable 'X40 occurs within 'X42 -> int -> 'X40
+[Typer]: Expected type <'X_42> but got <'X_42 -> 'X_41 -> 'X_40> at <(35, 15)-(35, 15)>. The type variable 'X_42 occurs within 'X_42 -> 'X_41 -> 'X_40
+[Typer]: Expected type <'X_42 -> int -> 'X_40> but got <'X_40> at <(35, 13)-(35, 17)>. The type variable 'X_40 occurs within 'X_42 -> int -> 'X_40
 [Typer]: Expected type <int> but got <bool> at <(38, 9)-(38, 13)>
 [Typer]: Unbound variable <p> at <(43, 6)-(43, 6)>
 [Typer]: Expected type <int> but got <bool> at <(43, 10)-(43, 10)>
-[Typer]: Expected type <'X53 -> 'X52> but got <int> at <(43, 3)-(43, 3)>
+[Typer]: Expected type <'X_53 -> 'X_52> but got <int> at <(43, 3)-(43, 3)>

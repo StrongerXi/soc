@@ -1,5 +1,5 @@
-let rec (f : 'X0) = (fun (x : 'X1) -> + x 1)
-and (g : 'X2) = (fun (x : 'X1) -> x)
+let rec (f : 'X_0) = (fun (x : 'a_1) -> + x 1)
+and (g : 'X_2) = (fun (x : 'a_1) -> x)
 ;;
 
 g 12
