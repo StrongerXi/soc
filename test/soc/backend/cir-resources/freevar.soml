@@ -2,8 +2,21 @@
 let rec f x = g x
 and g x = f x;;
 
-let f1 x y z =
-  (fun x ->
+let nested_func_fvs x y z =
+  (fun ignore ->
      (fun a b c ->
         x + a + y))
+;;
+
+let nested_let_rec_fvs x y =
+  (fun ignore ->
+     let rec x a = x a
+     and z a = y in
+     42)
+;;
+
+let nested_let_fvs x =
+  (fun ignore ->
+     let x = x in
+     42)
 ;;
