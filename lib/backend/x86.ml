@@ -352,14 +352,23 @@ and _emit_lir_op (ctx : context)
   let ctx, rhs_temp = _ctx_gen_temp ctx in
   let ctx = _emit_lir_expr ctx lhs_e dst_temp in
   let ctx = _emit_lir_expr ctx rhs_e rhs_temp in
-  let binop =
-    match op with
-    | Add -> Add
-    | Sub -> Sub
-    | Mul -> Mul
-  in
-  let instr = Binop (binop, Greg dst_temp, Reg_arg (Greg rhs_temp)) in
-  _ctx_add_instr ctx instr
+  match op with
+  | Add ->
+    _ctx_add_instr ctx (Binop (Add, Greg dst_temp, Reg_arg (Greg rhs_temp)))
+  | Sub ->
+    _ctx_add_instr ctx (Binop (Sub, Greg dst_temp, Reg_arg (Greg rhs_temp)))
+  | Mul -> 
+    _ctx_add_instr ctx (Binop (Mul, Greg dst_temp, Reg_arg (Greg rhs_temp)))
+  | Div ->
+    let clear_rdx_i = Load (Imm_arg 0, Greg ctx.rdx_temp) in
+    let lhs_to_rax_i = Load (Reg_arg (Greg dst_temp), Greg ctx.rax_temp) in
+    let idiv_i = IDiv (Greg rhs_temp) in
+    let quotient_to_dst_i = Load (Reg_arg (Greg ctx.rax_temp), Greg dst_temp) in
+    let ctx = _ctx_add_instr ctx clear_rdx_i in
+    let ctx = _ctx_add_instr ctx lhs_to_rax_i in
+    let ctx = _ctx_add_instr ctx idiv_i in
+    let ctx = _ctx_add_instr ctx quotient_to_dst_i in
+    ctx
 ;;
 
 let _emit_comparison

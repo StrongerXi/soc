@@ -4,6 +4,7 @@ type op =
   | Add
   | Sub
   | Mul
+  | Div
 
 (* NOTE interpretation is up to instructions (as address or plain value).*)
 type expr =

@@ -4,7 +4,13 @@ let min x y =
   else x
 ;;
 
+print (33 * (0 - 3))
+;;
+print (min (0 - 7) 20)
+;;
 print (min 7 20)
+;;
+print (min (0 - 27) (7 - 270))
 ;;
 print (min 7 7)
 ;;
