@@ -1,0 +1,12 @@
+let (nested_let_2 : _ -> _) = (fun x_0 -> 
+  let x_1 = x_0 in
+  42
+)
+;;
+
+let (nested_let_rec_6 : _ -> _) = (fun x_3 -> 
+  let rec (x_4 : _ -> _) = (fun a_5 -> x_4 a_5) in
+  42
+)
+;;
+
