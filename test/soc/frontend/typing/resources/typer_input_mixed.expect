@@ -1,3 +1,4 @@
+[Typer]: Expected type <int> but got <bool> at <(7, 3)-(7, 7)>
 [Typer]: Expected type <int -> 'X31 -> 'X30> but got <int -> int> at <(22, 1)-(22, 1)>
 [Typer]: Illegal rhs of let rec binding at <(32, 13)-(32, 15)>
 [Typer]: Illegal rhs of let rec binding at <(35, 13)-(35, 17)>

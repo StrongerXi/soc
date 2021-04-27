@@ -63,10 +63,12 @@ let _rename_tyvars_in_opt_typed_var t (tv_map : (string, string) Map.t)
   (t, tv_map, otv)
 ;;
 
-let rec _rename_tyvars_in_expr t (tv_map : (string, string) Map.t)
-    (expr : Ast.expression) : (t * Ast.expression) =
+(* NOTE function's argument bindings might introduce new tyvars *)
+let rec _rename_tyvars_in_expr
+    t (tv_map : (string, string) Map.t) (expr : Ast.expression)
+  : (t * (string, string) Map.t * Ast.expression) =
   match expr.expr_desc with
-  | Exp_const _ | Exp_ident _  -> (t, expr)
+  | Exp_const _ | Exp_ident _  -> (t, tv_map, expr)
   | Exp_fun (names, body) ->
     let t, tv_map, rev_names = List.fold_left
         (fun (t, tv_map, rev_names) otv ->
@@ -76,32 +78,32 @@ let rec _rename_tyvars_in_expr t (tv_map : (string, string) Map.t)
         names
     in
     let names = List.rev rev_names in
-    let t, body = _rename_tyvars_in_expr t tv_map body in
+    let t, tv_map, body = _rename_tyvars_in_expr t tv_map body in
     let expr = { expr with expr_desc = Exp_fun (names, body) } in
-    (t, expr)
+    (t, tv_map, expr)
   | Exp_if (cnd, thn, els) ->
-    let t, cnd = _rename_tyvars_in_expr t tv_map cnd in
-    let t, thn = _rename_tyvars_in_expr t tv_map thn in
-    let t, els = _rename_tyvars_in_expr t tv_map els in
+    let t, tv_map, cnd = _rename_tyvars_in_expr t tv_map cnd in
+    let t, tv_map, thn = _rename_tyvars_in_expr t tv_map thn in
+    let t, tv_map, els = _rename_tyvars_in_expr t tv_map els in
     let expr = { expr with expr_desc = Exp_if (cnd, thn, els) } in
-    (t, expr)
+    (t, tv_map, expr)
   | Exp_let (rec_flag, bds, body) ->
     let t, tv_map, bds = _rename_tyvars_in_let_bindings t tv_map bds in
-    let t, body = _rename_tyvars_in_expr t tv_map body in
+    let t, tv_map, body = _rename_tyvars_in_expr t tv_map body in
     let expr = { expr with expr_desc = Exp_let (rec_flag, bds, body) } in
-    (t, expr)
+    (t, tv_map, expr)
   | Exp_apply (func, args) -> 
-    let t, func = _rename_tyvars_in_expr t tv_map func in
-    let t, rev_args = List.fold_left
-        (fun (t, rev_args) arg ->
-           let t, arg = _rename_tyvars_in_expr t tv_map arg in
-           (t, arg::rev_args))
-        (t, [])
+    let t, tv_map, func = _rename_tyvars_in_expr t tv_map func in
+    let t, tv_map, rev_args = List.fold_left
+        (fun (t, tv_map, rev_args) arg ->
+           let t, tv_map, arg = _rename_tyvars_in_expr t tv_map arg in
+           (t, tv_map, arg::rev_args))
+        (t, tv_map, [])
         args
     in
     let args = List.rev rev_args in
     let expr = { expr with expr_desc = Exp_apply (func, args) } in
-    (t, expr)
+    (t, tv_map, expr)
 
 and _rename_tyvars_in_let_bindings t (tv_map : (string, string) Map.t)
     (bds : Ast.binding list)
@@ -111,7 +113,9 @@ and _rename_tyvars_in_let_bindings t (tv_map : (string, string) Map.t)
      (bd : Ast.binding) : (t * (string, string) Map.t * Ast.binding) =
     let t, tv_map, binding_lhs =
       _rename_tyvars_in_opt_typed_var t tv_map bd.binding_lhs in
-    let t, binding_rhs = _rename_tyvars_in_expr t tv_map bd.binding_rhs in
+    let t, tv_map, binding_rhs =
+      _rename_tyvars_in_expr t tv_map bd.binding_rhs
+    in
     let bd = { Ast.binding_lhs; binding_rhs } in
     (t, tv_map, bd)
   in
@@ -131,7 +135,7 @@ let _rename_tyvars_in_struct_item t (item : Ast.struct_item)
   let tv_map = Map.empty String.compare in
   match item.struct_item_desc with
   | Struct_eval expr -> 
-    let (t, expr) = _rename_tyvars_in_expr t tv_map expr in
+    let (t, _, expr) = _rename_tyvars_in_expr t tv_map expr in
     let item = { item with struct_item_desc = Struct_eval expr } in
     (t, item)
   | Struct_bind (rec_flag, bds) ->

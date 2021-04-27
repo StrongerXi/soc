@@ -1,6 +1,6 @@
 
 let rec f = (fun (x : 'a) -> x)
-and g = (fun (x : 'a) -> x)
+and g = (fun (x : 'a) -> x + 1)
 ;;
 
 f 12;;
