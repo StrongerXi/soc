@@ -70,7 +70,7 @@ type prog =
 type temp_func = 
   { entry        : Label.t
   ; instrs       : Temp.t instr list
-  ; args         : Temp.t list
+  ; reg_args     : Temp.t list
   ; rax          : Temp.t
   ; temp_manager : Temp.manager
   }
@@ -146,7 +146,7 @@ type context =
 
   (* following are used to encode calling convention *)
   ; rax_temp          : Temp.t
-  ; ordered_arg_temps : Temp.t list 
+  ; ordered_arg_regs  : Temp.t list 
     (* _All_ args that can fit in regs; NOTE Original func might not have this
      * many args, but calls to other func might need more args. It can also
      * have more, but we ignore the rest. *)
@@ -157,37 +157,26 @@ type context =
   ; rev_instrs        : Temp.t instr list
   }
 
-let rec _generate_n_temps (manager : Temp.manager) (n : int)
+(* ENSURE [length output-temp-list] = [length ordered_arg_reg_temps] *)
+let _generate_ordered_arg_reg_temps (init_temp_man : Temp.manager)
   : (Temp.manager * Temp.t list) =
-  if n <= 0 then (manager, [])
-  else 
-    let manager, n_sub_1_temps = _generate_n_temps manager (n - 1) in
-    let manager, temp = Temp.gen manager in
-    (manager, temp::n_sub_1_temps)
-;;
-
-(* expand or shrink [temps] so that output is a list of size [max(0, n)] *)
-let rec _ensure_n_temps
-    (manager : Temp.manager) (temps : Temp.t list) (n : int)
-  : (Temp.manager * Temp.t list) =
-  if n <= 0 then (manager, [])
-  else
-    match temps with
-    | [] -> _generate_n_temps manager n
-    | temp::temps ->
-      let manager, n_sub_1_temps = _ensure_n_temps manager temps (n - 1) in
-      (manager, temp::n_sub_1_temps)
+  List.fold_right
+    (fun _ (temp_man, ordered_arg_reg_temps) ->
+       let temp_man, arg_reg_temp = Temp.gen temp_man in
+       (temp_man, arg_reg_temp::ordered_arg_reg_temps))
+    ordered_argument_physical_regs
+    (init_temp_man, [])
 ;;
 
 let _init_ctx
-    (func_label : Label.t) (ordered_arg_temps : Temp.t list)
+    (func_label : Label.t)
     (temp_manager : Temp.manager) (label_manager : Label.manager)
   : context =
   let temp_manager, rax_temp = Temp.gen temp_manager in
-  let x86_arg_reg_num = List.length ordered_argument_physical_regs in
-  let temp_manager, ordered_arg_temps =
-    _ensure_n_temps temp_manager ordered_arg_temps x86_arg_reg_num in
-  { func_label; rax_temp; ordered_arg_temps;
+  let temp_manager, ordered_arg_regs =
+    _generate_ordered_arg_reg_temps temp_manager
+  in
+  { func_label; rax_temp; ordered_arg_regs;
     temp_manager; label_manager; rev_instrs = [] }
 ;;
 
@@ -214,9 +203,10 @@ let _ctx_get_epilogue_label (ctx : context) : Label.t =
   Label.to_epilogue ctx.func_label
 ;;
 
-(* only need to load extra args from stack.
+(* Load all args into temps (from regs or stack).
+ * This ensures that no reg-passed arg will be modified.
  * Must synch with [_emit_prepare_x86_call_args] *)
-let _emit_load_args_into_temps (ctx : context) (ordered_arg_temps : Temp.t list)
+let _emit_load_args_into_temps (ctx : context) (ordered_args : Temp.t list)
   : context =
   let load_extra_args ctx extra_arg_temps : context =
     List.fold_left
@@ -228,14 +218,16 @@ let _emit_load_args_into_temps (ctx : context) (ordered_arg_temps : Temp.t list)
       (ctx, 2 * Constants.word_size) extra_arg_temps
     |> (fun (ctx, _) -> ctx)
   in
-  let rec go ctx arg_temps (arg_prs : physical_reg list) : context =
-    match arg_temps, arg_prs with
+  let rec go ctx (arg_temps : Temp.t list) (arg_regs : Temp.t list) : context =
+    match arg_temps, arg_regs with
     | [], _ -> ctx
     | _, [] -> load_extra_args ctx arg_temps
-    | _::rest_arg_temps, _::rest_arg_prs ->
+    | arg_temp::rest_arg_temps, arg_reg::rest_arg_prs ->
+      let instr = Load (Reg_arg (Greg arg_reg), Greg arg_temp) in
+      let ctx = _ctx_add_instr ctx instr in
       go ctx rest_arg_temps rest_arg_prs
   in
-  go ctx ordered_arg_temps ordered_argument_physical_regs
+  go ctx ordered_args ctx.ordered_arg_regs
 ;;
 
 let rec _emit_lir_expr (ctx : context) (e : Lir.expr) (dst_temp : Temp.t)
@@ -324,9 +316,9 @@ and _emit_prepare_x86_call_args (init_ctx : context)
   in
 
   let rec go ctx arg_es
-      (ordered_arg_temps : Temp.t list)
+      (ordered_arg_regs : Temp.t list)
       (arg_temp_pairs : (Temp.t * Temp.t) list) =
-    match arg_es, ordered_arg_temps  with
+    match arg_es, ordered_arg_regs  with
     | [], _ ->
       let ctx, arg_temps  = move_temps_ret_dsts ctx arg_temp_pairs in
       (ctx, arg_temps, 0) (* 0 is always aligned *)
@@ -344,7 +336,7 @@ and _emit_prepare_x86_call_args (init_ctx : context)
   in
 
   let x86_arg_temps =
-    List.combine init_ctx.ordered_arg_temps ordered_argument_physical_regs
+    List.combine init_ctx.ordered_arg_regs ordered_argument_physical_regs
     |> List.map (fun (temp, _) -> temp)
   in
   go init_ctx init_arg_es x86_arg_temps []
@@ -443,12 +435,12 @@ let _from_lir_func_impl
     (label_manager : Label.manager) (temp_manager : Temp.manager)
     (entry : Label.t) (ordered_args : Temp.t list) (body : Lir.instr list)
   : (temp_func * Label.manager) =
-  let ctx = _init_ctx entry ordered_args temp_manager label_manager in
+  let ctx = _init_ctx entry temp_manager label_manager in
   let ctx = _emit_load_args_into_temps ctx ordered_args in
   let ctx = _emit_lir_instrs ctx body in
   let func = { entry
              ; instrs       = _ctx_get_instrs ctx
-             ; args         = ctx.ordered_arg_temps
+             ; reg_args     = ctx.ordered_arg_regs
              ; rax          = ctx.rax_temp
              ; temp_manager = ctx.temp_manager
              }
@@ -737,20 +729,20 @@ let _get_or_gen_slots_for_temps_to_spill
 let _spill_ctx_init temp_func (temps_to_spill : Temp.t Set.t) : spill_context =
   let max_rbp_offset = _get_max_rbp_offset_instrs temp_func.instrs in
   let max_slot = Int.ceil_div max_rbp_offset Constants.word_size in
+  let reg_args =
+    List.fold_right Set.add temp_func.reg_args (Set.empty Temp.compare)
+  in
   let ctx = { next_slot    = max_slot + 1
             ; slot_map     = Map.empty Temp.compare 
-            ; fixed_temps  =
-                List.fold_right Set.add 
-                  (temp_func.rax::temp_func.args)
-                  (Set.empty Temp.compare)
+            ; fixed_temps  = Set.add temp_func.rax reg_args
             ; rev_instrs   = []
             ; temps_to_spill
             ; rax_temp     = temp_func.rax
             ; temp_manager = temp_func.temp_manager
             }
   in
-  let args = List.fold_right Set.add temp_func.args (Set.empty Temp.compare) in
-  let ctx, temp_slot_pairs = _get_or_gen_slots_for_temps_to_spill ctx args in
+  let ctx, temp_slot_pairs = _get_or_gen_slots_for_temps_to_spill ctx reg_args
+  in
   List.fold_left (* order doesn't matter *)
     (fun ctx (temp, slot) -> _spill_to_slot ctx temp slot)
   ctx temp_slot_pairs

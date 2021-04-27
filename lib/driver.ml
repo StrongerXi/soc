@@ -49,7 +49,7 @@ let rec _x86_temp_func_to_func (temp_func : X86.temp_func) : X86.func =
       (fun pre_color (arg_temp, arg_reg) ->
          Map.add arg_temp arg_reg pre_color)
       pre_color
-      (List.combine temp_func.args X86.ordered_argument_physical_regs)
+      (List.combine temp_func.reg_args X86.ordered_argument_physical_regs)
   in
   match Reg_alloc.greedy_alloc
           annotated_vasms 
