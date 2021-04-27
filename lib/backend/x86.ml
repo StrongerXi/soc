@@ -157,36 +157,24 @@ type context =
   ; rev_instrs        : Temp.t instr list
   }
 
-let rec _generate_n_temps (manager : Temp.manager) (n : int)
+let _generate_ordered_arg_reg_temps (init_temp_man : Temp.manager)
   : (Temp.manager * Temp.t list) =
-  if n <= 0 then (manager, [])
-  else 
-    let manager, n_sub_1_temps = _generate_n_temps manager (n - 1) in
-    let manager, temp = Temp.gen manager in
-    (manager, temp::n_sub_1_temps)
-;;
-
-(* expand or shrink [temps] so that output is a list of size [max(0, n)] *)
-let rec _ensure_n_temps
-    (manager : Temp.manager) (temps : Temp.t list) (n : int)
-  : (Temp.manager * Temp.t list) =
-  if n <= 0 then (manager, [])
-  else
-    match temps with
-    | [] -> _generate_n_temps manager n
-    | temp::temps ->
-      let manager, n_sub_1_temps = _ensure_n_temps manager temps (n - 1) in
-      (manager, temp::n_sub_1_temps)
+  List.fold_right
+    (fun _ (temp_man, ordered_arg_reg_temps) ->
+       let temp_man, arg_reg_temp = Temp.gen temp_man in
+       (temp_man, arg_reg_temp::ordered_arg_reg_temps))
+    ordered_argument_physical_regs
+    (init_temp_man, [])
 ;;
 
 let _init_ctx
-    (func_label : Label.t) (ordered_arg_regs : Temp.t list)
+    (func_label : Label.t)
     (temp_manager : Temp.manager) (label_manager : Label.manager)
   : context =
   let temp_manager, rax_temp = Temp.gen temp_manager in
-  let x86_arg_reg_num = List.length ordered_argument_physical_regs in
   let temp_manager, ordered_arg_regs =
-    _ensure_n_temps temp_manager ordered_arg_regs x86_arg_reg_num in
+    _generate_ordered_arg_reg_temps temp_manager
+  in
   { func_label; rax_temp; ordered_arg_regs;
     temp_manager; label_manager; rev_instrs = [] }
 ;;
@@ -214,9 +202,10 @@ let _ctx_get_epilogue_label (ctx : context) : Label.t =
   Label.to_epilogue ctx.func_label
 ;;
 
-(* only need to load extra args from stack.
+(* Load all args into temps (from regs or stack).
+ * This ensures that no reg-passed arg will be modified.
  * Must synch with [_emit_prepare_x86_call_args] *)
-let _emit_load_args_into_temps (ctx : context) (ordered_arg_regs : Temp.t list)
+let _emit_load_args_into_temps (ctx : context) (ordered_args : Temp.t list)
   : context =
   let load_extra_args ctx extra_arg_temps : context =
     List.fold_left
@@ -228,14 +217,16 @@ let _emit_load_args_into_temps (ctx : context) (ordered_arg_regs : Temp.t list)
       (ctx, 2 * Constants.word_size) extra_arg_temps
     |> (fun (ctx, _) -> ctx)
   in
-  let rec go ctx arg_temps (arg_prs : physical_reg list) : context =
-    match arg_temps, arg_prs with
+  let rec go ctx (arg_temps : Temp.t list) (arg_regs : Temp.t list) : context =
+    match arg_temps, arg_regs with
     | [], _ -> ctx
     | _, [] -> load_extra_args ctx arg_temps
-    | _::rest_arg_temps, _::rest_arg_prs ->
+    | arg_temp::rest_arg_temps, arg_reg::rest_arg_prs ->
+      let instr = Load (Reg_arg (Greg arg_reg), Greg arg_temp) in
+      let ctx = _ctx_add_instr ctx instr in
       go ctx rest_arg_temps rest_arg_prs
   in
-  go ctx ordered_arg_regs ordered_argument_physical_regs
+  go ctx ordered_args ctx.ordered_arg_regs
 ;;
 
 let rec _emit_lir_expr (ctx : context) (e : Lir.expr) (dst_temp : Temp.t)
@@ -443,7 +434,7 @@ let _from_lir_func_impl
     (label_manager : Label.manager) (temp_manager : Temp.manager)
     (entry : Label.t) (ordered_args : Temp.t list) (body : Lir.instr list)
   : (temp_func * Label.manager) =
-  let ctx = _init_ctx entry ordered_args temp_manager label_manager in
+  let ctx = _init_ctx entry temp_manager label_manager in
   let ctx = _emit_load_args_into_temps ctx ordered_args in
   let ctx = _emit_lir_instrs ctx body in
   let func = { entry
