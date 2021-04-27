@@ -47,6 +47,9 @@ type 'a instr =
       (* Store (sreg, dreg, offset) --> *[dreg + offset] := sreg *)
   | Push of 'a reg
   | Pop of 'a reg
+  | IDiv of 'a reg
+      (* [IDiv r] does signed division for [RDX:RAX] over [r].
+      * The quotient is stoed to [RAX], remainder to [RDX] *)
   | Binop of binop * 'a reg * 'a arg
       (* Binop (op, reg, arg) --> reg := op gr arg *)
   | Cmp of 'a arg * 'a
@@ -68,7 +71,8 @@ type temp_func =
   ; reg_args : Temp.t list        (* for each argument passed in register;
                                      might not all be used *)
   ; rax      : Temp.t
-  ; temp_manager : Temp.manager   (* for generating fresh temps *)
+  ; rdx      : Temp.t
+  ; temp_manager : Temp.manager (* for generating fresh temps *)
   }
 
 (* A program in X86 before register allocation *)
@@ -123,3 +127,4 @@ val callee_saved_physical_regs     : physical_reg Set.t
 val caller_saved_physical_regs     : physical_reg Set.t
 val ordered_argument_physical_regs : physical_reg list
 val rax_physical_reg               : physical_reg
+val rdx_physical_reg               : physical_reg

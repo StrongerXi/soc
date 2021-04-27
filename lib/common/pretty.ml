@@ -493,6 +493,7 @@ let _pp_lir_op (p : printer) (op : Lir.op) : unit =
   | Add -> _print_str p "+"
   | Sub -> _print_str p "-"
   | Mul -> _print_str p "*"
+  | Div -> _print_str p "/"
 ;;
 
 let rec _pp_lir_expr (p : printer) (expr : Lir.expr) : unit =

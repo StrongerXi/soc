@@ -4,6 +4,7 @@ type op =
   | Add
   | Sub
   | Mul
+  | Div
 
 type expr =
   | Imm of int                           
@@ -173,16 +174,20 @@ and _transl_cir_primop (ctx : context)
 
   | SubInt ->
     let ctx, rhs_e = _transl_cir_expr ctx rhs_ce in
-    (* (2a + 1) - (2b + 1) = 2(a-b) = (2(a+b) - 1) + 1 *)
-    (ctx, Op (Add, (Op (Add, lhs_e, rhs_e)), Imm 1))
+    (* (2a + 1) - (2b + 1) = 2(a-b) = (2(a-b) - 1) + 1 *)
+    (ctx, Op (Add, (Op (Sub, lhs_e, rhs_e)), Imm 1))
 
   | MulInt ->
     let ctx, rhs_e = _transl_cir_expr ctx rhs_ce in
-    (* (2a + 1) * (2b + 1) = 4(a*b) + 2(a+b) + 2 = 4(a*b) + 1 + (2(a+b) + 1) *)
+    (* (2a + 1) * (2b + 1)
+     * = 4(a*b) + 2(a+b) + 1
+     * = 2*(2(a*b) + 1) + (2(a+b) + 2 - 3) *)
     let lhs_add_rhs = Op (Add, lhs_e, rhs_e) in
-    let extra = Op (Add, Imm 1, (Op (Mul, Imm 2, lhs_add_rhs))) in
+    let extra = Op (Sub, lhs_add_rhs, Imm 3) in
     let lhs_mul_rhs = Op (Mul, lhs_e, rhs_e) in
-    (ctx, Op (Sub, lhs_mul_rhs, extra))
+    let two_times_result = Op (Sub, lhs_mul_rhs, extra) in
+    let result = Op (Div, two_times_result, Imm 2) in
+    (ctx, result)
 
   (* TODO could optimize And/Or if it's in an if condition -- jump straight
    * to corresponding branch when short-circuiting *)
