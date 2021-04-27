@@ -439,19 +439,26 @@ let _emit_lir_instrs (ctx : context) (lir_instrs : Lir.instr list) : context =
   List.fold_left _emit_lir_instr ctx lir_instrs
 ;;
 
-let _from_lir_func (label_manager : Label.manager) (lir_func : Lir.func)
+let _from_lir_func_impl
+    (label_manager : Label.manager) (temp_manager : Temp.manager)
+    (entry : Label.t) (ordered_args : Temp.t list) (body : Lir.instr list)
   : (temp_func * Label.manager) =
-  let args = lir_func.ordered_args in
-  let ctx = _init_ctx lir_func.name args lir_func.temp_manager label_manager in
-  let ctx = _emit_load_args_into_temps ctx args in
-  let ctx = _emit_lir_instrs ctx lir_func.body in
-  let func = { entry        = lir_func.name
+  let ctx = _init_ctx entry ordered_args temp_manager label_manager in
+  let ctx = _emit_load_args_into_temps ctx ordered_args in
+  let ctx = _emit_lir_instrs ctx body in
+  let func = { entry
              ; instrs       = _ctx_get_instrs ctx
              ; args         = ctx.ordered_arg_temps
              ; rax          = ctx.rax_temp
              ; temp_manager = ctx.temp_manager
              }
   in (func, ctx.label_manager)
+;;
+
+let _from_lir_func (label_manager : Label.manager) (lf : Lir.func)
+  : (temp_func * Label.manager) =
+  _from_lir_func_impl
+    label_manager lf.temp_manager lf.name lf.ordered_args lf.body
 ;;
 
 let _from_lir_funcs (label_manager : Label.manager) (lir_funcs : Lir.func list)
@@ -467,19 +474,13 @@ let _from_lir_funcs (label_manager : Label.manager) (lir_funcs : Lir.func list)
 let _from_lir_main_func
     (temp_manager : Temp.manager)
     (label_manager : Label.manager)
-    (lir_instrs : Lir.instr list)
+    (body_instrs : Lir.instr list)
   : temp_func =
   (* TODO call "soml_init" here, or make this a function called by C runtime?
    * TBD when implementing runtime. *)
-  let entry_label = Label.get_native Constants.entry_name in
-  let ctx = _init_ctx entry_label [] temp_manager label_manager in
-  let ctx = _emit_lir_instrs ctx lir_instrs in
-  { entry        = ctx.func_label
-  ; instrs       = _ctx_get_instrs ctx
-  ; args         = ctx.ordered_arg_temps
-  ; rax          = ctx.rax_temp
-  ; temp_manager = ctx.temp_manager
-  } 
+  let main_entry = Label.get_native Constants.entry_name in
+  _from_lir_func_impl label_manager temp_manager main_entry [] body_instrs
+  |> (fun (temp_func, _) -> temp_func)
 ;;
 
 let from_lir_prog (lir_prog : Lir.prog) : temp_prog =
