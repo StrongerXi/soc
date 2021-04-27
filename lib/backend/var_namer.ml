@@ -16,8 +16,10 @@ let gen_new_var_with_prefix t pfx =
 ;;
 
 
-(* NOTE [_rename_vars_in_X] renames all the _bound_ variables in [X]; 
- * it accumulates a map from old to new names during the process. *)
+(* NOTE [_rename_vars_in_X] 
+ * - renames all the _bound_ variables in [X]
+ * - accumulates a map from old to new names, where old names are all variables
+ *   currently in scope *)
 let _rename_vars_in_opt_typed_var t (var_map : (string, string) Map.t)
     (otv : Ast.opt_typed_var) : (t * (string, string) Map.t * Ast.opt_typed_var) =
   (* binding always makes a new variable *)
