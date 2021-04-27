@@ -7,4 +7,5 @@ SCRIPT_DIR=$(dirname "$BASH_SOURCE")
 set -e
 
 make -C ${SCRIPT_DIR}/runtime
+dune build --root ${SCRIPT_DIR}
 dune runtest --root ${SCRIPT_DIR}
