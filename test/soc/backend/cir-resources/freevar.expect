@@ -55,38 +55,38 @@ closure <closure_19> = {
   }
 }
 closure <closure_16> = {
-  args = (x_2)
+  args = (x_3)
   free_vars = (g_0)
   body = {
-    (g_0 x_2)
+    (g_0 x_3)
   }
 }
 closure <closure_15> = {
-  args = (x_3)
+  args = (x_2)
   free_vars = (f_1)
   body = {
-    (f_1 x_3)
+    (f_1 x_2)
   }
 }
 closure <closure_14> = {
-  args = (x_5, y_6, z_7)
+  args = (x_4, y_5, z_6)
   free_vars = (+)
   body = {
-    (MK_CLOSURE <closure_13> y_6 +)
+    (MK_CLOSURE <closure_13> y_5 +)
   }
 }
 closure <closure_13> = {
-  args = (x_8)
-  free_vars = (y_6, +)
+  args = (x_7)
+  free_vars = (y_5, +)
   body = {
-    (MK_CLOSURE <closure_12> y_6 x_8 +)
+    (MK_CLOSURE <closure_12> y_5 x_7 +)
   }
 }
 closure <closure_12> = {
-  args = (a_9, b_10, c_11)
-  free_vars = (y_6, x_8, +)
+  args = (a_8, b_9, c_10)
+  free_vars = (y_5, x_7, +)
   body = {
-    (+ (+ x_8 a_9) y_6)
+    (+ (+ x_7 a_8) y_5)
   }
 }
 let + = (MK_CLOSURE <closure_34> )
@@ -99,5 +99,5 @@ let + = (MK_CLOSURE <closure_34> )
     print = (MK_CLOSURE <closure_36> )
 in let rec f_1 = (MK_CLOSURE <closure_16> g_0)
            g_0 = (MK_CLOSURE <closure_15> f_1)
-   in let f1_4 = (MK_CLOSURE <closure_14> +)
+   in let f1_11 = (MK_CLOSURE <closure_14> +)
       in 42

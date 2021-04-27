@@ -81,42 +81,41 @@ let rec _rename_vars_in_expr t (var_map : (string, string) Map.t)
     let expr = { expr with expr_desc = Exp_apply (func, args) } in
     (t, expr)
 
-and _rename_vars_in_let_bindings t (var_map : (string, string) Map.t)
-    (rec_flag : Ast.rec_flag) (bds : Ast.binding list)
+and _rename_vars_in_let_bindings t
+    (init_var_map : (string, string) Map.t)
+    (rec_flag : Ast.rec_flag) (init_bds : Ast.binding list)
   : (t * (string, string) Map.t * Ast.binding list) =
 
-  let _rename_vars_in_one_binding t (var_map : (string, string) Map.t)
-     (bd : Ast.binding) : (t * (string, string) Map.t * Ast.binding) =
-    let t, var_map, binding_lhs =
-      match rec_flag with (* lhs of rec case is already renamed *)
-      | Recursive -> t, var_map, bd.binding_lhs
-      | Nonrecursive -> _rename_vars_in_opt_typed_var t var_map bd.binding_lhs
-    in
-    let t, binding_rhs = _rename_vars_in_expr t var_map bd.binding_rhs in
-    let bd = { Ast.binding_lhs; binding_rhs } in
-    (t, var_map, bd)
+  let rename_all_bd_lhs t var_map bds 
+    : (t * (string, string) Map.t * Ast.binding list) =
+    List.fold_right
+      (fun (bd : Ast.binding) (t, var_map, bds) ->
+         let t, var_map, binding_lhs =
+           _rename_vars_in_opt_typed_var t var_map bd.binding_lhs in
+         let bd = { bd with binding_lhs } in
+         (t, var_map, bd::bds))
+      bds (t, var_map, [])
   in
-  let t, var_map, bds =
-    match rec_flag with
-    | Nonrecursive -> t, var_map, bds
-    | Recursive -> (* each rec lhs are bound in all rhss *)
-      List.fold_right
-        (fun (bd : Ast.binding) (t, var_map, bds) ->
-           let t, var_map, binding_lhs =
-             _rename_vars_in_opt_typed_var t var_map bd.binding_lhs in
-           let bd = { bd with binding_lhs } in
-           (t, var_map, bd::bds))
-        bds (t, var_map, [])
+
+  let rename_all_bd_rhs t var_map bds
+    : (t *  Ast.binding list) =
+    List.fold_right
+      (fun (bd : Ast.binding) (t, bds) ->
+         let t, binding_rhs = _rename_vars_in_expr t var_map bd.binding_rhs in
+         let bd = { bd with binding_rhs } in
+         (t, bd::bds))
+      bds (t, [])
   in
-  let t, var_map, rev_bds = List.fold_left
-      (fun (t, var_map, rev_bds) bd ->
-         let t, var_map, bd = _rename_vars_in_one_binding t var_map bd in
-         (t, var_map, bd::rev_bds))
-      (t, var_map, [])
-      bds
-  in
-  let bds = List.rev rev_bds in
-  (t, var_map, bds)
+
+  match rec_flag with (* based on the scoping rules of [let] vs [let rec] *)
+  | Nonrecursive ->
+    let t, bds = rename_all_bd_rhs t init_var_map init_bds in
+    rename_all_bd_lhs t init_var_map bds
+
+  | Recursive ->
+    let t, var_map_with_lhs, bds = rename_all_bd_lhs t init_var_map init_bds in
+    let t, bds = rename_all_bd_rhs t var_map_with_lhs bds in
+    (t, var_map_with_lhs, bds)
 ;;
 
 let _rename_vars_in_struct_item t (var_map : (string, string) Map.t)
