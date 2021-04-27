@@ -449,7 +449,7 @@ let _from_lir_func (label_manager : Label.manager) (lir_func : Lir.func)
              ; instrs       = _ctx_get_instrs ctx
              ; args         = ctx.ordered_arg_temps
              ; rax          = ctx.rax_temp
-             ; temp_manager = lir_func.temp_manager
+             ; temp_manager = ctx.temp_manager
              }
   in (func, ctx.label_manager)
 ;;
