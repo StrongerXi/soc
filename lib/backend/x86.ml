@@ -50,6 +50,7 @@ type 'a instr =
   | Store of 'a reg * 'a reg * int
   | Push of 'a reg
   | Pop of 'a reg
+  | IDiv of 'a reg
   | Binop of binop * 'a reg * 'a arg
   | Cmp of 'a arg * 'a
   | Jmp of Label.t
@@ -72,6 +73,7 @@ type temp_func =
   ; instrs       : Temp.t instr list
   ; reg_args     : Temp.t list
   ; rax          : Temp.t
+  ; rdx          : Temp.t
   ; temp_manager : Temp.manager
   }
 
@@ -111,6 +113,7 @@ let _map_grs_in_instr (f : 'a -> 'b) (instr : 'a instr) : ('b instr) =
 
   | Push reg -> Push (_map_grs_in_reg f reg)
   | Pop reg  -> Pop (_map_grs_in_reg f reg)
+  | IDiv reg -> IDiv (_map_grs_in_reg f reg)
 
   | Load (arg, dst_reg) ->
     let arg = _map_grs_in_arg f arg in
@@ -144,8 +147,9 @@ let _map_grs_in_instr (f : 'a -> 'b) (instr : 'a instr) : ('b instr) =
 type context =
   { func_label        : Label.t
 
-  (* following are used to encode calling convention *)
+  (* temps that must be mapped to special purpose registers *)
   ; rax_temp          : Temp.t
+  ; rdx_temp          : Temp.t
   ; ordered_arg_regs  : Temp.t list 
     (* _All_ args that can fit in regs; NOTE Original func might not have this
      * many args, but calls to other func might need more args. It can also
@@ -173,10 +177,11 @@ let _init_ctx
     (temp_manager : Temp.manager) (label_manager : Label.manager)
   : context =
   let temp_manager, rax_temp = Temp.gen temp_manager in
+  let temp_manager, rdx_temp = Temp.gen temp_manager in
   let temp_manager, ordered_arg_regs =
     _generate_ordered_arg_reg_temps temp_manager
   in
-  { func_label; rax_temp; ordered_arg_regs;
+  { func_label; rax_temp; rdx_temp; ordered_arg_regs;
     temp_manager; label_manager; rev_instrs = [] }
 ;;
 
@@ -442,6 +447,7 @@ let _from_lir_func_impl
              ; instrs       = _ctx_get_instrs ctx
              ; reg_args     = ctx.ordered_arg_regs
              ; rax          = ctx.rax_temp
+             ; rdx          = ctx.rdx_temp
              ; temp_manager = ctx.temp_manager
              }
   in (func, ctx.label_manager)
@@ -511,7 +517,8 @@ let _add_temps_in_call_target (acc : Temp.t Set.t) (target : Temp.t call_target)
   | Lbl _ -> acc
 ;;
 
-let _get_reads_and_writes_temp_instr (rax : Temp.t) (instr : Temp.t instr)
+let _get_reads_and_writes_temp_instr
+    (rax : Temp.t) (rdx : Temp.t) (instr : Temp.t instr)
   : (Temp.t Set.t * Temp.t Set.t) =
   let reads, writes = (Set.empty Temp.compare, Set.empty Temp.compare) in
   match instr with
@@ -525,6 +532,14 @@ let _get_reads_and_writes_temp_instr (rax : Temp.t) (instr : Temp.t instr)
 
   | Pop reg  ->
     let writes = _add_temps_in_temp_reg writes reg in
+    (reads, writes)
+
+  | IDiv reg  ->
+    let reads = _add_temps_in_temp_reg writes reg in
+    let reads = Set.add rax reads in
+    let reads = Set.add rdx reads in
+    let writes = Set.add rax writes in
+    let writes = Set.add rdx writes in
     (reads, writes)
 
   | Load (arg, dst_reg) ->
@@ -565,13 +580,14 @@ let _get_reads_and_writes_temp_instr (rax : Temp.t) (instr : Temp.t instr)
     (reads, writes)
 ;;
 
-let _temp_instr_to_vasm (rax : Temp.t) (instr : Temp.t instr) : Vasm.t =
-  let reads, writes = _get_reads_and_writes_temp_instr rax instr in
+let _temp_instr_to_vasm (rax : Temp.t) (rdx : Temp.t) (instr : Temp.t instr)
+  : Vasm.t =
+  let reads, writes = _get_reads_and_writes_temp_instr rax rdx instr in
   let reads, writes = Set.to_list reads, Set.to_list writes in
   match instr with
   | Label label -> Vasm.mk_label label
 
-  | Load _ | Store _ | Push _ | Pop _ | Binop _ | Cmp _ ->
+  | Load _ | Store _ | Push _ | Pop _ | Binop _ | Cmp _ | IDiv _ ->
     Vasm.mk_instr reads writes
 
   | Call _ -> Vasm.mk_call reads writes
@@ -584,7 +600,7 @@ let _temp_instr_to_vasm (rax : Temp.t) (instr : Temp.t instr) : Vasm.t =
 
 let temp_func_to_vasms temp_func =
   let body_vasms =
-    List.map (_temp_instr_to_vasm temp_func.rax) temp_func.instrs in
+    List.map (_temp_instr_to_vasm temp_func.rax temp_func.rdx) temp_func.instrs in
   let entry_label = Vasm.mk_label temp_func.entry in
   entry_label::body_vasms
 ;;
@@ -618,6 +634,7 @@ let _get_max_rbp_offset_instrs (instrs : 'a instr list) : int =
     | Store (_, _, _) -> 0
     | Push _ -> 0
     | Pop _ -> 0
+    | IDiv _ -> 0
     | Binop (_, _, arg) -> _get_rbp_offset_arg arg
     | Cmp (arg, _) -> _get_rbp_offset_arg arg
     | Jmp _ -> 0
@@ -638,6 +655,7 @@ type spill_context =
   ; rev_instrs     : Temp.t instr list
   ; temps_to_spill : Temp.t Set.t
   ; rax_temp       : Temp.t
+  ; rdx_temp       : Temp.t
   ; temp_manager   : Temp.manager
   }
 
@@ -734,10 +752,13 @@ let _spill_ctx_init temp_func (temps_to_spill : Temp.t Set.t) : spill_context =
   in
   let ctx = { next_slot    = max_slot + 1
             ; slot_map     = Map.empty Temp.compare 
-            ; fixed_temps  = Set.add temp_func.rax reg_args
+            ; fixed_temps  =
+                Set.add temp_func.rdx
+                  (Set.add temp_func.rax reg_args)
             ; rev_instrs   = []
             ; temps_to_spill
             ; rax_temp     = temp_func.rax
+            ; rdx_temp     = temp_func.rdx
             ; temp_manager = temp_func.temp_manager
             }
   in
@@ -754,7 +775,9 @@ let _spill_ctx_init temp_func (temps_to_spill : Temp.t Set.t) : spill_context =
  * These break up the live-interval of spilled temps into smaller chunks. *)
 let _spill_instr (ctx : spill_context) (instr : Temp.t instr) : spill_context =
   (* ASSUME instruction goes like read/compute/write *)
-  let reads, writes = _get_reads_and_writes_temp_instr ctx.rax_temp instr in
+  let reads, writes =
+    _get_reads_and_writes_temp_instr ctx.rax_temp ctx.rdx_temp instr
+  in
   let ctx, changed_temp_map = _restore_all_spilled ctx reads in
   let old_to_new_temp temp =
     match Map.get temp changed_temp_map with
@@ -783,7 +806,8 @@ let _spill_instr (ctx : spill_context) (instr : Temp.t instr) : spill_context =
 
 let spill_temps temp_func temps_to_spill =
   let ctx = _spill_ctx_init temp_func temps_to_spill in
-  let ctx = List.fold_left _spill_instr ctx temp_func.instrs in
+  let ctx =
+    List.fold_left _spill_instr ctx temp_func.instrs in
   { temp_func with instrs       = List.rev ctx.rev_instrs 
                  ; temp_manager = ctx.temp_manager
   }
@@ -825,6 +849,9 @@ let callee_saved_physical_regs =
 ;;
 
 let rax_physical_reg = Rax
+;;
+
+let rdx_physical_reg = Rdx
 ;;
 
 
@@ -999,6 +1026,11 @@ let _instr_to_str (instr : 'a instr) (gr_to_str : 'a -> string) : string =
     let instr_str = String.concat ["pop"; " "; reg_str] in
     add_tab instr_str
 
+  | IDiv reg ->
+    let reg_str = _reg_to_str reg gr_to_str in
+    let instr_str = String.concat ["idiv"; " "; reg_str] in
+    add_tab instr_str
+
   | Binop (binop, reg, arg) ->
     let arg_str = _arg_to_str arg gr_to_str in
     let reg_str = _reg_to_str reg gr_to_str in
@@ -1075,7 +1107,7 @@ let _add_external_native_labels_in_instr
   | Cmp (arg, _)      -> _add_native_labels_in_arg labels arg
   | Call (target, _)  -> _add_native_labels_in_call_target labels target
 
-  | Store _ | Push _ | Pop _ | Jmp _ | JmpC _ | Ret -> 
+  | Store _ | Push _ | Pop _ | Jmp _ | JmpC _ | Ret | IDiv _ -> 
     labels
 ;;
 
