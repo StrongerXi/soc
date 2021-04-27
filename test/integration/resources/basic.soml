@@ -1,14 +1,14 @@
-let lt x y =
-  if x < y
-  then 1
-  else 0
+let min x y =
+  if y < x
+  then y
+  else x
 ;;
 
-print (lt 7 20)
+print (min 7 20)
 ;;
-print (lt 7 7)
+print (min 7 7)
 ;;
-print (lt 11 0)
+print (min 11 0)
 ;;
 print ((1 + 10) + (100 + 1000))
 ;;
