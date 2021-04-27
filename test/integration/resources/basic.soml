@@ -4,6 +4,16 @@ let min x y =
   else x
 ;;
 
+let rec fac n =
+  if (n < 0) || (n = 0)
+  then 1
+  else n * (fac (n - 1))
+;;
+
+print (fac 0)
+;;
+print (fac 10)
+;;
 print (33 * (0 - 3))
 ;;
 print (min (0 - 7) 20)
