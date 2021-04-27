@@ -279,12 +279,13 @@ let rec _type_struct
 ;;
 
 
-let type_struct strc =
-  let (tv_namer, strc) = Tyvar_namer.rename_struct Tyvar_namer.init strc in
-  let ctx = Typer_ctx.create tv_namer in
-  let (ctx, strc) = _type_struct ctx strc in
-  let strc = _update_tyvars_in_struct ctx strc in
+let type_struct structure =
+  let namer = Namer.init "X" in
+  let (namer, structure) = Namer.rename_tyvars_in_ast_struct namer structure in
+  let ctx = Typer_ctx.create namer in
+  let (ctx, structure) = _type_struct ctx structure in
+  let structure = _update_tyvars_in_struct ctx structure in
   match Typer_ctx.get_errors ctx with
-  | [] -> Ok strc
+  | [] -> Ok structure
   | errs -> Error errs
 ;;

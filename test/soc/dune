@@ -6,7 +6,7 @@
 
    ; frontend
    location_test span_test lexer_test parser_test ast_interp_test typer_test
-   substs_test tyvar_namer_test
+   substs_test
 
    ; common
    namer_test

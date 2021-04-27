@@ -13,12 +13,13 @@ type t =
   ; prev_var_envs : (string, scheme) Map.t list   (* previous scopes *)
   ; substs        : Substs.t
   ; rev_errs      : Errors.typer_error list
-  ; tv_namer      : Tyvar_namer.t
+  ; namer         : Namer.t
   }
 
 let _get_new_tyvar t =
-  let tv_namer, tyvar = Tyvar_namer.gen_new_tyvar t.tv_namer in
-  let t = { t with tv_namer } in
+  let namer, new_name = Namer.gen_new_name t.namer in
+  let tyvar = Ast.Typ_var (Some new_name) in
+  let t = { t with namer } in
   (t, tyvar)
 ;;
 
@@ -244,7 +245,7 @@ let _add_natives_into_var_env (var_env : (string, scheme) Map.t)
 ;;
 
 (* Initialize with some built-in stuff, an ad hoc solution *)
-let create tv_namer =
+let create namer =
   let cur_var_env = Map.empty String.compare in
   (* It's okay to have custom tyvars in primops/natives, because we won't
    * generate new tyvars inside them anymore, and tyvar scope is limited to
@@ -255,6 +256,6 @@ let create tv_namer =
   ; prev_var_envs = []
   ; substs        = Substs.empty
   ; rev_errs      = []
-  ; tv_namer
+  ; namer
   }
 ;;
