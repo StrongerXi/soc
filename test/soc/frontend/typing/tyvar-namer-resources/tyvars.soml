@@ -1,7 +1,0 @@
-let rec f = (fun (x : 'a) -> x + 1)
-and g = (fun (x : 'a) -> x)
-;;
-
-g 12;;
-g false;;
-

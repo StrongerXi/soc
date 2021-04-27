@@ -40,7 +40,7 @@ type prog =
  * I decided not to make a new module for this since it's pretty simplistic *)
 type context =
   { closures : (string, closure) Map.t
-  ; namer    : Var_namer.t
+  ; namer    : Namer.t
   }
 
 let _init_ctx namer =
@@ -48,7 +48,7 @@ let _init_ctx namer =
 ;;
 
 let _gen_new_var_name (ctx : context) (prefix : string) : (context * string) =
-  let namer, new_name = Var_namer.gen_new_var_with_prefix ctx.namer prefix in
+  let namer, new_name = Namer.gen_new_name_with_prefix ctx.namer prefix in
   ({ ctx with namer }, new_name)
 ;;
 
@@ -347,8 +347,8 @@ let _add_natives_closures (ctx : context) : (context * (string * expr) list) =
 (* NOTE ASSUME the translation order is irrelevant.
  * This makes translation easier for the let bindings *)
 let from_ast_struct structure =
-  let namer = Var_namer.init in
-  let namer, structure = Var_namer.rename_struct namer structure in
+  let namer = Namer.init "x" in
+  let namer, structure = Namer.rename_vars_in_ast_struct namer structure in
   let ctx = _init_ctx namer in
   let dummy_body = Cconst (CInt 42) in (* no effect, simplifies code *)
   let ctx, final_ce =

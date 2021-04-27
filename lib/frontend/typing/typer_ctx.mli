@@ -6,9 +6,9 @@ open Pervasives
     - keeps track of different levels of scope *)
 type t
 
-(** [create tv_namer] is an initial context which will use [tv_namer] to
+(** [create namer] is an initial context which will use [namer] to
     generate new tyvars in following operations. *)
-val create : Tyvar_namer.t -> t
+val create : Namer.t -> t
 
 (** [add_error t err] returns a new context that keeps track of [err] *)
 val add_error : t -> Errors.typer_error -> t

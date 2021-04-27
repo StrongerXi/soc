@@ -1,8 +1,0 @@
-let rec (f : 'X0) = (fun (x : 'X1) -> + x 1)
-and (g : 'X2) = (fun (x : 'X1) -> x)
-;;
-
-g 12
-
-g false
-
