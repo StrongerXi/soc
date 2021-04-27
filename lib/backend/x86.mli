@@ -63,11 +63,12 @@ type 'a instr =
 (* A function in X86 with Temps and some annotation to help reg-alloc.
  * NOTE without prologue/epilogue. *) 
 type temp_func = 
-  { entry  : Label.t
-  ; instrs : Temp.t instr list  (* doesn't start with [entry] label *)
-  ; args   : Temp.t list        (* for each arg reg; might not all be used *)
-  ; rax    : Temp.t
-  ; temp_manager : Temp.manager (* for generating fresh temps *)
+  { entry    : Label.t
+  ; instrs   : Temp.t instr list  (* doesn't start with [entry] label *)
+  ; reg_args : Temp.t list        (* for each argument passed in register;
+                                     might not all be used *)
+  ; rax      : Temp.t
+  ; temp_manager : Temp.manager   (* for generating fresh temps *)
   }
 
 (* A program in X86 before register allocation *)
