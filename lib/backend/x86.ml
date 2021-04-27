@@ -157,6 +157,7 @@ type context =
   ; rev_instrs        : Temp.t instr list
   }
 
+(* ENSURE [length output-temp-list] = [length ordered_arg_reg_temps] *)
 let _generate_ordered_arg_reg_temps (init_temp_man : Temp.manager)
   : (Temp.manager * Temp.t list) =
   List.fold_right
