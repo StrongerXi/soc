@@ -8,6 +8,9 @@
    location_test span_test lexer_test parser_test ast_interp_test typer_test
    substs_test tyvar_namer_test
 
+   ; common
+   namer_test
+
    ; backend
    cir_test var_namer_test temp_test label_test graph_test
    vasm_test liveness_analysis_test reg_alloc_test

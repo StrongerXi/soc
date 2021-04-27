@@ -1,0 +1,45 @@
+
+let rec f = (fun (x : 'a) -> x + 1)
+and g = (fun (x : 'a) -> x)
+;;
+
+f 12;;
+f false;;
+
+let x = (fun (x : 'a) ->
+  let (y : 'a) = x
+  and (z : 'a) = 42
+  in 42)
+;;
+  
+
+let (f : 'a -> 'a) =
+  let (a : 'a -> 'a) = (fun x -> x) in
+  let (b : 'a -> 'a) = (fun x -> x + 1)
+  in (fun x -> x)
+;;
+
+f 1 2;;
+
+let (g : 'a -> 'a) =
+  (fun x -> x)
+;;
+
+let rec f = (fun x -> let a = g x in 42)
+and g = (fun y -> y + 42)
+;;
+
+let rec k = f k
+;;
+
+let rec f = f f 2
+;;
+
+f false false
+;;
+
+let f = (fun (x : 'a) (y : 'a) ->
+  let (z : 'a) = false in
+  k (p * x)
+  )
+;;

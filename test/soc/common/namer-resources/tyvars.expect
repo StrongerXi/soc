@@ -1,0 +1,47 @@
+let rec (f : 'X_0) = (fun (x : 'a_1) -> + x 1)
+and (g : 'X_2) = (fun (x : 'a_1) -> x)
+;;
+
+f 12
+
+f false
+
+let (x : 'X_3) = (fun (x : 'a_4) -> 
+  let (y : 'a_4) = x
+  and (z : 'a_4) = 42 in
+  42
+)
+;;
+
+let (f : 'a_5 -> 'a_5) = 
+  let (a : 'a_5 -> 'a_5) = (fun (x : 'X_6) -> x) in
+  let (b : 'a_5 -> 'a_5) = (fun (x : 'X_7) -> + x 1) in
+  (fun (x : 'X_8) -> x)
+;;
+
+f 1 2
+
+let (g : 'a_9 -> 'a_9) = (fun (x : 'X_10) -> x)
+;;
+
+let rec (f : 'X_11) = (fun (x : 'X_12) -> 
+  let (a : 'X_13) = g x in
+  42
+)
+and (g : 'X_14) = (fun (y : 'X_15) -> + y 42)
+;;
+
+let rec (k : 'X_16) = f k
+;;
+
+let rec (f : 'X_17) = f f 2
+;;
+
+f false false
+
+let (f : 'X_18) = (fun (x : 'a_19) (y : 'a_19) -> 
+  let (z : 'a_19) = false in
+  k (* p x)
+)
+;;
+

@@ -1,0 +1,24 @@
+let rec (f_1 : _ -> _) = (fun x_3 -> g_0 x_3)
+and (g_0 : _ -> _) = (fun x_2 -> f_1 x_2)
+;;
+
+let (shadow_let_7 : _ -> _) = (fun x_4 -> 
+  let y_6 = 
+    let x_5 = x_4 in
+    42 in
+  x_4
+)
+;;
+
+let (nested_let_10 : _ -> _) = (fun x_8 -> 
+  let x_9 = x_8 in
+  42
+)
+;;
+
+let (nested_let_rec_14 : _ -> _) = (fun x_11 -> 
+  let rec (x_12 : _ -> _) = (fun a_13 -> x_12 a_13) in
+  42
+)
+;;
+
