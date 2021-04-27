@@ -73,7 +73,8 @@ let _get_all_closures (ctx : context) : (string, closure) Map.t =
 
 (* NOTE We can optimize free_var compuation by caching free_vars of last
  * examined expression in context, if it becomes a performance bottleneck *)
-let _free_vars_in_expr (expr : Ast.expression) : string Set.t =
+let rec _free_vars_in_expr (expr : Ast.expression) : string Set.t =
+
   let rec go (free_vars : string Set.t) (expr : Ast.expression)
     : string Set.t =
     match expr.expr_desc with
@@ -90,17 +91,33 @@ let _free_vars_in_expr (expr : Ast.expression) : string Set.t =
       let free_vars = go free_vars thn in
       go free_vars els
 
-    | Exp_let (_, bds, body) ->
-      let names = List.map (fun (bd : Ast.binding) -> bd.binding_lhs.var) bds in
+    | Exp_let (rec_flag, bds, body) ->
+      let names, bds_fvs = _names_and_fvs_in_let_bds rec_flag bds in
       let body_fvs = go (Set.empty String.compare) body in
       let body_fvs = List.fold_right Set.remove names body_fvs in
-      Set.union free_vars body_fvs
+      Set.union bds_fvs (Set.union free_vars body_fvs)
 
     | Exp_apply (func, args) ->
       let free_vars = go free_vars func in
       List.fold_left go free_vars args
   in
   go (Set.empty String.compare) expr
+
+and _names_and_fvs_in_let_bds rec_flag bds =
+  let names, rhs_fvs = 
+    List.fold_left
+      (fun (names, rhs_fvs) (bd : Ast.binding) ->
+         let names = (bd.binding_lhs.var)::names in
+         let one_rhs_fvs = _free_vars_in_expr bd.binding_rhs in
+         let rhs_fvs = Set.union one_rhs_fvs rhs_fvs in
+         (names, rhs_fvs))
+        ([], Set.empty String.compare) bds
+  in
+  match rec_flag with (* think about scoping rules for let rec *)
+  | Nonrecursive -> (names, rhs_fvs)
+  | Recursive -> 
+    let bds_fvs = List.fold_right Set.remove names rhs_fvs in
+    (names, bds_fvs)
 ;;
 
 let rec _count_args_in_typ (typ : Ast.typ) : int =
