@@ -44,6 +44,7 @@ let rec _x86_temp_func_to_func (temp_func : X86.temp_func) : X86.func =
   let annotated_vasms = Liveness_analysis.analyze_vasm vasms in
   let pre_color = Map.empty Temp.compare in
   let pre_color = Map.add temp_func.rax X86.rax_physical_reg pre_color in
+  let pre_color = Map.add temp_func.rdx X86.rdx_physical_reg pre_color in
   let pre_color =
     List.fold_left
       (fun pre_color (arg_temp, arg_reg) ->
