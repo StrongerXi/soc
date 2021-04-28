@@ -129,8 +129,43 @@ type sp_temps =
   { rax              : Temp.t
   ; rdx              : Temp.t
   ; ordered_arg_regs : Temp.t list 
-      (* for each argument passed in register; might not all be used *)
+      (* For each argument passed in register.
+       * NOTE Original Lir func might not have this many args, but calls to
+       * other func might need more args. Excessive temps are simply ignored. *)
   }
+
+(* ENSURES: Same temps will be used for same regs *)
+let _init_sp_temps (init_temp_man : Temp.manager) : (Temp.manager * sp_temps) =
+
+  let alloc_temp_for_prs (temp_man : Temp.manager) (prs : physical_reg list)
+    : (Temp.manager * (physical_reg, Temp.t) Map.t) =
+    List.fold_left
+      (fun (temp_man, pr_map) pr ->
+         match Map.get pr pr_map with
+         | Some _ -> (temp_man, pr_map) (* already allocated temp for [pr] *)
+         | None ->
+           let temp_man, temp = Temp.gen temp_man in
+           let pr_map = Map.add pr temp pr_map in
+           (temp_man, pr_map))
+      (temp_man, Map.empty _compare_physical_reg)
+      prs
+  in
+
+  let get_temp (pr_map : (physical_reg, Temp.t) Map.t) (pr : physical_reg)
+    : Temp.t =
+    match Map.get pr pr_map with
+    | None -> failwith "[X86._init_sp_temps] unbound physical register"
+    | Some temp -> temp
+  in
+
+  let sp_prs = Rax::Rdx::ordered_argument_physical_regs in
+  let temp_man, pr_map = alloc_temp_for_prs init_temp_man sp_prs in
+  let sp_temps = { rax = get_temp pr_map Rax
+                 ; rdx = get_temp pr_map Rdx
+                 ; ordered_arg_regs =
+                     List.map (get_temp pr_map) ordered_argument_physical_regs
+                 }
+  in (temp_man, sp_temps)
 
 let _get_sp_temps_coloring sp_temps : (Temp.t, physical_reg) Map.t =
   let pre_color = Map.empty Temp.compare in
@@ -224,44 +259,32 @@ let _map_grs_in_instr (f : 'a -> 'b) (instr : 'a instr) : ('b instr) =
 
 (* context for translation from [Lir.func] to [temp_func] *)
 type context =
-  { func_label        : Label.t
-
-  (* temps that must be mapped to special purpose registers *)
-  ; rax_temp          : Temp.t
-  ; rdx_temp          : Temp.t
-  ; ordered_arg_regs  : Temp.t list 
-    (* _All_ args that can fit in regs; NOTE Original func might not have this
-     * many args, but calls to other func might need more args. It can also
-     * have more, but we ignore the rest. *)
-
+  { func_label : Label.t
+  ; sp_temps   : sp_temps
   (* following are "mutable" *)
-  ; temp_manager      : Temp.manager
-  ; label_manager     : Label.manager
-  ; rev_instrs        : Temp.t instr list
+  ; temp_manager  : Temp.manager
+  ; label_manager : Label.manager
+  ; rev_instrs    : Temp.t instr list
   }
-
-(* ENSURE [length output-temp-list] = [length ordered_arg_reg_temps] *)
-let _generate_ordered_arg_reg_temps (init_temp_man : Temp.manager)
-  : (Temp.manager * Temp.t list) =
-  List.fold_right
-    (fun _ (temp_man, ordered_arg_reg_temps) ->
-       let temp_man, arg_reg_temp = Temp.gen temp_man in
-       (temp_man, arg_reg_temp::ordered_arg_reg_temps))
-    ordered_argument_physical_regs
-    (init_temp_man, [])
-;;
 
 let _init_ctx
     (func_label : Label.t)
     (temp_manager : Temp.manager) (label_manager : Label.manager)
   : context =
-  let temp_manager, rax_temp = Temp.gen temp_manager in
-  let temp_manager, rdx_temp = Temp.gen temp_manager in
-  let temp_manager, ordered_arg_regs =
-    _generate_ordered_arg_reg_temps temp_manager
-  in
-  { func_label; rax_temp; rdx_temp; ordered_arg_regs;
-    temp_manager; label_manager; rev_instrs = [] }
+  let temp_manager, sp_temps = _init_sp_temps temp_manager in
+  { func_label; sp_temps; temp_manager; label_manager; rev_instrs = [] }
+;;
+
+let _ctx_get_rax (ctx : context) : Temp.t =
+  ctx.sp_temps.rax
+;;
+
+let _ctx_get_rdx (ctx : context) : Temp.t =
+  ctx.sp_temps.rdx
+;;
+
+let _ctx_get_ordered_arg_regs (ctx : context) : Temp.t list =
+  ctx.sp_temps.ordered_arg_regs
 ;;
 
 let _ctx_add_instr (ctx : context) (instr : Temp.t instr) : context =
@@ -311,7 +334,7 @@ let _emit_load_args_into_temps (ctx : context) (ordered_args : Temp.t list)
       let ctx = _ctx_add_instr ctx instr in
       go ctx rest_arg_temps rest_arg_prs
   in
-  go ctx ordered_args ctx.ordered_arg_regs
+  go ctx ordered_args ctx.sp_temps.ordered_arg_regs
 ;;
 
 let rec _emit_lir_expr (ctx : context) (e : Lir.expr) (dst_temp : Temp.t)
@@ -345,7 +368,7 @@ and _emit_generic_call (ctx : context)
     let ctx, arg_temps, arg_bytes = _emit_prepare_x86_call_args ctx arg_es in
     let ctx = _ctx_add_instr ctx (Call (target, arg_temps)) in
     let ctx = _ctx_add_instr ctx (Binop (Add, Rsp, Imm_arg arg_bytes)) in
-    _ctx_add_instr ctx (Load (Reg_arg (Greg ctx.rax_temp), Greg dst_temp))
+    _ctx_add_instr ctx (Load (Reg_arg (Greg (_ctx_get_rax ctx)), Greg dst_temp))
 
 (*       ......
  * caller stack frame
@@ -419,11 +442,8 @@ and _emit_prepare_x86_call_args (init_ctx : context)
       go ctx rest_arg_es rest_arg_temps arg_temp_pairs
   in
 
-  let x86_arg_temps =
-    List.combine init_ctx.ordered_arg_regs ordered_argument_physical_regs
-    |> List.map (fun (temp, _) -> temp)
-  in
-  go init_ctx init_arg_es x86_arg_temps []
+  let ordered_arg_regs = _ctx_get_ordered_arg_regs init_ctx in
+  go init_ctx init_arg_es ordered_arg_regs  []
 
 and _emit_lir_op (ctx : context)
     (op : Lir.op) (lhs_e : Lir.expr) (rhs_e : Lir.expr) (dst_temp : Temp.t)
@@ -439,10 +459,11 @@ and _emit_lir_op (ctx : context)
   | Mul -> 
     _ctx_add_instr ctx (Binop (Mul, Greg dst_temp, Reg_arg (Greg rhs_temp)))
   | Div ->
-    let clear_rdx_i = Load (Imm_arg 0, Greg ctx.rdx_temp) in
-    let lhs_to_rax_i = Load (Reg_arg (Greg dst_temp), Greg ctx.rax_temp) in
+    let rax_reg = Greg (_ctx_get_rax ctx) in
+    let clear_rdx_i = Load (Imm_arg 0, Greg (_ctx_get_rdx ctx)) in
+    let lhs_to_rax_i = Load (Reg_arg (Greg dst_temp), rax_reg) in
     let idiv_i = IDiv (Greg rhs_temp) in
-    let quotient_to_dst_i = Load (Reg_arg (Greg ctx.rax_temp), Greg dst_temp) in
+    let quotient_to_dst_i = Load (Reg_arg rax_reg, Greg dst_temp) in
     let ctx = _ctx_add_instr ctx clear_rdx_i in
     let ctx = _ctx_add_instr ctx lhs_to_rax_i in
     let ctx = _ctx_add_instr ctx idiv_i in
@@ -515,7 +536,7 @@ let _emit_lir_instr (ctx : context) (lir_instr : Lir.instr) : context =
     _emit_lir_jump ctx lir_cond target_label
 
   | Ret e ->
-    let ctx = _emit_lir_expr ctx e ctx.rax_temp in
+    let ctx = _emit_lir_expr ctx e (_ctx_get_rax ctx) in
     let epilogue_label = _ctx_get_epilogue_label ctx in
     _ctx_add_instr ctx (Jmp epilogue_label)
 ;;
@@ -531,12 +552,8 @@ let _from_lir_func_impl
   let ctx = _init_ctx entry temp_manager label_manager in
   let ctx = _emit_load_args_into_temps ctx ordered_args in
   let ctx = _emit_lir_instrs ctx body in
-  let sp_temps = { rax              = ctx.rax_temp
-                 ; rdx              = ctx.rdx_temp
-                 ; ordered_arg_regs = ctx.ordered_arg_regs
-                 }
-  in
-  let func = { entry; sp_temps
+  let func = { entry
+             ; sp_temps     = ctx.sp_temps
              ; instrs       = _ctx_get_instrs ctx
              ; temp_manager = ctx.temp_manager
              }
@@ -688,7 +705,7 @@ let _temp_instr_to_vasm (rax : Temp.t) (rdx : Temp.t) (instr : Temp.t instr)
   | Ret -> Vasm.mk_ret reads writes
 ;;
 
-let temp_func_to_vasms temp_func =
+let temp_func_to_vasms (temp_func : temp_func) =
   let rax, rdx = temp_func.sp_temps.rax, temp_func.sp_temps.rdx in
   let body_vasms = List.map (_temp_instr_to_vasm rax rdx) temp_func.instrs in
   let entry_label = Vasm.mk_label temp_func.entry in
@@ -696,7 +713,7 @@ let temp_func_to_vasms temp_func =
 ;;
 
 
-let get_pre_coloring temp_func =
+let get_pre_coloring (temp_func : temp_func) =
   _get_sp_temps_coloring temp_func.sp_temps
 ;;
 
