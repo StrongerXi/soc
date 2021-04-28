@@ -12,28 +12,18 @@ type 'a instr
  * NOTE without prologue/epilogue. *) 
 type temp_func
 
-(* A program in X86 before register allocation *)
-type temp_prog = 
-  { temp_funcs : temp_func list
-  ; temp_main  : temp_func
-  }
-
-
 (* A function unit in X86 after register allocation
  * NOTE with prologue/epilogue; this is the final assembly code. *)
-type func =
-  { entry  : Label.t
-  ; instrs : physical_reg instr list (* doesn't start with [entry] label *)
-  }
+type func
 
-(* An entire program in X86 after register allocation *)
-type prog = 
-  { funcs : func list
-  ; main : func
+(** An entire program in X86 parameterized over type of individual function *)
+type 'a prog = 
+  { funcs : 'a list
+  ; main : 'a
   }
 
 
-val from_lir_prog : Lir.prog -> temp_prog
+val from_lir_prog : Lir.prog -> temp_func prog
 
 (** Includes entry label in output vasms. *)
 val temp_func_to_vasms : temp_func -> Vasm.t list
@@ -61,7 +51,7 @@ val spill_temps : temp_func -> Temp.t Set.t -> temp_func
 val temp_func_to_func : temp_func -> (Temp.t, physical_reg) Map.t -> func
 
 (** [prog_to_str prog] outputs a valid X86 assembly text of [prog] *)
-val prog_to_str : prog -> string
+val func_prog_to_str : func prog -> string
 
 
 (* X86 physical registers that can be used in register allocation. *)

@@ -55,8 +55,8 @@ let rec _x86_temp_func_to_func (temp_func : X86.temp_func) : X86.func =
 
 let lir_to_x86 lir_prog = 
   let x86_temp_prog = X86.from_lir_prog lir_prog in
-  { X86.funcs = List.map _x86_temp_func_to_func x86_temp_prog.temp_funcs
-  ; main      = _x86_temp_func_to_func x86_temp_prog.temp_main
+  { X86.funcs = List.map _x86_temp_func_to_func x86_temp_prog.funcs
+  ; main      = _x86_temp_func_to_func x86_temp_prog.main
   }
 ;;
 
