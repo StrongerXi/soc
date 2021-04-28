@@ -196,7 +196,7 @@ let tests = OUnit2.(>:::) "reg_alloc_test" [
               (Vasm.mk_instr [t0; t1] [t0], []);
             ]
         in
-        _check_coloring [(t0, 1); (t1, 0); (t2, 3); (t3, 2)]
+        _check_coloring [(t0, 3); (t1, 0); (t2, 1); (t3, 2)]
           (Reg_alloc.greedy_alloc instrs caller_saved callee_saved pre_colored);
 
         (* [T0 ~ T3] := _ # live-out = [T0, T1, T2, T3] 
@@ -212,7 +212,7 @@ let tests = OUnit2.(>:::) "reg_alloc_test" [
             ]
         in
         (* caller/callee saved shouldn't matter for these instrs *)
-        _check_spills [t0]
+        _check_coloring [(t0, 3); (t1, 0); (t2, 1); (t3, 2)]
           (Reg_alloc.greedy_alloc instrs caller_saved callee_saved pre_colored);
       );
 
@@ -237,10 +237,10 @@ let tests = OUnit2.(>:::) "reg_alloc_test" [
               (Vasm.mk_instr [t0; t1] [], []);
             ]
         in
-        _check_coloring [(t0, 1); (t1, 0)]
+        _check_coloring [(t0, 2); (t1, 0)]
           (Reg_alloc.greedy_alloc
              instrs caller_saved callee_saved _empty_temp_map);
-        _check_spills [t1]
+        _check_spills [t0]
           (Reg_alloc.greedy_alloc
              instrs caller_saved callee_saved pre_colored);
       );
