@@ -32,9 +32,9 @@ type 'a context =
 let _ctx_init
     (avalb_colors : 'a Set.t)
     (pre_coloring : (Temp.t, 'a) Map.t)
-    (temps_to_spill : Temp.t Set.t)
   : 'a context =
-  { avalb_colors;  temps_to_spill;
+  { avalb_colors; 
+    temps_to_spill   = Set.empty Temp.compare;
     coloring         = pre_coloring;
     temps_cant_spill = Map.get_key_set pre_coloring;
     temps_in_use     = Set.empty Temp.compare;
@@ -198,94 +198,12 @@ let _brute_alloc_impl
       ctx annot_instrs
 ;;
 
-let _brute_color_temps_live_across_call
-    (init_coloring : (Temp.t, 'a) Map.t) (init_temps_to_spill : Temp.t Set.t)
-    (callee_saved : 'a Set.t) (vasm : Vasm.t) (annot : Liveness_analysis.annot) 
-  : ((Temp.t, 'a) Map.t * Temp.t Set.t) =
-
-  let extract_colored_temps temp_set
-    : ((Temp.t * 'a) list * Temp.t list) =
-    Set.fold
-      (fun (temp_color_pairs, uncolored_temps) temp ->
-         match Map.get temp init_coloring with
-         | Some color -> ((temp, color)::temp_color_pairs, uncolored_temps)
-         | None       -> (temp_color_pairs, temp::uncolored_temps))
-      ([], []) temp_set
-  in
-
-  let add_temps_colored_to_caller_saved temp_set (coloring : (Temp.t * 'a) list)
-    : Temp.t Set.t =
-    List.fold_left 
-      (fun temps_to_spill (temp, color) ->
-         if Set.mem color callee_saved then temps_to_spill
-         else Set.add temp temps_to_spill)
-      temp_set coloring
-  in
-
-  let color_to_callee_saved_or_spill
-      (coloring : (Temp.t, 'a) Map.t)
-      (temps_to_spill : Temp.t Set.t)
-      (temps_to_color : Temp.t list)
-    : (Temp.t, 'a) Map.t * Temp.t Set.t =
-    List.fold_left (* color the rest to callee-saved, as much as possible *)
-      (fun (avalb_colors, pre_colored, temps_to_spill) temp ->
-         match Set.get_one avalb_colors with
-         | Some color -> 
-           if Set.mem temp temps_to_spill
-           then (avalb_colors, pre_colored, temps_to_spill)
-           else
-             let avalb_colors = Set.remove color avalb_colors in
-             let pre_colored = Map.add temp color pre_colored in
-             (avalb_colors, pre_colored, temps_to_spill)
-         (* don't waste color for already spilled temp *)
-         | _ -> (avalb_colors, pre_colored, Set.add temp temps_to_spill))
-      (callee_saved, coloring, temps_to_spill)
-      temps_to_color
-    |> (fun (_, pre_colored, temps_to_spill) -> (pre_colored, temps_to_spill))
-  in
-
-  if not (Vasm.is_call vasm) then (init_coloring, init_temps_to_spill)
-  else
-    (* Any temp that lives across a call must be mapped to callee-saved or
-     * spilled. *)
-    let temps_live_across_call = Set.inter annot.live_out annot.live_in in
-    let temp_color_pairs, temps_to_color =
-      extract_colored_temps temps_live_across_call
-    in
-    let temps_to_spill = (* must spill temps pre-colored to caller-saved *)
-      add_temps_colored_to_caller_saved init_temps_to_spill temp_color_pairs
-    in
-    color_to_callee_saved_or_spill init_coloring temps_to_spill temps_to_color
-;;
-
-(* pre-color temps that live through Call instructions to callee-saved regs *)
-let _brute_pre_color_call_temps
-    (annot_instrs : (Vasm.t * Liveness_analysis.annot) list)
-    (callee_saved : 'a Set.t)
-    (pre_colored  : (Temp.t, 'a) Map.t)
-  : ((Temp.t, 'a) Map.t * Temp.t Set.t) =
-  List.fold_left
-    (fun (pre_colored, temps_to_spill)  (instr, annot) ->
-       _brute_color_temps_live_across_call
-         pre_colored temps_to_spill callee_saved instr annot)
-    (pre_colored, Set.empty Temp.compare)
-    annot_instrs
-;;
-
-(* REQUIRES:
- * 1. [caller_saved] and [callee_saved] are disjoint
- * 2. anoot_instrs has accurate liveness annotation (exposed for eaiser testing)
- *)
 let greedy_alloc 
     (annot_instrs : (Vasm.t * Liveness_analysis.annot) list)
-    (caller_saved : 'a Set.t)
-    (callee_saved : 'a Set.t)
+    (available_regs : 'a Set.t)
     (pre_colored  : (Temp.t, 'a) Map.t)
   : ((Temp.t, 'a) Map.t, Temp.t Set.t) result =
-  let pre_colored, temps_to_spill =
-    _brute_pre_color_call_temps annot_instrs callee_saved pre_colored in
-  let all_regs = Set.union caller_saved callee_saved in
-  let ctx = _ctx_init all_regs pre_colored temps_to_spill in
+  let ctx = _ctx_init available_regs pre_colored in
   let ctx = _brute_alloc_impl ctx annot_instrs in
   if Set.size ctx.temps_to_spill = 0
   then Ok ctx.coloring

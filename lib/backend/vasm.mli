@@ -11,13 +11,11 @@ val mk_instr     : Temp.t list -> Temp.t list -> t
 val mk_dir_jump  : Temp.t list -> Temp.t list -> Label.t -> t
 val mk_cond_jump : Temp.t list -> Temp.t list -> Label.t -> t
 val mk_ret       : Temp.t list -> Temp.t list -> t
-val mk_call      : Temp.t list -> Temp.t list -> t
 
 
 (* Some query functions over [t] *)
 val get_reads    : t -> Temp.t Set.t
 val get_writes   : t -> Temp.t Set.t
-val is_call      : t -> bool
 
 (** structural equality *)
 val equal : t -> t -> bool

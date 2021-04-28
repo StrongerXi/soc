@@ -45,8 +45,7 @@ let rec _x86_temp_func_to_func (temp_func : X86.temp_func) : X86.func =
   let pre_color = X86.get_pre_coloring temp_func in
   match Reg_alloc.greedy_alloc
           annotated_vasms 
-          X86.caller_saved_physical_regs
-          X86.callee_saved_physical_regs
+          X86.assignable_regs
           pre_color with
   | Ok temp_to_reg -> X86.temp_func_to_func temp_func temp_to_reg 
   | Error temps_to_spill ->

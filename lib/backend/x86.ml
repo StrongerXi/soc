@@ -41,22 +41,20 @@ let _physical_reg_list_to_set (prs : physical_reg list) : physical_reg Set.t =
   List.fold_right Set.add prs (Set.empty _compare_physical_reg)
 ;;
 
-let ordered_argument_physical_regs =
+let _ordered_argument_physical_regs =
   [Rdi; Rsi; Rdx; Rcx; R8; R9]
 ;;
 
-let caller_saved_physical_regs =
+let _caller_saved_physical_regs =
   _physical_reg_list_to_set [Rdi; Rsi; Rdx; Rcx; R8; R9; Rax; R10; R11]
 ;;
 
-let callee_saved_physical_regs =
+let _callee_saved_physical_regs =
   _physical_reg_list_to_set [Rbx; R12; R13; R14; R15]
 ;;
 
-let rax_physical_reg = Rax
-;;
-
-let rdx_physical_reg = Rdx
+let assignable_regs =
+  Set.union _caller_saved_physical_regs _callee_saved_physical_regs
 ;;
 
 
@@ -128,25 +126,24 @@ type prog =
 type sp_temps =
   { rax              : Temp.t
   ; rdx              : Temp.t
-  ; ordered_arg_regs : Temp.t list 
+  (* TODO consider using a pair list here *)
+  ; ordered_arg_regs : (Temp.t * physical_reg) list 
       (* For each argument passed in register.
        * NOTE Original Lir func might not have this many args, but calls to
        * other func might need more args. Excessive temps are simply ignored. *)
+  ; caller_saved     : (Temp.t, physical_reg) Map.t
   }
 
 (* ENSURES: Same temps will be used for same regs *)
 let _init_sp_temps (init_temp_man : Temp.manager) : (Temp.manager * sp_temps) =
 
-  let alloc_temp_for_prs (temp_man : Temp.manager) (prs : physical_reg list)
+  let alloc_temp_for_prs (temp_man : Temp.manager) (prs : physical_reg Set.t)
     : (Temp.manager * (physical_reg, Temp.t) Map.t) =
-    List.fold_left
+    Set.fold
       (fun (temp_man, pr_map) pr ->
-         match Map.get pr pr_map with
-         | Some _ -> (temp_man, pr_map) (* already allocated temp for [pr] *)
-         | None ->
-           let temp_man, temp = Temp.gen temp_man in
-           let pr_map = Map.add pr temp pr_map in
-           (temp_man, pr_map))
+         let temp_man, temp = Temp.gen temp_man in
+         let pr_map = Map.add pr temp pr_map in
+         (temp_man, pr_map))
       (temp_man, Map.empty _compare_physical_reg)
       prs
   in
@@ -158,23 +155,31 @@ let _init_sp_temps (init_temp_man : Temp.manager) : (Temp.manager * sp_temps) =
     | Some temp -> temp
   in
 
-  let sp_prs = Rax::Rdx::ordered_argument_physical_regs in
+  let sp_prs = Rax::Rdx::_ordered_argument_physical_regs in
+  let sp_prs = List.fold_right Set.add sp_prs (Set.empty _compare_physical_reg)
+  in
+  let sp_prs = Set.union sp_prs _caller_saved_physical_regs in
   let temp_man, pr_map = alloc_temp_for_prs init_temp_man sp_prs in
   let sp_temps = { rax = get_temp pr_map Rax
                  ; rdx = get_temp pr_map Rdx
                  ; ordered_arg_regs =
-                     List.map (get_temp pr_map) ordered_argument_physical_regs
+                     List.map
+                       (fun pr -> (get_temp pr_map pr, pr))
+                       _ordered_argument_physical_regs
+                 ; caller_saved =
+                     Set.fold
+                       (fun map pr -> Map.add (get_temp pr_map pr) pr map)
+                       (Map.empty Temp.compare)
+                       _caller_saved_physical_regs
                  }
   in (temp_man, sp_temps)
 
 let _get_sp_temps_coloring sp_temps : (Temp.t, physical_reg) Map.t =
-  let pre_color = Map.empty Temp.compare in
+  let pre_color = sp_temps.caller_saved in
   let temp_reg_pairs =
     (sp_temps.rax, Rax)::
     (sp_temps.rdx, Rdx)::
-    (List.combine
-       sp_temps.ordered_arg_regs
-       ordered_argument_physical_regs)
+    (sp_temps.ordered_arg_regs)
   in
   List.fold_left
     (fun pre_color (temp, reg) -> Map.add temp reg pre_color)
@@ -284,7 +289,7 @@ let _ctx_get_rdx (ctx : context) : Temp.t =
 ;;
 
 let _ctx_get_ordered_arg_regs (ctx : context) : Temp.t list =
-  ctx.sp_temps.ordered_arg_regs
+  List.map (fun (temp, _) -> temp) ctx.sp_temps.ordered_arg_regs
 ;;
 
 let _ctx_add_instr (ctx : context) (instr : Temp.t instr) : context =
@@ -334,7 +339,8 @@ let _emit_load_args_into_temps (ctx : context) (ordered_args : Temp.t list)
       let ctx = _ctx_add_instr ctx instr in
       go ctx rest_arg_temps rest_arg_prs
   in
-  go ctx ordered_args ctx.sp_temps.ordered_arg_regs
+  let ordered_arg_regs = _ctx_get_ordered_arg_regs ctx in
+  go ctx ordered_args ordered_arg_regs
 ;;
 
 let rec _emit_lir_expr (ctx : context) (e : Lir.expr) (dst_temp : Temp.t)
@@ -679,6 +685,7 @@ let _get_reads_and_writes_temp_instr sp_temps (instr : Temp.t instr)
     let reads = List.fold_right Set.add reg_arg_temps reads in
     let reads = _add_temps_in_call_target reads target in
     let writes = Set.add sp_temps.rax writes in
+    let writes = Set.union (Map.get_key_set sp_temps.caller_saved) writes in
     (reads, writes)
 
   | Ret ->
@@ -692,10 +699,8 @@ let _temp_instr_to_vasm (sp_temps : sp_temps) (instr : Temp.t instr) : Vasm.t =
   match instr with
   | Label label -> Vasm.mk_label label
 
-  | Load _ | Store _ | Push _ | Pop _ | Binop _ | Cmp _ | IDiv _ ->
+  | Load _ | Store _ | Push _ | Pop _ | Binop _ | Cmp _ | IDiv _ | Call _ ->
     Vasm.mk_instr reads writes
-
-  | Call _ -> Vasm.mk_call reads writes
 
   | Jmp target -> Vasm.mk_dir_jump reads writes target
   | JmpC (_, target) -> Vasm.mk_cond_jump reads writes target
@@ -907,7 +912,7 @@ let _get_callee_saved_prs (pr_assignment : (Temp.t, physical_reg) Map.t)
   : physical_reg Set.t =
   Map.fold
     (fun pr callee_saved ->
-       if Set.mem pr callee_saved_physical_regs
+       if Set.mem pr _callee_saved_physical_regs
        then Set.add pr callee_saved
        else callee_saved)
     pr_assignment
