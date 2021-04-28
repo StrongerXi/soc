@@ -47,7 +47,7 @@ let _physical_reg_list_to_set (prs : physical_reg list) : physical_reg Set.t =
 ;;
 
 let caller_saved_physical_regs =
-  _physical_reg_list_to_set [Rdi; Rsi; Rdx; Rcx; R8; R9; Rax; R11; R12]
+  _physical_reg_list_to_set [Rdi; Rsi; Rdx; Rcx; R8; R9; Rax; R10; R11]
 ;;
 
 let callee_saved_physical_regs =
