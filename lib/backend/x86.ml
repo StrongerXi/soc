@@ -765,8 +765,7 @@ type spill_context =
   ; slot_map       : (Temp.t, int) Map.t    (* keys ∈ [temps_to_spill] *)
   ; rev_instrs     : Temp.t instr list
   ; temps_to_spill : Temp.t Set.t
-  ; rax_temp       : Temp.t
-  ; rdx_temp       : Temp.t
+  ; sp_temps       : sp_temps
   ; temp_manager   : Temp.manager
   }
 
@@ -864,8 +863,7 @@ let _spill_ctx_init temp_func (temps_to_spill : Temp.t Set.t) : spill_context =
             ; slot_map     = Map.empty Temp.compare 
             ; rev_instrs   = []
             ; temps_to_spill
-            ; rax_temp     = temp_func.sp_temps.rax
-            ; rdx_temp     = temp_func.sp_temps.rdx
+            ; sp_temps     = temp_func.sp_temps
             ; temp_manager = temp_func.temp_manager
             }
   in
@@ -883,7 +881,7 @@ let _spill_ctx_init temp_func (temps_to_spill : Temp.t Set.t) : spill_context =
 let _spill_instr (ctx : spill_context) (instr : Temp.t instr) : spill_context =
   (* ASSUME instruction goes like read/compute/write *)
   let reads, writes =
-    _get_reads_and_writes_temp_instr ctx.rax_temp ctx.rdx_temp instr
+    _get_reads_and_writes_temp_instr ctx.sp_temps.rax ctx.sp_temps.rdx instr
   in
   let ctx, changed_temp_map = _restore_all_spilled ctx reads in
   let old_to_new_temp temp =
