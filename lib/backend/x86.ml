@@ -847,29 +847,17 @@ let _get_or_gen_slots_for_temps_to_spill
     (ctx, []) temps
 ;;
 
-(* Calculate available stack slot and spill arguments if needed
- * (think of them as being written at entry). *)
+(* Calculate available stack slot. *)
 let _spill_ctx_init temp_func (temps_to_spill : Temp.t Set.t) : spill_context =
   let max_rbp_offset = _get_max_rbp_offset_instrs temp_func.instrs in
   let max_slot = Int.ceil_div max_rbp_offset Constants.word_size in
-  let reg_args =
-    List.fold_right Set.add
-      temp_func.sp_temps.ordered_arg_regs
-      (Set.empty Temp.compare)
-  in
-  let ctx = { next_slot    = max_slot + 1
-            ; slot_map     = Map.empty Temp.compare 
-            ; rev_instrs   = []
-            ; temps_to_spill
-            ; sp_temps     = temp_func.sp_temps
-            ; temp_manager = temp_func.temp_manager
-            }
-  in
-  let ctx, temp_slot_pairs = _get_or_gen_slots_for_temps_to_spill ctx reg_args
-  in
-  List.fold_left (* order doesn't matter *)
-    (fun ctx (temp, slot) -> _spill_to_slot ctx temp slot)
-  ctx temp_slot_pairs
+  { next_slot    = max_slot + 1
+  ; slot_map     = Map.empty Temp.compare 
+  ; rev_instrs   = []
+  ; temps_to_spill
+  ; sp_temps     = temp_func.sp_temps
+  ; temp_manager = temp_func.temp_manager
+  }
 ;;
 
 (* For any temp to spill
