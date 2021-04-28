@@ -134,29 +134,56 @@ let _ctx_distinct_color_temps
       let ctx = _ctx_add_active_coloring ctx temp_to_color color in
       (ctx, can_spill)
   in
-  let color_one_temp (ctx : 'a context)
-      (temp_to_color : Temp.t) (can_spill : Temp.t Set.t)
+
+  let replace_active_temp ctx can_spill (replacer : Temp.t) (color : 'a) 
     : ('a context * Temp.t Set.t) =
-    match Map.get temp_to_color ctx.coloring with
-    | None       -> color_uncolored_temp ctx temp_to_color can_spill
-    | Some color ->
-      if Set.mem color ctx.avalb_colors ||
-         Set.mem temp_to_color ctx.temps_in_use
-      then (_ctx_use_coloring ctx temp_to_color color, can_spill)
-      else (* assigned color is currently occupied by others *)
-        let temp_occupying_color = _ctx_find_temp_using_color ctx color in
-        let ctx, _ = _ctx_spill_temp ctx temp_occupying_color in
-        (_ctx_use_coloring ctx temp_to_color color, can_spill)
+    let temp_occupying_color = _ctx_find_temp_using_color ctx color in
+    if Set.mem temp_occupying_color can_spill
+    then
+      let ctx, _ = _ctx_spill_temp ctx temp_occupying_color in
+      _ctx_use_coloring ctx replacer color, can_spill
+    else failwith "[Reg_alloc.replace_active_temp] Not enough register"
   in
+
+  let color_colored_temp (ctx : 'a context)
+      (temp_to_color : Temp.t) (color : 'a) (can_spill : Temp.t Set.t)
+    : ('a context * Temp.t Set.t) =
+    if Set.mem temp_to_color ctx.temps_in_use then (ctx, can_spill)
+    else if Set.mem color ctx.avalb_colors
+    then (_ctx_use_coloring ctx temp_to_color color, can_spill)
+    else replace_active_temp ctx can_spill temp_to_color color
+  in
+
+  let seperate_colored_and_uncolored_temps
+      (ctx : 'a context) (temps : Temp.t Set.t)
+    : ((Temp.t * 'a) list * Temp.t list) =
+    Set.fold
+      (fun (temp_color_pairs, uncolored_temps) temp ->
+         match Map.get temp ctx.coloring with
+         | None       -> (temp_color_pairs, temp::uncolored_temps)
+         | Some color -> ((temp, color)::temp_color_pairs, uncolored_temps))
+      ([], []) temps
+  in
+
   let can_spill = Set.diff ctx.temps_in_use init_temps_to_color in
   let can_spill = Set.diff can_spill ctx.temps_cant_spill in
-  Set.fold (* arbitrary order of coloring *)
-    (fun (ctx, can_spill) temp ->
-       if Set.mem temp ctx.temps_to_spill
-       then (ctx, can_spill) (* don't waste time on already spilled temp *)
-       else color_one_temp ctx temp can_spill)
-    (ctx, can_spill) init_temps_to_color
-  |> (fun (ctx, _) -> ctx)
+  (* don't waste time on already spilled temp *)
+  let temps_to_color = Set.diff init_temps_to_color ctx.temps_to_spill in
+  let temp_color_pairs, uncolored_temps =
+    seperate_colored_and_uncolored_temps ctx temps_to_color
+  in
+  let ctx, can_spill =
+    List.fold_left (* handle colored temps first to be less conservative *)
+      (fun (ctx, can_spill) (temp, color) ->
+         color_colored_temp ctx temp color can_spill)
+      (ctx, can_spill) temp_color_pairs
+  in
+  let ctx, _ =
+    List.fold_left
+      (fun (ctx, can_spill) temp -> color_uncolored_temp ctx temp can_spill)
+      (ctx, can_spill) uncolored_temps
+  in
+  ctx
 ;;
 
 (* Assign distinct color to [temps] (if not colored), and free them up if not
