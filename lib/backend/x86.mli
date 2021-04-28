@@ -63,12 +63,11 @@ val temp_func_to_func : temp_func -> (Temp.t, physical_reg) Map.t -> func
 (** [prog_to_str prog] outputs a valid X86 assembly text of [prog] *)
 val prog_to_str : prog -> string
 
+
+(* X86 physical registers that can be used in register allocation. *)
+val assignable_regs                : physical_reg Set.t
+
+
 (* For debugging *)
 val temp_func_to_str : temp_func -> string
 val physical_reg_to_str : physical_reg -> string
-
-(* Some pre-defined X86 physical registers *)
-val assignable_regs                : physical_reg Set.t
-val ordered_argument_physical_regs : physical_reg list
-val rax_physical_reg               : physical_reg
-val rdx_physical_reg               : physical_reg

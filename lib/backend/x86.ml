@@ -41,7 +41,7 @@ let _physical_reg_list_to_set (prs : physical_reg list) : physical_reg Set.t =
   List.fold_right Set.add prs (Set.empty _compare_physical_reg)
 ;;
 
-let ordered_argument_physical_regs =
+let _ordered_argument_physical_regs =
   [Rdi; Rsi; Rdx; Rcx; R8; R9]
 ;;
 
@@ -55,12 +55,6 @@ let _callee_saved_physical_regs =
 
 let assignable_regs =
   Set.union _caller_saved_physical_regs _callee_saved_physical_regs
-;;
-
-let rax_physical_reg = Rax
-;;
-
-let rdx_physical_reg = Rdx
 ;;
 
 
@@ -161,7 +155,7 @@ let _init_sp_temps (init_temp_man : Temp.manager) : (Temp.manager * sp_temps) =
     | Some temp -> temp
   in
 
-  let sp_prs = Rax::Rdx::ordered_argument_physical_regs in
+  let sp_prs = Rax::Rdx::_ordered_argument_physical_regs in
   let sp_prs = List.fold_right Set.add sp_prs (Set.empty _compare_physical_reg)
   in
   let sp_prs = Set.union sp_prs _caller_saved_physical_regs in
@@ -171,7 +165,7 @@ let _init_sp_temps (init_temp_man : Temp.manager) : (Temp.manager * sp_temps) =
                  ; ordered_arg_regs =
                      List.map
                        (fun pr -> (get_temp pr_map pr, pr))
-                       ordered_argument_physical_regs
+                       _ordered_argument_physical_regs
                  ; caller_saved =
                      Set.fold
                        (fun map pr -> Map.add (get_temp pr_map pr) pr map)
