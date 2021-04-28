@@ -124,15 +124,34 @@ type prog =
   ; main : func
   }
 
+(* special purpose temps that will be pre-colored to specific registers *)
+type sp_temps =
+  { rax              : Temp.t
+  ; rdx              : Temp.t
+  ; ordered_arg_regs : Temp.t list 
+      (* for each argument passed in register; might not all be used *)
+  }
+
+let _get_sp_temps_coloring sp_temps : (Temp.t, physical_reg) Map.t =
+  let pre_color = Map.empty Temp.compare in
+  let temp_reg_pairs =
+    (sp_temps.rax, Rax)::
+    (sp_temps.rdx, Rdx)::
+    (List.combine
+       sp_temps.ordered_arg_regs
+       ordered_argument_physical_regs)
+  in
+  List.fold_left
+    (fun pre_color (temp, reg) -> Map.add temp reg pre_color)
+    pre_color temp_reg_pairs
+;;
+
 
 (* With some annotations to help reg-alloc. *)
 type temp_func = 
   { entry    : Label.t
   ; instrs   : Temp.t instr list  (* doesn't start with [entry] label *)
-  ; reg_args : Temp.t list        (* for each argument passed in register;
-                                     might not all be used *)
-  ; rax      : Temp.t
-  ; rdx      : Temp.t
+  ; sp_temps : sp_temps
   ; temp_manager : Temp.manager (* for generating fresh temps *)
   }
 
@@ -512,11 +531,13 @@ let _from_lir_func_impl
   let ctx = _init_ctx entry temp_manager label_manager in
   let ctx = _emit_load_args_into_temps ctx ordered_args in
   let ctx = _emit_lir_instrs ctx body in
-  let func = { entry
+  let sp_temps = { rax              = ctx.rax_temp
+                 ; rdx              = ctx.rdx_temp
+                 ; ordered_arg_regs = ctx.ordered_arg_regs
+                 }
+  in
+  let func = { entry; sp_temps
              ; instrs       = _ctx_get_instrs ctx
-             ; reg_args     = ctx.ordered_arg_regs
-             ; rax          = ctx.rax_temp
-             ; rdx          = ctx.rdx_temp
              ; temp_manager = ctx.temp_manager
              }
   in (func, ctx.label_manager)
@@ -668,24 +689,15 @@ let _temp_instr_to_vasm (rax : Temp.t) (rdx : Temp.t) (instr : Temp.t instr)
 ;;
 
 let temp_func_to_vasms temp_func =
-  let body_vasms =
-    List.map (_temp_instr_to_vasm temp_func.rax temp_func.rdx) temp_func.instrs in
+  let rax, rdx = temp_func.sp_temps.rax, temp_func.sp_temps.rdx in
+  let body_vasms = List.map (_temp_instr_to_vasm rax rdx) temp_func.instrs in
   let entry_label = Vasm.mk_label temp_func.entry in
   entry_label::body_vasms
 ;;
 
 
 let get_pre_coloring temp_func =
-  let pre_color = Map.empty Temp.compare in
-  let temp_reg_pairs =
-    (temp_func.rax, Rax)::
-    (temp_func.rdx, Rdx)::
-    (List.combine temp_func.reg_args ordered_argument_physical_regs)
-  in
-  List.fold_left
-    (fun pre_color (temp, reg) ->
-       Map.add temp reg pre_color)
-    pre_color temp_reg_pairs
+  _get_sp_temps_coloring temp_func.sp_temps
 ;;
 
 
@@ -827,14 +839,16 @@ let _spill_ctx_init temp_func (temps_to_spill : Temp.t Set.t) : spill_context =
   let max_rbp_offset = _get_max_rbp_offset_instrs temp_func.instrs in
   let max_slot = Int.ceil_div max_rbp_offset Constants.word_size in
   let reg_args =
-    List.fold_right Set.add temp_func.reg_args (Set.empty Temp.compare)
+    List.fold_right Set.add
+      temp_func.sp_temps.ordered_arg_regs
+      (Set.empty Temp.compare)
   in
   let ctx = { next_slot    = max_slot + 1
             ; slot_map     = Map.empty Temp.compare 
             ; rev_instrs   = []
             ; temps_to_spill
-            ; rax_temp     = temp_func.rax
-            ; rdx_temp     = temp_func.rdx
+            ; rax_temp     = temp_func.sp_temps.rax
+            ; rdx_temp     = temp_func.sp_temps.rdx
             ; temp_manager = temp_func.temp_manager
             }
   in
