@@ -687,6 +687,7 @@ let _get_reads_and_writes_temp_instr sp_temps (instr : Temp.t instr)
     let reads = List.fold_right Set.add reg_arg_temps reads in
     let reads = _add_temps_in_call_target reads target in
     let writes = Set.add sp_temps.rax writes in
+    let writes = Set.union (Map.get_key_set sp_temps.caller_saved) writes in
     (reads, writes)
 
   | Ret ->
