@@ -1,132 +1,132 @@
-closure <closure_57> = {
-  args = (native_arg_56, native_arg_55)
+closure <closure_67> = {
+  args = (native_arg_66, native_arg_65)
   free_vars = ()
   body = {
-    (<native:equal> native_arg_56 native_arg_55)
+    (<native:equal> native_arg_66 native_arg_65)
   }
 }
-closure <closure_54> = {
-  args = (native_arg_53)
+closure <closure_64> = {
+  args = (native_arg_63)
   free_vars = ()
   body = {
-    (<native:print> native_arg_53)
+    (<native:print> native_arg_63)
   }
 }
-closure <closure_52> = {
-  args = (prim_arg_51, prim_arg_50)
+closure <closure_62> = {
+  args = (prim_arg_61, prim_arg_60)
   free_vars = ()
   body = {
-    (+ prim_arg_51 prim_arg_50)
+    (+ prim_arg_61 prim_arg_60)
   }
 }
-closure <closure_49> = {
-  args = (prim_arg_48, prim_arg_47)
+closure <closure_59> = {
+  args = (prim_arg_58, prim_arg_57)
   free_vars = ()
   body = {
-    (- prim_arg_48 prim_arg_47)
+    (- prim_arg_58 prim_arg_57)
   }
 }
-closure <closure_46> = {
-  args = (prim_arg_45, prim_arg_44)
+closure <closure_56> = {
+  args = (prim_arg_55, prim_arg_54)
   free_vars = ()
   body = {
-    (* prim_arg_45 prim_arg_44)
+    (* prim_arg_55 prim_arg_54)
   }
 }
-closure <closure_43> = {
-  args = (prim_arg_42, prim_arg_41)
+closure <closure_53> = {
+  args = (prim_arg_52, prim_arg_51)
   free_vars = ()
   body = {
-    (< prim_arg_42 prim_arg_41)
+    (< prim_arg_52 prim_arg_51)
   }
 }
-closure <closure_40> = {
-  args = (prim_arg_39, prim_arg_38)
+closure <closure_50> = {
+  args = (prim_arg_49, prim_arg_48)
   free_vars = ()
   body = {
-    (|| prim_arg_39 prim_arg_38)
+    (|| prim_arg_49 prim_arg_48)
   }
 }
-closure <closure_37> = {
-  args = (prim_arg_36, prim_arg_35)
+closure <closure_47> = {
+  args = (prim_arg_46, prim_arg_45)
   free_vars = ()
   body = {
-    (&& prim_arg_36 prim_arg_35)
+    (&& prim_arg_46 prim_arg_45)
   }
 }
-closure <closure_34> = {
+closure <closure_44> = {
   args = (x_3)
   free_vars = (g_0)
   body = {
     (g_0 x_3)
   }
 }
-closure <closure_33> = {
+closure <closure_43> = {
   args = (x_2)
   free_vars = (f_1)
   body = {
     (f_1 x_2)
   }
 }
-closure <closure_32> = {
+closure <closure_42> = {
   args = (x_4, y_5, z_6)
   free_vars = (+)
   body = {
-    (MK_CLOSURE <closure_31> y_5 x_4 +)
+    (MK_CLOSURE <closure_41> y_5 x_4 +)
   }
 }
-closure <closure_31> = {
+closure <closure_41> = {
   args = (ignore_7)
   free_vars = (y_5, x_4, +)
   body = {
-    (MK_CLOSURE <closure_30> y_5 x_4 +)
+    (MK_CLOSURE <closure_40> y_5 x_4 +)
   }
 }
-closure <closure_30> = {
+closure <closure_40> = {
   args = (a_8, b_9, c_10)
   free_vars = (y_5, x_4, +)
   body = {
     (+ (+ x_4 a_8) y_5)
   }
 }
-closure <closure_29> = {
+closure <closure_39> = {
   args = (x_12, y_13)
   free_vars = ()
   body = {
-    (MK_CLOSURE <closure_28> y_13)
+    (MK_CLOSURE <closure_38> y_13)
   }
 }
-closure <closure_28> = {
+closure <closure_38> = {
   args = (ignore_14)
   free_vars = (y_13)
   body = {
-    let rec x_16 = (MK_CLOSURE <closure_27> x_16)
-            z_15 = (MK_CLOSURE <closure_26> y_13)
+    let rec x_16 = (MK_CLOSURE <closure_37> x_16)
+            z_15 = (MK_CLOSURE <closure_36> y_13)
     in 42
   }
 }
-closure <closure_27> = {
+closure <closure_37> = {
   args = (a_18)
   free_vars = (x_16)
   body = {
     (x_16 a_18)
   }
 }
-closure <closure_26> = {
+closure <closure_36> = {
   args = (a_17)
   free_vars = (y_13)
   body = {
     y_13
   }
 }
-closure <closure_25> = {
+closure <closure_35> = {
   args = (x_20)
   free_vars = ()
   body = {
-    (MK_CLOSURE <closure_24> x_20)
+    (MK_CLOSURE <closure_34> x_20)
   }
 }
-closure <closure_24> = {
+closure <closure_34> = {
   args = (ignore_21)
   free_vars = (x_20)
   body = {
@@ -134,17 +134,28 @@ closure <closure_24> = {
     in 42
   }
 }
-let + = (MK_CLOSURE <closure_52> )
-    - = (MK_CLOSURE <closure_49> )
-    * = (MK_CLOSURE <closure_46> )
-    < = (MK_CLOSURE <closure_43> )
-    || = (MK_CLOSURE <closure_40> )
-    && = (MK_CLOSURE <closure_37> )
-    = = (MK_CLOSURE <closure_57> )
-    print = (MK_CLOSURE <closure_54> )
-in let rec f_1 = (MK_CLOSURE <closure_34> g_0)
-           g_0 = (MK_CLOSURE <closure_33> f_1)
-   in let nested_func_fvs_11 = (MK_CLOSURE <closure_32> +)
-      in let nested_let_rec_fvs_19 = (MK_CLOSURE <closure_29> )
-         in let nested_let_fvs_23 = (MK_CLOSURE <closure_25> )
-            in 42
+closure <closure_33> = {
+  args = (extra_arg_32, extra_arg_31, extra_arg_30, extra_arg_29, extra_arg_28)
+  free_vars = (partial_applied_func_25, provided_arg_27, provided_arg_26)
+  body = {
+    (partial_applied_func_25 provided_arg_27 provided_arg_26 extra_arg_32 extra_arg_31 extra_arg_30 extra_arg_29 extra_arg_28)
+  }
+}
+let + = (MK_CLOSURE <closure_62> )
+    - = (MK_CLOSURE <closure_59> )
+    * = (MK_CLOSURE <closure_56> )
+    < = (MK_CLOSURE <closure_53> )
+    || = (MK_CLOSURE <closure_50> )
+    && = (MK_CLOSURE <closure_47> )
+    = = (MK_CLOSURE <closure_67> )
+    print = (MK_CLOSURE <closure_64> )
+in let rec f_1 = (MK_CLOSURE <closure_44> g_0)
+           g_0 = (MK_CLOSURE <closure_43> f_1)
+   in let nested_func_fvs_11 = (MK_CLOSURE <closure_42> +)
+      in let nested_let_rec_fvs_19 = (MK_CLOSURE <closure_39> )
+         in let nested_let_fvs_23 = (MK_CLOSURE <closure_35> )
+            in let partial_app_24 = let partial_applied_func_25 = nested_func_fvs_11
+                                        provided_arg_27 = 1
+                                        provided_arg_26 = 2
+                                    in (MK_CLOSURE <closure_33> partial_applied_func_25 provided_arg_27 provided_arg_26)
+               in 42

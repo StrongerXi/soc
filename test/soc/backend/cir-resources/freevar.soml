@@ -20,3 +20,6 @@ let nested_let_fvs x =
      let x = x in
      42)
 ;;
+
+let partial_app = nested_func_fvs 1 2
+;;

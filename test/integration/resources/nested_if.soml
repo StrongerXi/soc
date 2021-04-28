@@ -1,0 +1,22 @@
+
+let f x =
+  if 10 < x
+  then
+    let y = x + x in
+    if 30 < y
+    then 0 - x
+    else x
+  else
+  if 5 < x
+  then x * x
+  else 0 - x
+;;
+
+print (f 20)
+;;
+print (f 12)
+;;
+print (f 8)
+;;
+print (f 3)
+;;
