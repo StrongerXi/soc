@@ -275,8 +275,9 @@ and _partial_apply (ctx : context)
   let all_arg_names = List.append provided_arg_names extra_arg_names in
   let cls_body = Capply (Cident func_bind_name,
                          List.map (fun name -> Cident name) all_arg_names) in
+  let free_var_names = func_bind_name::provided_arg_names in
   let ctx, mkcls =
-    _add_and_mk_closure ctx extra_arg_names provided_arg_names cls_body in
+    _add_and_mk_closure ctx extra_arg_names free_var_names cls_body in
   let let_binds = func_bind::provided_arg_bds in
   let c_let = Clet (let_binds, Cmk_closure mkcls) in
   (ctx, c_let)
