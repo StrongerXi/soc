@@ -132,6 +132,7 @@ type sp_temps =
       (* For each argument passed in register.
        * NOTE Original Lir func might not have this many args, but calls to
        * other func might need more args. Excessive temps are simply ignored. *)
+  ; caller_saved     : Temp.t Set.t
   }
 
 (* ENSURES: Same temps will be used for same regs *)
@@ -158,11 +159,17 @@ let _init_sp_temps (init_temp_man : Temp.manager) : (Temp.manager * sp_temps) =
   let sp_prs = Rax::Rdx::ordered_argument_physical_regs in
   let sp_prs = List.fold_right Set.add sp_prs (Set.empty _compare_physical_reg)
   in
+  let sp_prs = Set.union sp_prs caller_saved_physical_regs in
   let temp_man, pr_map = alloc_temp_for_prs init_temp_man sp_prs in
   let sp_temps = { rax = get_temp pr_map Rax
                  ; rdx = get_temp pr_map Rdx
                  ; ordered_arg_regs =
                      List.map (get_temp pr_map) ordered_argument_physical_regs
+                 ; caller_saved =
+                     Set.fold
+                       (fun temps pr -> Set.add (get_temp pr_map pr) temps)
+                       (Set.empty Temp.compare)
+                       caller_saved_physical_regs
                  }
   in (temp_man, sp_temps)
 
