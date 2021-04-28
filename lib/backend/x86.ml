@@ -735,7 +735,6 @@ let _get_max_rbp_offset_instrs (instrs : 'a instr list) : int =
 type spill_context =
   { next_slot      : int (* we could cache this in func, but KISS *)
   ; slot_map       : (Temp.t, int) Map.t    (* keys ∈ [temps_to_spill] *)
-  ; fixed_temps    : Temp.t Set.t
   ; rev_instrs     : Temp.t instr list
   ; temps_to_spill : Temp.t Set.t
   ; rax_temp       : Temp.t
@@ -795,10 +794,7 @@ let _restore_all_spilled (ctx : spill_context) (temps : Temp.t Set.t)
   let _restore_temp ctx temp (old_to_new_temps : (Temp.t, Temp.t) Map.t)
     : (spill_context * (Temp.t, Temp.t) Map.t) =
     let slot = _get_slot_or_err ctx temp in
-    let ctx, dst_temp = 
-      if Set.mem temp ctx.fixed_temps then (ctx, temp)
-      else _spill_ctx_gen_temp ctx
-    in
+    let ctx, dst_temp = _spill_ctx_gen_temp ctx in
     let ctx = _restore_from_slot ctx slot dst_temp in
     if Temp.compare temp dst_temp = 0 then (ctx, old_to_new_temps)
     else (ctx, Map.add temp dst_temp old_to_new_temps)
@@ -836,9 +832,6 @@ let _spill_ctx_init temp_func (temps_to_spill : Temp.t Set.t) : spill_context =
   in
   let ctx = { next_slot    = max_slot + 1
             ; slot_map     = Map.empty Temp.compare 
-            ; fixed_temps  =
-                Set.add temp_func.rdx
-                  (Set.add temp_func.rax reg_args)
             ; rev_instrs   = []
             ; temps_to_spill
             ; rax_temp     = temp_func.rax
