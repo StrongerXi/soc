@@ -119,6 +119,7 @@ let tests = OUnit2.(>:::) "test_integration"
          "basic";
          "arg_spill";
          "closures";
+         "nested_if";
        ])
 
 let _ =
