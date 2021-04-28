@@ -687,8 +687,8 @@ let _get_reads_and_writes_temp_instr
     (reads, writes)
 ;;
 
-let _temp_instr_to_vasm (rax : Temp.t) (rdx : Temp.t) (instr : Temp.t instr)
-  : Vasm.t =
+let _temp_instr_to_vasm (sp_temps : sp_temps) (instr : Temp.t instr) : Vasm.t =
+  let rax, rdx = sp_temps.rax, sp_temps.rdx in
   let reads, writes = _get_reads_and_writes_temp_instr rax rdx instr in
   let reads, writes = Set.to_list reads, Set.to_list writes in
   match instr with
@@ -706,8 +706,8 @@ let _temp_instr_to_vasm (rax : Temp.t) (rdx : Temp.t) (instr : Temp.t instr)
 ;;
 
 let temp_func_to_vasms (temp_func : temp_func) =
-  let rax, rdx = temp_func.sp_temps.rax, temp_func.sp_temps.rdx in
-  let body_vasms = List.map (_temp_instr_to_vasm rax rdx) temp_func.instrs in
+  let sp_temps = temp_func.sp_temps in
+  let body_vasms = List.map (_temp_instr_to_vasm sp_temps) temp_func.instrs in
   let entry_label = Vasm.mk_label temp_func.entry in
   entry_label::body_vasms
 ;;
