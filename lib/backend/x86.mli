@@ -3,77 +3,14 @@ open Pervasives
 (* physical registers of X86 ISA *)
 type physical_reg
 
-(* Some physical registers can't be used for register allocation *)
-type 'a reg =
-  | Rsp        (* not sure how allowing this in reg-alloc would affect things *)
-  | Rbp        (* we need rbp for spilling *)
-  | Greg of 'a (* general purpose registers *)
-
-(* argument to x86 instructions *)
-type 'a arg =
-  | Lbl_arg of Label.t      (* label, e.g., use function label as data *)
-  | Imm_arg of int          (* immediate, i.e., constants*)
-  | Reg_arg of 'a reg       (* load from [reg] *)
-  | Mem_arg of 'a reg * int (* load from address [reg + offset] *)
-
-(* for conditional operations *)
-type cond =
-  | Eq
-  | Lt
-
-(* for binary operations *)
-type binop =
-  | Add
-  | Sub
-  | Mul
-
-(* supported target of a call instruction *)
-type 'a call_target =
-  | Reg of 'a
-  | Lbl of Label.t
-
 (* NOTE 
- * 0. We parameterize over general-purpose registers, i.e., virtual or physical.
- *    This differentiates x86 programs before and after register allocation.
- * 1. I'm not being truthful to the X86 ISA here. I really took a subset of it
- *    for simplicity, and since we don't need the other fancy instrs for now.
- * 2. Many instructions don't support 2 memory accesses, I made that explicit.
- *)
-type 'a instr = 
-  | Label of Label.t
-  | Load of 'a arg * 'a reg
-      (* Load (arg, reg) --> reg := arg *)
-  | Store of 'a reg * 'a reg * int
-      (* Store (sreg, dreg, offset) --> *[dreg + offset] := sreg *)
-  | Push of 'a reg
-  | Pop of 'a reg
-  | IDiv of 'a reg
-      (* [IDiv r] does signed division for [RDX:RAX] over [r].
-      * The quotient is stoed to [RAX], remainder to [RDX] *)
-  | Binop of binop * 'a reg * 'a arg
-      (* Binop (op, reg, arg) --> reg := op gr arg *)
-  | Cmp of 'a arg * 'a
-  | Jmp of Label.t
-  | JmpC of cond * Label.t
-      (* Jump to label if [cond] is satisfied. *)
-  | Call of 'a call_target * 'a list
-      (* Target and arguments that are passed in registers in no specific order.
-       * The arguments are used for debugging or liveness analysis purposes *)
-  | Ret
-      (* Return control flow to caller site *)
+ * We parameterize over general-purpose registers, i.e., virtual or physical.
+ * This differentiates x86 programs before and after register allocation. *)
+type 'a instr
 
-
-(* A function in X86 with Temps and some annotation to help reg-alloc.
+(* A function in X86 with Temps instead of physical registers
  * NOTE without prologue/epilogue. *) 
-type temp_func = 
-  { entry    : Label.t
-  ; instrs   : Temp.t instr list  (* doesn't start with [entry] label *)
-  ; reg_args : Temp.t list        (* for each argument passed in register;
-                                     might not all be used *)
-  ; rax      : Temp.t
-  ; rdx      : Temp.t
-  ; temp_manager : Temp.manager (* for generating fresh temps *)
-  }
+type temp_func
 
 (* A program in X86 before register allocation *)
 type temp_prog = 
@@ -100,6 +37,14 @@ val from_lir_prog : Lir.prog -> temp_prog
 
 (** Includes entry label in output vasms. *)
 val temp_func_to_vasms : temp_func -> Vasm.t list
+
+(** [get_pre_coloring temp_func] returns a mapping for temps that 
+    - must be assigned to certain physical registers 
+    - cannot be spilled
+    NOTE
+    Since they all have short live-ranges, not spilling them shouldn't affect
+    termination of register allocation. *)
+val get_pre_coloring : temp_func -> (Temp.t, physical_reg) Map.t
 
 (** Guaranteed to spill onto slots aligned by word size.
     NOTE stack is not set up, although stack slots are used.
