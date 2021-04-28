@@ -21,10 +21,7 @@ type temp_prog =
 
 (* A function unit in X86 after register allocation
  * NOTE with prologue/epilogue; this is the final assembly code. *)
-type func =
-  { entry  : Label.t
-  ; instrs : physical_reg instr list (* doesn't start with [entry] label *)
-  }
+type func
 
 (* An entire program in X86 after register allocation *)
 type prog = 
