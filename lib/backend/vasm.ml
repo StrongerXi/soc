@@ -12,7 +12,6 @@ type jump =
 (* NOTE update equal method when updating this *)
 type instr_desc =
   | Jump of jump
-  | Call
   | Linear
   | Ret
 
@@ -60,10 +59,6 @@ let mk_ret reads writes =
   _mk_instr reads writes Ret
 ;;
 
-let mk_call reads writes =
-  _mk_instr reads writes Call
-;;
-
 
 let get_reads t : Temp.t Set.t =
   match t with
@@ -75,18 +70,6 @@ let get_writes t : Temp.t Set.t =
   match t with
   | Label _     -> Set.empty Temp.compare
   | Instr instr -> instr.writes
-;;
-
-let _is_instr_call instr : bool =
-  match instr.desc with
-  | Call -> true
-  | Linear | Ret | Jump _ -> false
-;;
-
-let is_call t =
-  match t with
-  | Label _ -> false
-  | Instr instr -> _is_instr_call instr
 ;;
 
 
@@ -104,7 +87,6 @@ let _jump_equal (j1 : jump) (j2 : jump) : bool =
 
 let _instr_desc_equal (d1 : instr_desc) (d2 : instr_desc) : bool =
   match d1, d2 with
-  | Call, Call       -> true
   | Linear, Linear   -> true
   | Ret, Ret         -> true
   | Jump j1, Jump j2 -> _jump_equal j1 j2
@@ -267,7 +249,6 @@ let _ctx_handle_instr (ctx : context) (instr : instr) : context =
   let ctx = _ctx_add_instr ctx (Instr instr) in
   match instr.desc with
   | Ret    -> _ctx_handle_ret ctx
-  | Call   -> ctx (* no inter-procedural analysis *)
   | Linear -> ctx (* linear control flow, i.e., straight to next instr *)
   | Jump jump -> _ctx_handle_jump ctx jump
 ;;
@@ -325,7 +306,6 @@ let _pp_instr (instr : instr) : string =
   let desc_str =
     match instr.desc with
     | Linear -> "instr"
-    | Call -> "call"
     | Ret  -> "ret"
     | Jump jump -> _pp_jump jump
   in

@@ -701,10 +701,8 @@ let _temp_instr_to_vasm (sp_temps : sp_temps) (instr : Temp.t instr) : Vasm.t =
   match instr with
   | Label label -> Vasm.mk_label label
 
-  | Load _ | Store _ | Push _ | Pop _ | Binop _ | Cmp _ | IDiv _ ->
+  | Load _ | Store _ | Push _ | Pop _ | Binop _ | Cmp _ | IDiv _ | Call _ ->
     Vasm.mk_instr reads writes
-
-  | Call _ -> Vasm.mk_call reads writes
 
   | Jmp target -> Vasm.mk_dir_jump reads writes target
   | JmpC (_, target) -> Vasm.mk_cond_jump reads writes target
