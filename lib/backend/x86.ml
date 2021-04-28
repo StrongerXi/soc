@@ -177,7 +177,7 @@ let _init_sp_temps (init_temp_man : Temp.manager) : (Temp.manager * sp_temps) =
   in (temp_man, sp_temps)
 
 let _get_sp_temps_coloring sp_temps : (Temp.t, physical_reg) Map.t =
-  let pre_color = Map.empty Temp.compare in
+  let pre_color = sp_temps.caller_saved in
   let temp_reg_pairs =
     (sp_temps.rax, Rax)::
     (sp_temps.rdx, Rdx)::
