@@ -116,10 +116,9 @@ type func =
   ; instrs : physical_reg instr list (* doesn't start with [entry] label *)
   }
 
-(* An entire program in X86 after register allocation *)
-type prog = 
-  { funcs : func list
-  ; main : func
+type 'a prog = 
+  { funcs : 'a list
+  ; main : 'a
   }
 
 (* special purpose temps that will be pre-colored to specific registers *)
@@ -193,12 +192,6 @@ type temp_func =
   ; instrs   : Temp.t instr list  (* doesn't start with [entry] label *)
   ; sp_temps : sp_temps
   ; temp_manager : Temp.manager (* for generating fresh temps *)
-  }
-
-(* A program in X86 before register allocation *)
-type temp_prog = 
-  { temp_funcs : temp_func list
-  ; temp_main  : temp_func
   }
 
 
@@ -596,14 +589,14 @@ let _from_lir_main_func
   |> (fun (temp_func, _) -> temp_func)
 ;;
 
-let from_lir_prog (lir_prog : Lir.prog) : temp_prog =
-  let funcs, label_manager =
+let from_lir_prog (lir_prog : Lir.prog) =
+  let temp_funcs, label_manager =
     _from_lir_funcs lir_prog.label_manager lir_prog.funcs
   in
   let temp_main =
     _from_lir_main_func lir_prog.temp_manager label_manager lir_prog.entry
   in
-  { temp_funcs = funcs; temp_main }
+  { funcs = temp_funcs ; main = temp_main }
 ;;
 
 
@@ -1169,7 +1162,7 @@ let _add_external_native_labels_in_func
   List.fold_left _add_external_native_labels_in_instr labels func.instrs
 ;;
 
-let _find_external_native_labels_in_prog (prog : prog) : Label.t Set.t =
+let _find_external_native_labels_in_prog (prog : func prog) : Label.t Set.t =
   let labels = Set.empty Label.compare in
   let labels =
     List.fold_left _add_external_native_labels_in_func labels prog.funcs
@@ -1177,7 +1170,7 @@ let _find_external_native_labels_in_prog (prog : prog) : Label.t Set.t =
   _add_external_native_labels_in_func labels prog.main
 ;;
 
-let _get_prog_metadata (prog : prog) : string =
+let _get_prog_metadata (prog : func prog) : string =
   let external_native_label_decls = 
     List.map
       (fun label -> String.append "extern " (Label.to_string label))
@@ -1195,7 +1188,7 @@ let _get_prog_metadata (prog : prog) : string =
 ;;
 
 (* "ur" stands for usable_register *)
-let prog_to_str (prog : prog) : string =
+let func_prog_to_str prog =
   let metadata_str = _get_prog_metadata prog in
   let all_funcs = List.append prog.funcs [prog.main] in
   let func_strs = List.map _func_to_str all_funcs in
