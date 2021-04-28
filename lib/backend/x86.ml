@@ -137,16 +137,13 @@ type sp_temps =
 (* ENSURES: Same temps will be used for same regs *)
 let _init_sp_temps (init_temp_man : Temp.manager) : (Temp.manager * sp_temps) =
 
-  let alloc_temp_for_prs (temp_man : Temp.manager) (prs : physical_reg list)
+  let alloc_temp_for_prs (temp_man : Temp.manager) (prs : physical_reg Set.t)
     : (Temp.manager * (physical_reg, Temp.t) Map.t) =
-    List.fold_left
+    Set.fold
       (fun (temp_man, pr_map) pr ->
-         match Map.get pr pr_map with
-         | Some _ -> (temp_man, pr_map) (* already allocated temp for [pr] *)
-         | None ->
-           let temp_man, temp = Temp.gen temp_man in
-           let pr_map = Map.add pr temp pr_map in
-           (temp_man, pr_map))
+         let temp_man, temp = Temp.gen temp_man in
+         let pr_map = Map.add pr temp pr_map in
+         (temp_man, pr_map))
       (temp_man, Map.empty _compare_physical_reg)
       prs
   in
@@ -159,6 +156,8 @@ let _init_sp_temps (init_temp_man : Temp.manager) : (Temp.manager * sp_temps) =
   in
 
   let sp_prs = Rax::Rdx::ordered_argument_physical_regs in
+  let sp_prs = List.fold_right Set.add sp_prs (Set.empty _compare_physical_reg)
+  in
   let temp_man, pr_map = alloc_temp_for_prs init_temp_man sp_prs in
   let sp_temps = { rax = get_temp pr_map Rax
                  ; rdx = get_temp pr_map Rdx
