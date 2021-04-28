@@ -92,7 +92,6 @@ let _check_coloring_size
 let tests = OUnit2.(>:::) "reg_alloc_test" [
 
     OUnit2.(>::) "test_greedy_alloc_no_precolor" (fun _ ->
-        let empty_regs = _int_set [] in
         let regs = _int_set [0; 1] in
         let pre_colored = Map.empty Temp.compare in
         let manager, t0 = Temp.gen Temp.init_manager in
@@ -107,11 +106,8 @@ let tests = OUnit2.(>:::) "reg_alloc_test" [
               (Vasm.mk_instr [t1; t2] [t0], []);
             ]
         in
-        (* caller/callee saved shouldn't matter for these instrs *)
         _check_coloring [(t0, 1); (t1, 0); (t2, 1)]
-          (Reg_alloc.greedy_alloc instrs regs empty_regs pre_colored);
-        _check_coloring [(t0, 1); (t1, 0); (t2, 1)]
-          (Reg_alloc.greedy_alloc instrs empty_regs regs pre_colored);
+          (Reg_alloc.greedy_alloc instrs regs pre_colored);
 
         (* spill live-in *)
         let manager, t3 = Temp.gen manager in
@@ -129,15 +125,11 @@ let tests = OUnit2.(>:::) "reg_alloc_test" [
               (Vasm.mk_instr [t0; t1] [t0], []);
             ]
         in
-        (* caller/callee saved shouldn't matter for these instrs *)
         _check_spills [t0; t4]
-          (Reg_alloc.greedy_alloc instrs regs empty_regs pre_colored);
-        _check_spills [t0; t4]
-          (Reg_alloc.greedy_alloc instrs empty_regs regs pre_colored);
+          (Reg_alloc.greedy_alloc instrs regs pre_colored);
       );
 
     OUnit2.(>::) "test_greedy_alloc_with_precolor" (fun _ ->
-        let empty_regs = _int_set [] in
         let regs = _int_set [0; 1; 2] in
         let manager, t0 = Temp.gen Temp.init_manager in
         let manager, t1 = Temp.gen manager in
@@ -162,15 +154,10 @@ let tests = OUnit2.(>:::) "reg_alloc_test" [
               (Vasm.mk_instr [t2; t3] [t0], []);
             ]
         in
-        (* caller/callee saved shouldn't matter for these instrs *)
         _check_spills [t3]
-          (Reg_alloc.greedy_alloc instrs regs empty_regs pre_colored);
-        _check_spills [t3]
-          (Reg_alloc.greedy_alloc instrs empty_regs regs pre_colored);
+          (Reg_alloc.greedy_alloc instrs regs pre_colored);
         _check_coloring [(t1, 0); (t2, 1); (t3, 2); (t0, 0)]
-          (Reg_alloc.greedy_alloc instrs regs empty_regs _empty_temp_map);
-        _check_coloring [(t1, 0); (t2, 1); (t3, 2); (t0, 0)]
-          (Reg_alloc.greedy_alloc instrs empty_regs regs _empty_temp_map);
+          (Reg_alloc.greedy_alloc instrs regs _empty_temp_map);
       );
   ]
 

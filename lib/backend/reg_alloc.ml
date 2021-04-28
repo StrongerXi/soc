@@ -198,18 +198,12 @@ let _brute_alloc_impl
       ctx annot_instrs
 ;;
 
-(* REQUIRES:
- * 1. [caller_saved] and [callee_saved] are disjoint
- * 2. anoot_instrs has accurate liveness annotation (exposed for eaiser testing)
- *)
 let greedy_alloc 
     (annot_instrs : (Vasm.t * Liveness_analysis.annot) list)
-    (caller_saved : 'a Set.t)
-    (callee_saved : 'a Set.t)
+    (available_regs : 'a Set.t)
     (pre_colored  : (Temp.t, 'a) Map.t)
   : ((Temp.t, 'a) Map.t, Temp.t Set.t) result =
-  let all_regs = Set.union caller_saved callee_saved in
-  let ctx = _ctx_init all_regs pre_colored in
+  let ctx = _ctx_init available_regs pre_colored in
   let ctx = _brute_alloc_impl ctx annot_instrs in
   if Set.size ctx.temps_to_spill = 0
   then Ok ctx.coloring

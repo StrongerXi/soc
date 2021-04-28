@@ -68,8 +68,7 @@ val temp_func_to_str : temp_func -> string
 val physical_reg_to_str : physical_reg -> string
 
 (* Some pre-defined X86 physical registers *)
-val callee_saved_physical_regs     : physical_reg Set.t
-val caller_saved_physical_regs     : physical_reg Set.t
+val assignable_regs                : physical_reg Set.t
 val ordered_argument_physical_regs : physical_reg list
 val rax_physical_reg               : physical_reg
 val rdx_physical_reg               : physical_reg
