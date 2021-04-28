@@ -5,8 +5,8 @@ open Pervasives
     - Ok: a valid coloring for instructions in instr_annot_pair. It's guaranteed
       to be a "super-map" of [pre_colored]
 
-    - Error: A set of temps that should be spilled (may spill more or less than
-      what's needed, but repeated application will ensure termination, I hope) 
+    - Error: A set of temps that should be spilled, without any key from
+      [pre_colored]
 
     It's greedy because it linear scans all the instructions and immediately
     assign available color to the temps, without backtracking or a global view.
