@@ -128,11 +128,12 @@ type prog =
 type sp_temps =
   { rax              : Temp.t
   ; rdx              : Temp.t
-  ; ordered_arg_regs : Temp.t list 
+  (* TODO consider using a pair list here *)
+  ; ordered_arg_regs : (Temp.t * physical_reg) list 
       (* For each argument passed in register.
        * NOTE Original Lir func might not have this many args, but calls to
        * other func might need more args. Excessive temps are simply ignored. *)
-  ; caller_saved     : Temp.t Set.t
+  ; caller_saved     : (Temp.t, physical_reg) Map.t
   }
 
 (* ENSURES: Same temps will be used for same regs *)
@@ -164,11 +165,13 @@ let _init_sp_temps (init_temp_man : Temp.manager) : (Temp.manager * sp_temps) =
   let sp_temps = { rax = get_temp pr_map Rax
                  ; rdx = get_temp pr_map Rdx
                  ; ordered_arg_regs =
-                     List.map (get_temp pr_map) ordered_argument_physical_regs
+                     List.map
+                       (fun pr -> (get_temp pr_map pr, pr))
+                       ordered_argument_physical_regs
                  ; caller_saved =
                      Set.fold
-                       (fun temps pr -> Set.add (get_temp pr_map pr) temps)
-                       (Set.empty Temp.compare)
+                       (fun map pr -> Map.add (get_temp pr_map pr) pr map)
+                       (Map.empty Temp.compare)
                        caller_saved_physical_regs
                  }
   in (temp_man, sp_temps)
@@ -178,9 +181,7 @@ let _get_sp_temps_coloring sp_temps : (Temp.t, physical_reg) Map.t =
   let temp_reg_pairs =
     (sp_temps.rax, Rax)::
     (sp_temps.rdx, Rdx)::
-    (List.combine
-       sp_temps.ordered_arg_regs
-       ordered_argument_physical_regs)
+    (sp_temps.ordered_arg_regs)
   in
   List.fold_left
     (fun pre_color (temp, reg) -> Map.add temp reg pre_color)
@@ -290,7 +291,7 @@ let _ctx_get_rdx (ctx : context) : Temp.t =
 ;;
 
 let _ctx_get_ordered_arg_regs (ctx : context) : Temp.t list =
-  ctx.sp_temps.ordered_arg_regs
+  List.map (fun (temp, _) -> temp) ctx.sp_temps.ordered_arg_regs
 ;;
 
 let _ctx_add_instr (ctx : context) (instr : Temp.t instr) : context =
@@ -340,7 +341,8 @@ let _emit_load_args_into_temps (ctx : context) (ordered_args : Temp.t list)
       let ctx = _ctx_add_instr ctx instr in
       go ctx rest_arg_temps rest_arg_prs
   in
-  go ctx ordered_args ctx.sp_temps.ordered_arg_regs
+  let ordered_arg_regs = _ctx_get_ordered_arg_regs ctx in
+  go ctx ordered_args ordered_arg_regs
 ;;
 
 let rec _emit_lir_expr (ctx : context) (e : Lir.expr) (dst_temp : Temp.t)
