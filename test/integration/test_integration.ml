@@ -117,6 +117,7 @@ let tests = OUnit2.(>:::) "test_integration"
     (Stdlib.List.map _create_ounit_test
        [ 
          "basic";
+         "arg_spill";
        ])
 
 let _ =

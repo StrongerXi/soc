@@ -1,0 +1,31 @@
+
+let f a b c d e f g h i j k =
+  let a = print a in
+  let b = print b in
+  let c = print c in
+  let d = print d in
+  let e = print e in
+  let f = print f in
+  let g = print g in
+  let h = print h in
+  let i = print i in
+  let j = print j in
+  let k = print k in
+  42
+;;
+
+let g x =
+  f (x + 0)
+    (x + 1)
+    (x + 2)
+    (x + 3)
+    (x + 4)
+    (x + 5)
+    (x + 6)
+    (x + 7)
+    (x + 8)
+    (x + 9)
+    (x + 10)
+;;
+
+g 10
