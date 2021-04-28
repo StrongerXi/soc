@@ -196,7 +196,12 @@ let _ctx_distinct_color_temps_and_free_regs
   _ctx_remove_dead_temps ctx dead
 ;;
 
-(* ASSUME temps in live-in, i.e. live-out of previous instr, were handled *)
+(* ASSUME temps in live-in, i.e. live-out of previous instr, were handled 
+ * PRE-INVARIANT: 
+ * - reads of [vasm] are a subset of [annot.live-in]
+ * - [annot.live-in] are actively colored to distinct colors
+ * POST-INVARIANT: 
+ * - [annot.live-out] will be actively colored to distinct colors *)
 let _brute_alloc_vasm
   (ctx : 'a context) (vasm : Vasm.t) (annot : Liveness_analysis.annot)
   : 'a context =
@@ -217,7 +222,8 @@ let _brute_alloc_impl
   | (_, annot)::_ ->
     (* Handle temps alive before 1st instr, think function args.
      * [arg1, ..., argn] := ...
-     * All written, all alive (in the live-out of this imaginary init instr) *)
+     * All written, all alive (in the live-out of this imaginary init instr)
+     * Establishes pre-invariant for [_brute_alloc_vasm]. *)
     let live_in = annot.live_in in
     let ctx = _ctx_distinct_color_temps_and_free_regs ctx live_in live_in in
     List.fold_left
