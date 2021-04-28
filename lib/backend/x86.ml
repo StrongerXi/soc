@@ -624,8 +624,7 @@ let _add_temps_in_call_target (acc : Temp.t Set.t) (target : Temp.t call_target)
   | Lbl _ -> acc
 ;;
 
-let _get_reads_and_writes_temp_instr
-    (rax : Temp.t) (rdx : Temp.t) (instr : Temp.t instr)
+let _get_reads_and_writes_temp_instr sp_temps (instr : Temp.t instr)
   : (Temp.t Set.t * Temp.t Set.t) =
   let reads, writes = (Set.empty Temp.compare, Set.empty Temp.compare) in
   match instr with
@@ -643,10 +642,10 @@ let _get_reads_and_writes_temp_instr
 
   | IDiv reg  ->
     let reads = _add_temps_in_temp_reg writes reg in
-    let reads = Set.add rax reads in
-    let reads = Set.add rdx reads in
-    let writes = Set.add rax writes in
-    let writes = Set.add rdx writes in
+    let reads = Set.add sp_temps.rax reads in
+    let reads = Set.add sp_temps.rdx reads in
+    let writes = Set.add sp_temps.rax writes in
+    let writes = Set.add sp_temps.rdx writes in
     (reads, writes)
 
   | Load (arg, dst_reg) ->
@@ -679,17 +678,16 @@ let _get_reads_and_writes_temp_instr
   | Call (target, reg_arg_temps) ->
     let reads = List.fold_right Set.add reg_arg_temps reads in
     let reads = _add_temps_in_call_target reads target in
-    let writes = Set.add rax writes in
+    let writes = Set.add sp_temps.rax writes in
     (reads, writes)
 
   | Ret ->
-    let reads = Set.add rax reads in
+    let reads = Set.add sp_temps.rax reads in
     (reads, writes)
 ;;
 
 let _temp_instr_to_vasm (sp_temps : sp_temps) (instr : Temp.t instr) : Vasm.t =
-  let rax, rdx = sp_temps.rax, sp_temps.rdx in
-  let reads, writes = _get_reads_and_writes_temp_instr rax rdx instr in
+  let reads, writes = _get_reads_and_writes_temp_instr sp_temps instr in
   let reads, writes = Set.to_list reads, Set.to_list writes in
   match instr with
   | Label label -> Vasm.mk_label label
@@ -880,9 +878,7 @@ let _spill_ctx_init temp_func (temps_to_spill : Temp.t Set.t) : spill_context =
  * These break up the live-interval of spilled temps into smaller chunks. *)
 let _spill_instr (ctx : spill_context) (instr : Temp.t instr) : spill_context =
   (* ASSUME instruction goes like read/compute/write *)
-  let reads, writes =
-    _get_reads_and_writes_temp_instr ctx.sp_temps.rax ctx.sp_temps.rdx instr
-  in
+  let reads, writes = _get_reads_and_writes_temp_instr ctx.sp_temps instr in
   let ctx, changed_temp_map = _restore_all_spilled ctx reads in
   let old_to_new_temp temp =
     match Map.get temp changed_temp_map with
