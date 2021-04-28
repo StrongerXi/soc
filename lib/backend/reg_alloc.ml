@@ -18,23 +18,27 @@ open Pervasives
 
 (* Accumulators while coloring temps in instructions *)
 type 'a context =
-  { avalb_colors : 'a Set.t     (* all available colors - colors of
-                                   [temps_in_use].
-                                   used only during coloring *)
-  ; temps_in_use : Temp.t Set.t (* live temps occupying distinct regs.
-                                   used only during coloring *) 
+  { avalb_colors     : 'a Set.t     (* all available colors - colors of
+                                       [temps_in_use].
+                                       used only during coloring *)
+  ; temps_in_use     : Temp.t Set.t (* live temps occupying distinct regs.
+                                       used only during coloring *) 
+  ; temps_cant_spill : Temp.t Set.t
     (* The followings are needed at the end *)
-  ; coloring       : (Temp.t, 'a) Map.t
-  ; temps_to_spill : Temp.t Set.t      
+  ; coloring         : (Temp.t, 'a) Map.t
+  ; temps_to_spill   : Temp.t Set.t      
   }
 
 let _ctx_init
     (avalb_colors : 'a Set.t)
-    (coloring : (Temp.t, 'a) Map.t)
+    (pre_coloring : (Temp.t, 'a) Map.t)
     (temps_to_spill : Temp.t Set.t)
   : 'a context =
-  { avalb_colors; coloring; temps_to_spill;
-    temps_in_use = Set.empty Temp.compare; }
+  { avalb_colors;  temps_to_spill;
+    coloring         = pre_coloring;
+    temps_cant_spill = Map.get_key_set pre_coloring;
+    temps_in_use     = Set.empty Temp.compare;
+  }
 ;;
 
 let _ctx_find_temp_using_color (ctx : 'a context) (color : 'a) : Temp.t =
@@ -145,6 +149,7 @@ let _ctx_distinct_color_temps
         (_ctx_use_coloring ctx temp_to_color color, can_spill)
   in
   let can_spill = Set.diff ctx.temps_in_use init_temps_to_color in
+  let can_spill = Set.diff can_spill ctx.temps_cant_spill in
   Set.fold (* arbitrary order of coloring *)
     (fun (ctx, can_spill) temp ->
        if Set.mem temp ctx.temps_to_spill

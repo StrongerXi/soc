@@ -20,16 +20,57 @@ let ordered_argument_physical_regs =
   [Rdi; Rsi; Rdx; Rcx; R8; R9]
 ;;
 
+let _physical_reg_to_int (pr : physical_reg) : int =
+  match pr with
+  | Rax -> 0
+  | Rbx -> 1
+  | Rsi -> 2
+  | Rdi -> 3
+  | Rdx -> 4
+  | Rcx -> 5
+  | R8  -> 6
+  | R9  -> 7
+  | R10 -> 8
+  | R11 -> 9
+  | R12 -> 10
+  | R13 -> 11
+  | R14 -> 12
+  | R15 -> 13
+;;
+
+let _compare_physical_reg r1 r2 =
+  Int.compare (_physical_reg_to_int r1) (_physical_reg_to_int r2)
+;;
+
+let _physical_reg_list_to_set (prs : physical_reg list) : physical_reg Set.t =
+  List.fold_right Set.add prs (Set.empty _compare_physical_reg)
+;;
+
+let caller_saved_physical_regs =
+  _physical_reg_list_to_set [Rdi; Rsi; Rdx; Rcx; R8; R9; Rax; R11; R12]
+;;
+
+let callee_saved_physical_regs =
+  _physical_reg_list_to_set [Rbx; R12; R13; R14; R15]
+;;
+
+let rax_physical_reg = Rax
+;;
+
+let rdx_physical_reg = Rdx
+;;
+
+
 type 'a reg =
-  | Rsp        
-  | Rbp        
-  | Greg of 'a 
+  | Rsp        (* not sure how allowing this in reg-alloc would affect things *)
+  | Rbp        (* we need rbp for spilling *)
+  | Greg of 'a (* general purpose registers *)
 
 type 'a arg =
-  | Lbl_arg of Label.t
-  | Imm_arg of int
-  | Reg_arg of 'a reg
-  | Mem_arg of 'a reg * int
+  | Lbl_arg of Label.t      (* label, e.g., use function label as data *)
+  | Imm_arg of int          (* immediate, i.e., constants*)
+  | Reg_arg of 'a reg       (* load from [reg] *)
+  | Mem_arg of 'a reg * int (* load from address [reg + offset] *)
 
 type cond =
   | Eq
@@ -44,39 +85,59 @@ type 'a call_target =
   | Reg of 'a
   | Lbl of Label.t
 
+(* NOTE 
+ * 0. I'm not being truthful to the X86 ISA here. I really took a subset of it
+ *    for simplicity, and since we don't need the other fancy instrs for now.
+ * 1. Many instructions don't support 2 memory accesses, I made that explicit.
+ *)
 type 'a instr = 
   | Label of Label.t
   | Load of 'a arg * 'a reg
+      (* Load (arg, reg) --> reg := arg *)
   | Store of 'a reg * 'a reg * int
+      (* Store (sreg, dreg, offset) --> *[dreg + offset] := sreg *)
   | Push of 'a reg
   | Pop of 'a reg
   | IDiv of 'a reg
+      (* [IDiv r] does signed division for [RDX:RAX] over [r].
+      * The quotient is stoed to [RAX], remainder to [RDX] *)
   | Binop of binop * 'a reg * 'a arg
+      (* Binop (op, reg, arg) --> reg := op gr arg *)
   | Cmp of 'a arg * 'a
   | Jmp of Label.t
   | JmpC of cond * Label.t
+      (* Jump to label if [cond] is satisfied. *)
   | Call of 'a call_target * 'a list
+      (* Target and arguments that are passed in registers in no specific order.
+       * The arguments are used for debugging or liveness analysis purposes *)
   | Ret
+      (* Return control flow to caller site *)
+
 
 type func =
   { entry  : Label.t
-  ; instrs : physical_reg instr list
+  ; instrs : physical_reg instr list (* doesn't start with [entry] label *)
   }
 
+(* An entire program in X86 after register allocation *)
 type prog = 
   { funcs : func list
   ; main : func
   }
 
+
+(* With some annotations to help reg-alloc. *)
 type temp_func = 
-  { entry        : Label.t
-  ; instrs       : Temp.t instr list
-  ; reg_args     : Temp.t list
-  ; rax          : Temp.t
-  ; rdx          : Temp.t
-  ; temp_manager : Temp.manager
+  { entry    : Label.t
+  ; instrs   : Temp.t instr list  (* doesn't start with [entry] label *)
+  ; reg_args : Temp.t list        (* for each argument passed in register;
+                                     might not all be used *)
+  ; rax      : Temp.t
+  ; rdx      : Temp.t
+  ; temp_manager : Temp.manager (* for generating fresh temps *)
   }
 
+(* A program in X86 before register allocation *)
 type temp_prog = 
   { temp_funcs : temp_func list
   ; temp_main  : temp_func
@@ -615,6 +676,20 @@ let temp_func_to_vasms temp_func =
 ;;
 
 
+let get_pre_coloring temp_func =
+  let pre_color = Map.empty Temp.compare in
+  let temp_reg_pairs =
+    (temp_func.rax, Rax)::
+    (temp_func.rdx, Rdx)::
+    (List.combine temp_func.reg_args ordered_argument_physical_regs)
+  in
+  List.fold_left
+    (fun pre_color (temp, reg) ->
+       Map.add temp reg pre_color)
+    pre_color temp_reg_pairs
+;;
+
+
 (* NOTE 
  * - ignore push/pop since that changes rsp dynamically.
  * - look for negative offset only since stack grows downward,
@@ -660,7 +735,6 @@ let _get_max_rbp_offset_instrs (instrs : 'a instr list) : int =
 type spill_context =
   { next_slot      : int (* we could cache this in func, but KISS *)
   ; slot_map       : (Temp.t, int) Map.t    (* keys ∈ [temps_to_spill] *)
-  ; fixed_temps    : Temp.t Set.t
   ; rev_instrs     : Temp.t instr list
   ; temps_to_spill : Temp.t Set.t
   ; rax_temp       : Temp.t
@@ -720,10 +794,7 @@ let _restore_all_spilled (ctx : spill_context) (temps : Temp.t Set.t)
   let _restore_temp ctx temp (old_to_new_temps : (Temp.t, Temp.t) Map.t)
     : (spill_context * (Temp.t, Temp.t) Map.t) =
     let slot = _get_slot_or_err ctx temp in
-    let ctx, dst_temp = 
-      if Set.mem temp ctx.fixed_temps then (ctx, temp)
-      else _spill_ctx_gen_temp ctx
-    in
+    let ctx, dst_temp = _spill_ctx_gen_temp ctx in
     let ctx = _restore_from_slot ctx slot dst_temp in
     if Temp.compare temp dst_temp = 0 then (ctx, old_to_new_temps)
     else (ctx, Map.add temp dst_temp old_to_new_temps)
@@ -761,9 +832,6 @@ let _spill_ctx_init temp_func (temps_to_spill : Temp.t Set.t) : spill_context =
   in
   let ctx = { next_slot    = max_slot + 1
             ; slot_map     = Map.empty Temp.compare 
-            ; fixed_temps  =
-                Set.add temp_func.rdx
-                  (Set.add temp_func.rax reg_args)
             ; rev_instrs   = []
             ; temps_to_spill
             ; rax_temp     = temp_func.rax
@@ -820,47 +888,6 @@ let spill_temps temp_func temps_to_spill =
   { temp_func with instrs       = List.rev ctx.rev_instrs 
                  ; temp_manager = ctx.temp_manager
   }
-;;
-
-
-let _physical_reg_to_int (pr : physical_reg) : int =
-  match pr with
-  | Rax -> 0
-  | Rbx -> 1
-  | Rsi -> 2
-  | Rdi -> 3
-  | Rdx -> 4
-  | Rcx -> 5
-  | R8  -> 6
-  | R9  -> 7
-  | R10 -> 8
-  | R11 -> 9
-  | R12 -> 10
-  | R13 -> 11
-  | R14 -> 12
-  | R15 -> 13
-;;
-
-let _compare_physical_reg r1 r2 =
-  Int.compare (_physical_reg_to_int r1) (_physical_reg_to_int r2)
-;;
-
-let _physical_reg_list_to_set (prs : physical_reg list) : physical_reg Set.t =
-  List.fold_right Set.add prs (Set.empty _compare_physical_reg)
-;;
-
-let caller_saved_physical_regs =
-  _physical_reg_list_to_set [Rdi; Rsi; Rdx; Rcx; R8; R9; Rax; R11; R12]
-;;
-
-let callee_saved_physical_regs =
-  _physical_reg_list_to_set [Rbx; R12; R13; R14; R15]
-;;
-
-let rax_physical_reg = Rax
-;;
-
-let rdx_physical_reg = Rdx
 ;;
 
 

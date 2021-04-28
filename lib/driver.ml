@@ -42,16 +42,7 @@ let lir_file filepath =
 let rec _x86_temp_func_to_func (temp_func : X86.temp_func) : X86.func =
   let vasms = X86.temp_func_to_vasms temp_func in
   let annotated_vasms = Liveness_analysis.analyze_vasm vasms in
-  let pre_color = Map.empty Temp.compare in
-  let pre_color = Map.add temp_func.rax X86.rax_physical_reg pre_color in
-  let pre_color = Map.add temp_func.rdx X86.rdx_physical_reg pre_color in
-  let pre_color =
-    List.fold_left
-      (fun pre_color (arg_temp, arg_reg) ->
-         Map.add arg_temp arg_reg pre_color)
-      pre_color
-      (List.combine temp_func.reg_args X86.ordered_argument_physical_regs)
-  in
+  let pre_color = X86.get_pre_coloring temp_func in
   match Reg_alloc.greedy_alloc
           annotated_vasms 
           X86.caller_saved_physical_regs
