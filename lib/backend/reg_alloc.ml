@@ -243,9 +243,8 @@ let _brute_color_temps_live_across_call
   else
     (* Any temp that lives across a call must be mapped to callee-saved or
      * spilled. *)
-    let temps_live_across_call = Set.inter annot.live_out annot.live_in in
     let temp_color_pairs, temps_to_color =
-      extract_colored_temps temps_live_across_call
+      extract_colored_temps annot.live_across
     in
     let temps_to_spill = (* must spill temps pre-colored to caller-saved *)
       add_temps_colored_to_caller_saved init_temps_to_spill temp_color_pairs

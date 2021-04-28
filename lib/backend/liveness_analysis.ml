@@ -106,6 +106,7 @@ open Pervasives
 type annot =
   { live_in  : Temp.t Set.t
   ; live_out : Temp.t Set.t
+  ; live_across : Temp.t Set.t
   }
 
 type block_annot =
@@ -180,7 +181,11 @@ let _annot_instructions_in_block
        let reads, writes = (Vasm.get_reads instr, Vasm.get_writes instr) in
        let new_live_out = Set.diff live_out writes in
        let new_live_out = Set.union new_live_out reads in
-       let annot = { live_in = new_live_out; live_out } in
+       let annot = { live_in = new_live_out
+                   ; live_out 
+                   ; live_across =
+                       Set.diff (Set.inter live_out new_live_out) writes
+                   } in
        let annot_instrs = (instr, annot)::annot_instrs in
        (annot_instrs, new_live_out))
     block ([], block_annot.live_out)
