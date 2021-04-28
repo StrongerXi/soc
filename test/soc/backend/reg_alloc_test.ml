@@ -159,6 +159,27 @@ let tests = OUnit2.(>:::) "reg_alloc_test" [
         _check_coloring [(t1, 0); (t2, 1); (t3, 2); (t0, 0)]
           (Reg_alloc.greedy_alloc instrs regs _empty_temp_map);
       );
+
+    OUnit2.(>::) "test_greedy_alloc_precolor_no_coloring" (fun _ ->
+        let regs = _int_set [0; 1] in
+        let manager, t0 = Temp.gen Temp.init_manager in
+        let manager, t1 = Temp.gen manager in
+        let _, t2 = Temp.gen manager in
+        let pre_colored = _temp_pairs_to_map [(t0, 0); (t1, 1)] in
+        (* # regs      : {0, 1}
+         * # pre_color : [T0 -> 0, T1 -> 1]
+         * # 3 temps are used simultaneously in write, no coloring possible
+         *
+         * T2 := T0 + T1 + T2 *)
+        let instrs = Backend_aux.mk_annotated_vasms [t2;]
+            [
+              (Vasm.mk_instr [t2;] [t0; t1; t2], []);
+            ]
+        in
+        OUnit2.assert_raises
+          (Failure "[Reg_alloc.replace_active_temp] Not enough register")
+          (fun () -> Reg_alloc.greedy_alloc instrs regs pre_colored);
+      );
   ]
 
 let _ =
