@@ -37,8 +37,7 @@ let _lexer_error_invalid_start (start : char) t : 'a =
 
 (* These keywords are subset of identifier with more than 1 character. *)
 let _keyword_map : (string, Token.desc) Map.t =
-  List.fold_right
-    (fun (k, v) -> Map.add k v)
+  Map.add_pairs
     [
       ("if",   Token.If);
       ("then", Token.Then);

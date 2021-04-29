@@ -181,9 +181,7 @@ let _get_sp_temps_coloring sp_temps : (Temp.t, physical_reg) Map.t =
     (sp_temps.rdx, Rdx)::
     (sp_temps.ordered_arg_regs)
   in
-  List.fold_left
-    (fun pre_color (temp, reg) -> Map.add temp reg pre_color)
-    pre_color temp_reg_pairs
+  Map.add_pairs temp_reg_pairs pre_color
 ;;
 
 

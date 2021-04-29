@@ -34,6 +34,14 @@ let tests = OUnit2.(>:::) "map_tests" [
         OUnit2.assert_equal 1 (Map.size (Map.remove 42 s2));
       );
 
+    OUnit2.(>::) "test_add_pairs" (fun _ ->
+        let s2 = Map.add_pairs [(1, 'b'); (42, 'c')] emp_int in
+        OUnit2.assert_equal 0 (Map.size (Map.add_pairs [] emp_int));
+        OUnit2.assert_equal 2 (Map.size s2);
+        OUnit2.assert_equal (Some 'b') (Map.get 1 s2);
+        OUnit2.assert_equal (Some 'c') (Map.get 42 s2);
+      );
+
     OUnit2.(>::) "test_get" (fun _ ->
         let s2 = from_list [(42, 'a'); (1, 'b'); (42, 'c')] int_cmp in
         OUnit2.assert_equal None (Map.get 42 emp_int);

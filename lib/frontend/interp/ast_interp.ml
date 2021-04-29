@@ -347,9 +347,10 @@ let _interp_struct_item (ctx : context) (item : Ast.struct_item) : context =
 ;;
 
 let _interp_struct_impl items =
-  let init_ctx = String.empty_map () in
-  let init_ctx = Map.add "println" (Native Builtin_println) init_ctx in
-  let init_ctx = Map.add "=" (Native Builtin_equal) init_ctx in
+  let builtin_funcs = [ ("println", Native Builtin_println);
+                        ("=",       Native Builtin_equal); ]
+  in
+  let init_ctx = Map.add_pairs builtin_funcs (String.empty_map ()) in
   let init_ctx =
     List.fold_left
       (fun ctx (info : Primops.op_info) ->
