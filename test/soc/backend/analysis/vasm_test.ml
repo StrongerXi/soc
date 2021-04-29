@@ -105,9 +105,7 @@ let tests = OUnit2.(>:::) "vasm_test" [
         let cfg, ordered_nodes = Vasm.build_cfg vasms in
         let vasms_from_cfg = List.map (Graph.get_annot cfg) ordered_nodes
                               |> List.flatten in
-        OUnit2.assert_equal
-          ~cmp:(Test_aux.list_equal Vasm.equal)
-          vasms vasms_from_cfg;
+        OUnit2.assert_equal ~cmp:(List.equal Vasm.equal) vasms vasms_from_cfg;
       );
   ]
 

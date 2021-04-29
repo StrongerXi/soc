@@ -34,14 +34,3 @@ let check_unordered_list (expects : 'a list) (actuals : 'a list) : unit =
       OUnit2.assert_equal true (List.mem elem actuals))
     expects
 ;;
-
-(* TODO move to list module *)
-let rec list_equal (cmp : 'a -> 'a -> bool) (l1 : 'a list) (l2 : 'a list)
-  : bool =
-  match l1, l2 with
-  | [], [] -> true
-  | [], _  -> false
-  | _, []  -> false
-  | x1::l1, x2::l2 ->
-    (cmp x1 x2) && (list_equal cmp l1 l2)
-;;

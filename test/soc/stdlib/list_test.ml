@@ -154,6 +154,17 @@ let tests = OUnit2.(>:::) "list_tests" [
           "[1; 2; 3]"
           (List.to_string [1; 2; 3] Int.to_string);
       );
+
+    OUnit2.(>::) "test_equal" (fun _ ->
+        let int_eq = (=) in
+        OUnit2.assert_equal true   (List.equal int_eq []        []);
+        OUnit2.assert_equal false  (List.equal int_eq [1]       []);
+        OUnit2.assert_equal false  (List.equal int_eq []        [2]);
+        OUnit2.assert_equal true   (List.equal int_eq [1; 2;]   [1; 2;]);
+        OUnit2.assert_equal false  (List.equal int_eq [1; 2;]   [2; 2;]);
+        OUnit2.assert_equal false  (List.equal int_eq [1; 3;]   [1; 2;]);
+        OUnit2.assert_equal false  (List.equal int_eq [1; 2;]   [1; 2; 3]);
+      );
   ]
 
 let _ =

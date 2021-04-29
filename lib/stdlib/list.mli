@@ -80,3 +80,7 @@ val init : int -> (int -> 'a) -> 'a list
 (** [to_string xs f] returns a string representation of [xs], using [f] to
     format individual elemeents. *)
 val to_string : 'a list -> ('a -> string) -> string
+
+(** [equal eq t1 t2] is [true] if [t1] and [t2] contains the same elements in
+    order, where [eq] defines equality. *)
+val equal : ('a -> 'a -> bool) -> 'a list -> 'a list -> bool
