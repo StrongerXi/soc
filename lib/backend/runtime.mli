@@ -14,3 +14,7 @@ val mem_alloc_label : Label.t
 
 (** Entry of compiled program. *)
 val entry_label : Label.t
+
+(* representations of boolean values as unboxed value at runtime *)
+val true_val : int
+val false_val : int
