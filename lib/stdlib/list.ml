@@ -151,6 +151,6 @@ let init size f =
 
 let to_string xs f =
   let elem_strs = map f xs in
-  let elems_str = String.join_with elem_strs "; " in
+  let elems_str = Stdlib_util.str_join_with elem_strs "; " in
   "[" ^ elems_str ^ "]"
 ;;

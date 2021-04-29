@@ -80,9 +80,9 @@ let to_string f g t =
   let pair_to_str (k, v) =
     "(" ^ (f k) ^ ", " ^ (g v) ^ ")"
   in
-  let pairs = List.map pair_to_str (_unique_pairs t) in
-  let inner = String.join_with pairs "; " in
-  "{" ^ inner ^ "}"
+  let pair_strs = List.map pair_to_str (_unique_pairs t) in
+  let pairs_str = Stdlib_util.str_join_with pair_strs "; " in
+  "{" ^ pairs_str ^ "}"
 ;;
 
 let get_key_set t =

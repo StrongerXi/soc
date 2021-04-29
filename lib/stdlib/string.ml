@@ -1,4 +1,3 @@
-open Pervasives
 
 let length = Externals.string_length
 ;;
@@ -7,9 +6,6 @@ let get = Externals.string_get
 ;;
 
 let sub = Externals.string_sub
-;;
-
-let append = Externals.string_append
 ;;
 
 let compare s1 s2 =
@@ -26,15 +22,6 @@ let compare s1 s2 =
   go 0
 ;;
 
-let join_with init_ss sep =
-  match init_ss with
-  | [] -> ""
-  | fst_s::rst_ss ->
-    let rec go acc ss =
-      match ss with
-      | [] -> acc
-      | s::ss ->
-        let acc = append (append acc sep) s in
-        go acc ss
-    in go fst_s rst_ss
+let join_with =
+  Stdlib_util.str_join_with
 ;;
