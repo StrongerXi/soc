@@ -33,7 +33,7 @@ let tests = OUnit2.(>:::) "list_tests" [
         OUnit2.assert_equal [] (List.map double []);
         OUnit2.assert_equal [2; 6; 10] (List.map double [1; 3; 5]);
         let x = ref "" in
-        let append n = x := (String.append !x (Int.to_string n)) in
+        let append n = x := (!x ^ (Int.to_string n)) in
         let _ = List.map append [1; 3; 5] in
         OUnit2.assert_equal "135" !x;
       );
@@ -42,14 +42,14 @@ let tests = OUnit2.(>:::) "list_tests" [
         OUnit2.assert_equal [] (List.mapi (+) []);
         OUnit2.assert_equal [1; 4; 7] (List.mapi (+) [1; 3; 5]);
         let x = ref "" in
-        let append _ n = x := (String.append !x (Int.to_string n)) in
+        let append _ n = x := (!x ^ (Int.to_string n)) in
         let _ = List.mapi append [1; 3; 5] in
         OUnit2.assert_equal "135" !x;
       );
 
     OUnit2.(>::) "test_iter" (fun _ ->
         let x = ref "" in
-        let append n = x := (String.append !x (Int.to_string n)) in
+        let append n = x := (!x ^ (Int.to_string n)) in
         let _ = List.map append [1; 3; 5] in
         OUnit2.assert_equal "135" !x;
       );

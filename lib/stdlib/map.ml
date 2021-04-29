@@ -82,7 +82,7 @@ let to_string f g t =
   in
   let pairs = List.map pair_to_str (_unique_pairs t) in
   let inner = String.join_with pairs "; " in
-  String.append "{" (String.append inner "}")
+  "{" ^ inner ^ "}"
 ;;
 
 let get_key_set t =

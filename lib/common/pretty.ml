@@ -23,7 +23,7 @@ let _dec_space (p : printer) (n : int) : unit =
 ;;
 
 let __print_str_only (p : printer) (s : string) : unit =
-  p.buffer <- String.append p.buffer s
+  p.buffer <- p.buffer ^ s
 ;;
 
 (* [endline] specifies whether a newline will be printed to end current line *)
@@ -176,7 +176,7 @@ let pp_ast_interp_error (err : Errors.ast_interp_error) =
         " but got "; (Int.to_string actual); " at "; (_pp_span span); ]
 
   | Ast_interp_letrec_invalid_rhs span ->
-    String.append "Invalid rhs of let rec binding at " (_pp_span span)
+    "Invalid rhs of let rec binding at " ^ (_pp_span span)
 ;;
 
 
@@ -364,7 +364,7 @@ let pp_typer_error (err : Errors.typer_error) =
         " but got <"; (pp_ast_typ actual); "> at "; (_pp_span span); ]
 
   | Typer_illegal_letrec_rhs span ->
-    String.append "[Typer]: Illegal rhs of let rec binding at " (_pp_span span)
+    "[Typer]: Illegal rhs of let rec binding at " ^ (_pp_span span)
 
   | Typer_tyvar_occurs (expect, actual, actual_span, tv_name, occurree) ->
     String.concat
@@ -372,7 +372,6 @@ let pp_typer_error (err : Errors.typer_error) =
         " but got <"; (pp_ast_typ actual); "> at "; (_pp_span actual_span);
         ". The type variable '"; tv_name;
         " occurs within "; (pp_ast_typ occurree) ]
-
 ;;
 
 

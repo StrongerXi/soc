@@ -14,14 +14,12 @@ let _temp_pairs_to_map (pairs : (Temp.t * 'v) list) : (Temp.t, 'v) Map.t =
 
 let _err_unexpected_spill (spills : Temp.t Set.t) : 'a =
   let str = Set.to_string Temp.to_string spills in
-  let msg = String.append "Unexpected spill: " str in
-  OUnit2.assert_failure msg
+  OUnit2.assert_failure ("Unexpected spill: " ^ str)
 ;;
 
 let _err_unexpected_coloring (coloring : (Temp.t, int) Map.t) : 'a =
   let str = Map.to_string Temp.to_string Int.to_string coloring in
-  let msg = String.append "Unexpected coloring: " str in
-  OUnit2.assert_failure msg
+  OUnit2.assert_failure ("Unexpected coloring: " ^ str)
 ;;
 
 let _int_set (items : int list) : int Set.t =

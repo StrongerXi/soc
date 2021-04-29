@@ -97,7 +97,7 @@ let to_list t =
 let to_string f t =
   let es = List.map f (_unique_elems t) in
   let inner = String.join_with es "; " in
-  String.append "{" (String.append inner "}")
+  "{" ^ inner ^ "}"
 ;;
 
 let get_compare_func t =

@@ -36,6 +36,13 @@ let tests = OUnit2.(>:::) "pervasives_tests" [
         OUnit2.assert_equal [1] ([1] @ []);
         OUnit2.assert_equal [1; 2; 3; 4] ([1; 2] @ [3; 4]);
       );
+
+    OUnit2.(>::) "test_string_append" (fun _ ->
+        OUnit2.assert_equal "" ("" ^ "");
+        OUnit2.assert_equal "123" ("" ^ "123");
+        OUnit2.assert_equal "abc" ("abc" ^ "");
+        OUnit2.assert_equal "fo-obar" ("fo" ^ "-obar");
+      );
   ]
 
 let _ =

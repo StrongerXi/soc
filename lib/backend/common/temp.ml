@@ -39,7 +39,7 @@ let get manager s =
 ;;
 
 let to_string t =
-  String.append "T" (Int.to_string t)
+  "T" ^ (Int.to_string t)
 ;;
 
 let compare = Int.compare

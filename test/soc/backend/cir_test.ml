@@ -2,18 +2,18 @@ open Pervasives
 
 (* [filename] can assume CWD is where this file is *)
 let _get_full_path (filename : string) : string =
-  String.append "../../../../test/soc/backend/cir-resources/" filename
+  "../../../../test/soc/backend/cir-resources/" ^ filename
 ;;
 
 let _check_cir_pp (filepath_no_suffix : string) : unit =
-  let filepath = String.append filepath_no_suffix ".soml" in
+  let filepath = filepath_no_suffix ^ ".soml" in
   let result =
     match Driver.cir_file filepath with
     | Error msg -> msg
     | Ok cir -> Pretty.pp_cir cir
   in
-  let expect_path = String.append filepath_no_suffix ".expect" in
-  let actual_path = String.append filepath_no_suffix ".actual" in
+  let expect_path = filepath_no_suffix ^ ".expect" in
+  let actual_path = filepath_no_suffix ^ ".actual" in
   Test_aux.check_and_output_str result expect_path actual_path;
 ;;
 

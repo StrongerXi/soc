@@ -19,13 +19,6 @@ let tests = OUnit2.(>:::) "string_test" [
         OUnit2.assert_equal "$" (String.sub "ax$" 2 1);
       );
 
-    OUnit2.(>::) "test_append" (fun _ ->
-        OUnit2.assert_equal "" (String.append "" "");
-        OUnit2.assert_equal "123" (String.append "" "123");
-        OUnit2.assert_equal "abc" (String.append "abc" "");
-        OUnit2.assert_equal "fo-obar" (String.append "fo" "-obar");
-      );
-
     OUnit2.(>::) "test_compare" (fun _ ->
         OUnit2.assert_equal true ((String.compare "ab0" "ab0") = 0);
         OUnit2.assert_equal true ((String.compare "ab" "ab0") < 0);

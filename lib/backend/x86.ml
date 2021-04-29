@@ -1042,9 +1042,9 @@ let _call_target_to_str (target : 'a call_target) (gr_to_str : 'a -> string)
 ;;
 
 let _instr_to_str (instr : 'a instr) (gr_to_str : 'a -> string) : string =
-  let add_tab s = String.append "\t" s in
+  let add_tab s = "\t" ^ s in
   match instr with
-  | Label label -> String.append (Label.to_string label) ":"
+  | Label label -> (Label.to_string label) ^ ":"
 
   | Load (arg, dst_reg) ->
     let arg_str = _arg_to_str arg gr_to_str in
@@ -1087,7 +1087,7 @@ let _instr_to_str (instr : 'a instr) (gr_to_str : 'a -> string) : string =
     add_tab instr_str
 
   | Jmp label ->
-    let instr_str = String.append "jmp " (Label.to_string label)in
+    let instr_str = "jmp " ^ (Label.to_string label)in
     add_tab instr_str
 
   | JmpC (cond, label) ->
@@ -1169,11 +1169,11 @@ let _find_external_native_labels_in_prog (prog : func prog) : Label.t Set.t =
 let _get_prog_metadata (prog : func prog) : string =
   let external_native_label_decls = 
     List.map
-      (fun label -> String.append "extern " (Label.to_string label))
+      (fun label -> "extern " ^ (Label.to_string label))
       (Set.to_list (_find_external_native_labels_in_prog prog))
   in
   let global_native_label_decls =
-    [String.append "global " (Label.to_string prog.main.entry)]
+    ["global " ^ (Label.to_string prog.main.entry)]
   in
   let metadata_lines =
       ("section .text"::external_native_label_decls) @

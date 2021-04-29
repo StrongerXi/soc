@@ -33,3 +33,7 @@ let rec (@) xs ys =
   | [] -> ys
   | x::xs -> x::(xs @ ys)
 ;;
+
+let (^) =
+  Externals.string_append
+;;

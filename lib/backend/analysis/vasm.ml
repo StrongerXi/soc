@@ -314,7 +314,7 @@ let _pp_instr (instr : instr) : string =
       [", reads = "; Set.to_string Temp.to_string instr.reads;
        ", writes = "; Set.to_string Temp.to_string instr.writes;]
   in
-  String.append desc_str rw_str
+  desc_str ^ rw_str
 ;;
 
 let pp t =
