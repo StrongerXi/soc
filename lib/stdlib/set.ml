@@ -30,6 +30,10 @@ let add e t =
   { t with rep = e::t.rep }
 ;;
 
+let add_list es t =
+  { t with rep = es @ t.rep }
+;;
+
 let remove e t =
   { t with rep = List.filter (fun x -> not (_equal_by_cmp t.cmp e x)) t.rep }
 ;;

@@ -30,6 +30,13 @@ let tests = OUnit2.(>:::) "set_tests" [
         OUnit2.assert_equal 1 (Set.size (Set.remove 42 s2));
       );
 
+    OUnit2.(>::) "test_add_list" (fun _ ->
+        let s2 = from_list [1; 2] int_cmp in
+        Test_aux.check_set [] (Set.add_list [] emp_int);
+        Test_aux.check_set [1; 2] (Set.add_list [1; 2] emp_int);
+        Test_aux.check_set [1; 2; 3; 4] (Set.add_list [3; 4] s2);
+      );
+
     OUnit2.(>::) "test_get_one" (fun _ ->
         let _check_get_one (set : int Set.t) : unit =
           match Set.get_one set with

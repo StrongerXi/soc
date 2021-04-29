@@ -9,7 +9,7 @@ let _empty_temp_map =
 ;;
 
 let _temp_pairs_to_map (pairs : (Temp.t * 'v) list) : (Temp.t, 'v) Map.t =
-  List.fold_left (fun map (k, v) -> Map.add k v map) _empty_temp_map pairs
+  Map.add_pairs pairs _empty_temp_map 
 ;;
 
 let _err_unexpected_spill (spills : Temp.t Set.t) : 'a =
@@ -23,7 +23,7 @@ let _err_unexpected_coloring (coloring : (Temp.t, int) Map.t) : 'a =
 ;;
 
 let _int_set (items : int list) : int Set.t =
-  List.fold_right Set.add items (Set.empty Int.compare)
+  Set.add_list items (Set.empty Int.compare)
 ;;
 
 let _check_spills

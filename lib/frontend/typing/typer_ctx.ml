@@ -193,7 +193,7 @@ let _generalize_typ (typ : Ast.typ) (fvs_in_var_env : string Set.t)
 
 let generalize t names =
   (* ignore the names themselves in context, since their tyvars are not free *)
-  let names_to_ignore = List.fold_right Set.add names String.empty_set in
+  let names_to_ignore = Set.add_list names String.empty_set in
   let fvs_in_var_env =
     List.fold_left
       (fun s var_env -> _add_fvs_in_var_env s var_env names_to_ignore)
@@ -236,11 +236,9 @@ let _add_natives_into_var_env (var_env : (string, scheme) Map.t)
       ("=", Ast.Typ_arrow (tyvar, (Ast.Typ_arrow (tyvar, Builtin_types.bool_typ))));
       ("print", Ast.Typ_arrow (tyvar, tyvar));
     ]
+    |> List.map (fun (name, typ) -> (name, _generalize_typ typ String.empty_set))
   in
-  List.fold_left
-    (fun var_env (name, typ) ->
-       Map.add name (_generalize_typ typ String.empty_set) var_env)
-    var_env name_typ_pairs
+  Map.add_pairs name_typ_pairs var_env 
 ;;
 
 (* Initialize with some built-in stuff, an ad hoc solution *)

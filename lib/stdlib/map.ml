@@ -51,6 +51,10 @@ let add k v t =
   { t with rep = (k, v)::t.rep }
 ;;
 
+let add_pairs kvs t =
+  { t with rep = kvs @ t.rep }
+;;
+
 let remove k t =
   { t with rep = List.filter (fun x -> not (_has_key_by_cmp t.cmp k x)) t.rep }
 ;;

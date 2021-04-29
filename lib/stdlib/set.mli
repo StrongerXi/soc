@@ -21,6 +21,9 @@ val size : 'e t -> int
 (** [add e t] returns a new set that contains [e] as well *)
 val add : 'e -> 'e t -> 'e t
 
+(** [add_list es t] is a set with all elements from [es] added to [t]. *)
+val add_list : 'e list -> 'e t -> 'e t
+
 (** [remove e t] returns a set where [e] is absent *)
 val remove : 'e -> 'e t -> 'e t
 

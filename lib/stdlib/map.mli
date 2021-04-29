@@ -27,6 +27,10 @@ val get : 'k -> ('k, 'v) t -> 'v option
     overwriting existing [key], if any. *)
 val add : 'k -> 'v -> ('k, 'v) t -> ('k, 'v) t
 
+(** [add [(k1, v1), ..., (kn, vn)] t] returns a new map with
+    each [ki] mapped to [vi], overwriting existing [key], if any. *)
+val add_pairs : ('k * 'v) list -> ('k, 'v) t -> ('k, 'v) t
+
 (** [remove key t] returns a map where [key] doesn't map to anything *)
 val remove : 'k -> ('k, 'v) t -> ('k, 'v) t
 
