@@ -1,8 +1,12 @@
 
 (* The OCaml compiler loads the pervasives module by default.
    Centralizing the "auto-loaded" functions here makes self-compilation easier.
-   For now we'll just manually open it in each file, if needed. TODO *)
+   For now we'll just manually open it in each file, if needed. *)
 
+(* NOTE these type definitions are technically redundant, but they help enforce
+ * the separation between our custom stdlib and OCaml's built-in stdlib. 
+ * TODO they will be completely removed once we add them as pre-defined types in
+ * the compiler. *)
 type 'a list         = 'a Externals.list =
   | []
   | (::) of 'a * 'a list
