@@ -638,7 +638,7 @@ let _get_reads_and_writes_temp_instr sp_temps (instr : Temp.t instr)
     (reads, writes)
 
   | IDiv reg  ->
-    let reads = _add_temps_in_temp_reg writes reg in
+    let reads = _add_temps_in_temp_reg reads reg in
     let reads = Set.add_list [sp_temps.rax; sp_temps.rdx] reads in
     let writes = Set.add_list [sp_temps.rax; sp_temps.rdx] writes in
     (reads, writes)
