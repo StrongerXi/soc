@@ -16,8 +16,8 @@
  */
 
 // can't use `tag_int` here, make sure representation synchs up.
-value SOML_TRUE  = 0x11;
-value SOML_FALSE = 0x01;
+const value SOML_TRUE  = 0x11;
+const value SOML_FALSE = 0x01;
 
 
 value tag_int(int n) {

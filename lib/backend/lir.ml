@@ -118,9 +118,9 @@ let _ctx_gen_and_bind_temp (ctx : context) (ident : string)
 
 
 
-(* Some constants. TODO bug, need to tag it, as if it's integer. *)
-let _true_e    = Imm 3
-and _false_e   = Imm 1
+(* Some constants. *)
+let _true_e    = Imm Runtime.true_val
+and _false_e   = Imm Runtime.false_val
 ;;
 
 
@@ -383,7 +383,7 @@ and _transl_cir_letrec_rhs_skip_alloc
  * NOTE must synch up with [_emit_cls_prelude] *)
 and _transl_cir_mkcls_alloc_space (free_vars : string list) : expr =
   let slots = 1 + (List.length free_vars) in
-  Mem_alloc (Constants.word_size * slots)
+  Mem_alloc (Runtime.word_size * slots)
 
 and _transl_cir_mkcls_skip_alloc (ctx : context)
     (cls_addr_e : expr) (mkcls : Cir.mk_closure)
@@ -394,7 +394,7 @@ and _transl_cir_mkcls_skip_alloc (ctx : context)
     List.mapi 
       (fun n fv_name -> (* store each free variable to their slot *)
          let word_offset = n + 1 in (* start at 1 *)
-         let byte_offset = Constants.word_size * word_offset in
+         let byte_offset = Runtime.word_size * word_offset in
          let fv_e = Tmp (_ctx_get_temp ctx fv_name) in
          let slot_addr_e = Op (Add, cls_addr_e, Imm byte_offset) in
          Store (fv_e, slot_addr_e))
@@ -434,7 +434,7 @@ let _emit_cls_prelude (ctx : context) (cls : Cir.closure)
       (fun (ctx, word_offset) fv_name ->
          (* fv_temp = *[cls_temp + word_offset] *)
          let ctx, fv_temp = _ctx_gen_and_bind_temp ctx fv_name in
-         let byte_offset = Constants.word_size * word_offset in
+         let byte_offset = Runtime.word_size * word_offset in
          let slot_addr_e = Op (Add, Tmp cls_temp, Imm byte_offset) in
          let load_instr = LoadMem (slot_addr_e, fv_temp) in
          let ctx = _ctx_add_instr ctx load_instr in

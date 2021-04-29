@@ -10,14 +10,14 @@ static char* _next_free_start = 0;
 static char* _heap_end = 0;
 
 
-void _check_init(const char* caller) {
+static void _check_init(const char* caller) {
   if (! _did_init) {
     fprintf(stderr, "[gc._check_init] failed. Caller = %s\n", caller);
     exit(1);
   }
 }
 
-char* _align_ptr(char* ptr) {
+static char* _align_ptr(char* ptr) {
   return (char*) ((uint64_t) ptr + HEAP_ALIGNMENT & ~HEAP_ALIGNMENT);
 }
 

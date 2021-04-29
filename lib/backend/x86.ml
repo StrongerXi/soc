@@ -319,8 +319,8 @@ let _emit_load_args_into_temps (ctx : context) (ordered_args : Temp.t list)
          let mem_arg = Mem_arg (Rbp, offset_bytes) in
          let instr = Load (mem_arg, Greg arg_temp) in
          let ctx = _ctx_add_instr ctx instr in
-         (ctx, offset_bytes + Constants.word_size))
-      (ctx, 2 * Constants.word_size) extra_arg_temps
+         (ctx, offset_bytes + Runtime.word_size))
+      (ctx, 2 * Runtime.word_size) extra_arg_temps
     |> (fun (ctx, _) -> ctx)
   in
   let rec go ctx (arg_temps : Temp.t list) (arg_regs : Temp.t list) : context =
@@ -357,8 +357,7 @@ let rec _emit_lir_expr (ctx : context) (e : Lir.expr) (dst_temp : Temp.t)
     _emit_generic_call ctx arg_es (Lbl func_label) dst_temp
 
   | Mem_alloc nbytes ->
-    let func_label = Label.get_native Constants.mem_alloc_name in
-    _emit_generic_call ctx [Imm nbytes] (Lbl func_label) dst_temp
+    _emit_generic_call ctx [Imm nbytes] (Lbl Runtime.mem_alloc_label) dst_temp
 
 (* abstract over the call target *)
 and _emit_generic_call (ctx : context)
@@ -399,9 +398,9 @@ and _emit_prepare_x86_call_args (init_ctx : context)
            _ctx_add_instr ctx (Push (Greg arg_v_temp)))
         arg_es ctx
     in
-    let extra_arg_offset = (List.length arg_es) * Constants.word_size in
+    let extra_arg_offset = (List.length arg_es) * Runtime.word_size in
     let align_offset =
-      Int.offset_to_align extra_arg_offset Constants.stack_alignment
+      Int.offset_to_align extra_arg_offset Runtime.stack_alignment
     in (* sometimes redundant, but KISS for now *)
     let align_rsp_i = Binop (Sub, Rsp, Imm_arg align_offset) in
     let ctx = _ctx_add_instr ctx align_rsp_i in
@@ -584,7 +583,7 @@ let _from_lir_main_func
    * - is invoked by runtime with the designated label
    * - has no args 
    * MUST synch with C runtime *)
-  let main_entry = Label.get_native Constants.entry_name in
+  let main_entry = Runtime.entry_label in
   _from_lir_func_impl label_manager temp_manager main_entry [] body_instrs
   |> (fun (temp_func, _) -> temp_func)
 ;;
@@ -788,7 +787,7 @@ let _spill_ctx_add_instr (ctx : spill_context) (instr : Temp.t instr)
 ;;
 
 let _spill_slot_to_rbp_offset (slot : int) : int =
-  -slot * Constants.word_size
+  -slot * Runtime.word_size
 ;;
 
 let _spill_to_slot (ctx : spill_context) (src_temp : Temp.t) (slot : int)
@@ -848,7 +847,7 @@ let _get_or_gen_slots_for_temps_to_spill
 (* Calculate available stack slot. *)
 let _spill_ctx_init temp_func (temps_to_spill : Temp.t Set.t) : spill_context =
   let max_rbp_offset = _get_max_rbp_offset_instrs temp_func.instrs in
-  let max_slot = Int.ceil_div max_rbp_offset Constants.word_size in
+  let max_slot = Int.ceil_div max_rbp_offset Runtime.word_size in
   { next_slot    = max_slot + 1
   ; slot_map     = Map.empty Temp.compare 
   ; rev_instrs   = []
@@ -941,10 +940,10 @@ let temp_func_to_func temp_func pr_assignment =
   (* calculate offset *)
   let callee_saved = Set.to_list (_get_callee_saved_prs pr_assignment) in
   let max_rbp_offset = _get_max_rbp_offset_instrs temp_func.instrs in
-  let callee_saved_size = Constants.word_size * List.length callee_saved in
+  let callee_saved_size = Runtime.word_size * List.length callee_saved in
   let frame_size = max_rbp_offset + callee_saved_size in
   let aligned_rbp_offset = 
-    max_rbp_offset + (Int.offset_to_align frame_size Constants.stack_alignment)
+    max_rbp_offset + (Int.offset_to_align frame_size Runtime.stack_alignment)
   in
   (* generate prologue and epilogue *)
   let spill_callee_saved = List.map (fun pr -> Push (Greg pr)) callee_saved in
