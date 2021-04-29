@@ -1,3 +1,4 @@
+open Pervasives
 
 let check_and_output_str str ref_path output_path =
   let output = Stdlib.open_out output_path in
@@ -13,6 +14,14 @@ let check_set expects actuals =
     (fun elem -> 
       OUnit2.assert_equal true (Set.mem elem actuals))
     expects
+;;
+
+let check_map expect_pairs actual_map =
+  OUnit2.assert_equal (List.length expect_pairs) (Map.size actual_map);
+  List.iter
+    (fun (key, value) -> 
+      OUnit2.assert_equal (Some value) (Map.get key actual_map))
+    expect_pairs
 ;;
 
 let check_unordered_list expects actuals =
