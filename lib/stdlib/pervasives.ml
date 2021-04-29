@@ -36,3 +36,11 @@ let rec (@) xs ys =
 let (^) =
   Externals.string_append
 ;;
+
+let raise =
+  Externals.raise
+;;
+
+let failwith msg =
+  raise (Failure msg)
+;;

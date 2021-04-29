@@ -33,3 +33,10 @@ val (@)  : 'a list -> 'a list -> 'a list
 
 (** [s1 ^ s2] is a string with [s1] and [s2] appended together *)
 val (^) : string -> string -> string
+
+(** [raise exn] will transfer control flow to the dynamically enclosing
+    try-with block that expects [exn], or print out the error at top-level. *)
+val raise : exn -> 'a
+
+(** [failwith msg] = [raise (Failure msg)] *)
+val failwith : string -> 'a

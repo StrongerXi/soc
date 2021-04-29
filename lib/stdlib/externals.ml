@@ -74,5 +74,5 @@ let string_sub = Stdlib.String.sub
 let string_append = (^)
 ;;
 
-let failwith = failwith
+let raise = Stdlib.raise
 ;;
