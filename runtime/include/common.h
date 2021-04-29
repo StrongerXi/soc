@@ -3,7 +3,7 @@
 
 /**
  * Usage:
- *    extern f() RUNTIME_EXTERNAL(soml_f);
+ *    f() RUNTIME_EXTERNAL(soml_f);
  * 
  * 1. If `f` is defined externally by the soc compiler as `soml_f`
  *    this macro allows us to use `f` inside C runtime.
@@ -18,8 +18,8 @@
 // Generic soml value
 typedef int value;
 
-value SOML_TRUE;
-value SOML_FALSE;
+extern const value SOML_TRUE;
+extern const value SOML_FALSE;
 
 value tag_int(int);
 int untag_int(value);
