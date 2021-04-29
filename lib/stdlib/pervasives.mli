@@ -29,7 +29,7 @@ val (@@) : ('a -> 'b) -> 'a -> 'b
 
 (** [xs @ ys] is a list with elements of [xs] added to the front of [ys] in
     order *)
-val (@)  : 'a list -> 'a list -> 'a list
+val (@) : 'a list -> 'a list -> 'a list
 
 (** [s1 ^ s2] is a string with [s1] and [s2] appended together *)
 val (^) : string -> string -> string
