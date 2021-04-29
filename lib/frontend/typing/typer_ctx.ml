@@ -67,7 +67,7 @@ let get_errors t =
 
 
 let open_scope t =
-  { t with cur_var_env = Map.empty String.compare
+  { t with cur_var_env   = String.empty_map ()
          ; prev_var_envs = t.cur_var_env::t.prev_var_envs }
 ;;
 
@@ -183,7 +183,7 @@ let _add_fvs_in_var_env (s : string Set.t) (var_env : (string, scheme) Map.t)
 (* A helper for generalize 1 name in var_env *)
 let _generalize_typ (typ : Ast.typ) (fvs_in_var_env : string Set.t)
   : scheme =
-  let fvs = Set.empty String.compare in
+  let fvs = String.empty_set in
   let fvs = _add_fvs_in_typ fvs typ in
   let fvs = Set.diff fvs fvs_in_var_env in
   let free_tyvars = Set.to_list fvs in
@@ -193,12 +193,11 @@ let _generalize_typ (typ : Ast.typ) (fvs_in_var_env : string Set.t)
 
 let generalize t names =
   (* ignore the names themselves in context, since their tyvars are not free *)
-  let names_to_ignore =
-    List.fold_right Set.add names (Set.empty String.compare) in
+  let names_to_ignore = List.fold_right Set.add names String.empty_set in
   let fvs_in_var_env =
     List.fold_left
       (fun s var_env -> _add_fvs_in_var_env s var_env names_to_ignore)
-      (Set.empty String.compare) (t.cur_var_env::t.prev_var_envs)
+      String.empty_set (t.cur_var_env::t.prev_var_envs)
   in
   List.fold_left
     (fun t name ->
@@ -224,7 +223,7 @@ let _add_primops_into_var_env (var_env : (string, scheme) Map.t)
   : (string, scheme) Map.t =
   List.fold_left
     (fun env (info : Primops.op_info) ->
-       let schm = _generalize_typ info.typ (Set.empty String.compare) in
+       let schm = _generalize_typ info.typ String.empty_set in
        Map.add info.opstr schm env)
     var_env Primops.all_op_infos
 ;;
@@ -240,13 +239,13 @@ let _add_natives_into_var_env (var_env : (string, scheme) Map.t)
   in
   List.fold_left
     (fun var_env (name, typ) ->
-       Map.add name (_generalize_typ typ (Set.empty String.compare)) var_env)
+       Map.add name (_generalize_typ typ String.empty_set) var_env)
     var_env name_typ_pairs
 ;;
 
 (* Initialize with some built-in stuff, an ad hoc solution *)
 let create namer =
-  let cur_var_env = Map.empty String.compare in
+  let cur_var_env = String.empty_map () in
   (* It's okay to have custom tyvars in primops/natives, because we won't
    * generate new tyvars inside them anymore, and tyvar scope is limited to
    * each top-level *)

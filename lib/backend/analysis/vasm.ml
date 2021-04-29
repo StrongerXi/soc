@@ -150,7 +150,7 @@ let _ctx_init : context =
   let ctx = { next_block_id        = 0
             ; curr_block_id        = -1 (* temporary garbage *)
             ; rev_curr_block_vasms = []
-            ; label_to_block_id    = Map.empty String.compare
+            ; label_to_block_id    = String.empty_map ()
             ; id_to_block_info     = Map.empty Int.compare
             ; block_id_graph       = Graph.empty_graph () 
             ; rev_finished_nodes   = [] }

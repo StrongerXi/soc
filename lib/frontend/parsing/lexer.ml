@@ -51,7 +51,7 @@ let _keyword_map : (string, Token.desc) Map.t =
       ("true",  Token.True);
       ("false",  Token.False);
     ]
-    (Map.empty String.compare)
+    (String.empty_map ())
 ;;
 
 (* Used for lexing operators *)

@@ -44,7 +44,7 @@ type context =
   }
 
 let _init_ctx namer =
-  { closures = Map.empty String.compare; namer }
+  { closures = String.empty_map (); namer }
 ;;
 
 let _gen_new_var_name (ctx : context) (prefix : string) : (context * string) =
@@ -82,7 +82,7 @@ let rec _free_vars_in_expr (expr : Ast.expression) : string Set.t =
     | Exp_ident name  -> Set.add name free_vars
     | Exp_fun (otvs, body) ->
       let names = List.map (fun (otv : Ast.opt_typed_var) -> otv.var) otvs in
-      let body_fvs = go (Set.empty String.compare) body in
+      let body_fvs = go String.empty_set body in
       let body_fvs = List.fold_right Set.remove names body_fvs in
       Set.union free_vars body_fvs
 
@@ -93,7 +93,7 @@ let rec _free_vars_in_expr (expr : Ast.expression) : string Set.t =
 
     | Exp_let (rec_flag, bds, body) ->
       let names, bds_fvs = _names_and_fvs_in_let_bds rec_flag bds in
-      let body_fvs = go (Set.empty String.compare) body in
+      let body_fvs = go String.empty_set body in
       let body_fvs = List.fold_right Set.remove names body_fvs in
       Set.union bds_fvs (Set.union free_vars body_fvs)
 
@@ -101,7 +101,7 @@ let rec _free_vars_in_expr (expr : Ast.expression) : string Set.t =
       let free_vars = go free_vars func in
       List.fold_left go free_vars args
   in
-  go (Set.empty String.compare) expr
+  go String.empty_set expr
 
 and _names_and_fvs_in_let_bds rec_flag bds =
   let names, rhs_fvs = 
@@ -111,7 +111,7 @@ and _names_and_fvs_in_let_bds rec_flag bds =
          let one_rhs_fvs = _free_vars_in_expr bd.binding_rhs in
          let rhs_fvs = Set.union one_rhs_fvs rhs_fvs in
          (names, rhs_fvs))
-        ([], Set.empty String.compare) bds
+        ([], String.empty_set) bds
   in
   match rec_flag with (* think about scoping rules for let rec *)
   | Nonrecursive -> (names, rhs_fvs)

@@ -95,9 +95,9 @@ let to_list t =
 ;;
 
 let to_string f t =
-  let es = List.map f (_unique_elems t) in
-  let inner = String.join_with es "; " in
-  "{" ^ inner ^ "}"
+  let e_strs = List.map f (_unique_elems t) in
+  let es_str = Stdlib_util.str_join_with e_strs "; " in
+  "{" ^ es_str ^ "}"
 ;;
 
 let get_compare_func t =

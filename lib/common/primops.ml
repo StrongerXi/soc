@@ -55,7 +55,7 @@ let all_op_infos =
 let _info_map : (string, op_info) Map.t =
   List.fold_left
     (fun map (info : op_info) -> Map.add info.opstr info map)
-    (Map.empty String.compare) all_op_infos
+    (String.empty_map ()) all_op_infos
 ;;
 
 let get_type s =
