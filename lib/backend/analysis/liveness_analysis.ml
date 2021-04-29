@@ -116,7 +116,6 @@ type block_annot =
   }
 
 let _init_block_annot (block : Vasm.t list) : block_annot =
-  let empty_set = Set.empty Temp.compare in
   let gen, kill =
     List.fold_left 
       (fun (gen, kill) (instr : Vasm.t) ->
@@ -125,9 +124,9 @@ let _init_block_annot (block : Vasm.t list) : block_annot =
          let gen = Set.union read_before_written gen in
          let kill = Set.union writes kill in
          (gen, kill))
-      (empty_set, empty_set) block
+      (Temp.empty_set, Temp.empty_set) block
   in
-  let live_in, live_out = gen, empty_set in (* optimized (2) *)
+  let live_in, live_out = gen, Temp.empty_set in (* optimized (2) *)
   { gen; kill; live_in; live_out }
 ;;
 

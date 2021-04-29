@@ -72,6 +72,10 @@ let get manager s =
   Map.get s manager.name_cache
 ;;
 
-let compare t1 t2 =
+let _compare t1 t2 =
   String.compare (to_string t1) (to_string t2)
+;;
+
+let empty_set =
+  Set.empty _compare
 ;;

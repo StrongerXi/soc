@@ -42,5 +42,14 @@ let to_string t =
   "T" ^ (Int.to_string t)
 ;;
 
-let compare = Int.compare
+let equal t1 t2 =
+  t1 = t2
+;;
+
+let empty_set =
+  Set.empty Int.compare
+;;
+
+let empty_map () =
+  Map.empty Int.compare
 ;;
