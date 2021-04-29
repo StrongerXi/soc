@@ -25,9 +25,6 @@ val gen_and_bind : manager -> string -> (manager * t)
 (** [to_string t] returns a string representation of [t] *)
 val to_string : t -> string
 
-(** [equal t1 t2] is [true] iff [t1] and [t2] are the same [t] *)
-val equal : t -> t -> bool
-
 (** An empty set of [t], with _some_ ordering. *)
 val empty_set : t Set.t
 

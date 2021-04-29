@@ -821,8 +821,8 @@ let _restore_all_spilled (ctx : spill_context) (temps : Temp.t Set.t)
     let slot = _get_slot_or_err ctx temp in
     let ctx, dst_temp = _spill_ctx_gen_temp ctx in
     let ctx = _restore_from_slot ctx slot dst_temp in
-    if Temp.equal temp dst_temp then (ctx, old_to_new_temps)
-    else (ctx, Map.add temp dst_temp old_to_new_temps)
+    let old_to_new_temps = Map.add temp dst_temp old_to_new_temps in
+    (ctx, old_to_new_temps)
   in
 
   Set.fold
