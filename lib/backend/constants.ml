@@ -11,13 +11,12 @@ let stack_alignment = 16
 ;;
 
 
-(* The followings should be used as native labels.
- * NOTE they must synch up with C runtime's export definition. *)
+(* NOTE they must synch up with C runtime's export definition. *)
 
 (** dynamic memory allocation *)
-let mem_alloc_name = "mem_alloc"
+let mem_alloc_label = Label.get_native "mem_alloc"
 ;;
 
 (** program entry *)
-let entry_name = "entry"
+let entry_label = Label.get_native "entry"
 ;;

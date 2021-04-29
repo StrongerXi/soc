@@ -357,8 +357,7 @@ let rec _emit_lir_expr (ctx : context) (e : Lir.expr) (dst_temp : Temp.t)
     _emit_generic_call ctx arg_es (Lbl func_label) dst_temp
 
   | Mem_alloc nbytes ->
-    let func_label = Label.get_native Constants.mem_alloc_name in
-    _emit_generic_call ctx [Imm nbytes] (Lbl func_label) dst_temp
+    _emit_generic_call ctx [Imm nbytes] (Lbl Constants.mem_alloc_label) dst_temp
 
 (* abstract over the call target *)
 and _emit_generic_call (ctx : context)
@@ -584,7 +583,7 @@ let _from_lir_main_func
    * - is invoked by runtime with the designated label
    * - has no args 
    * MUST synch with C runtime *)
-  let main_entry = Label.get_native Constants.entry_name in
+  let main_entry = Constants.entry_label in
   _from_lir_func_impl label_manager temp_manager main_entry [] body_instrs
   |> (fun (temp_func, _) -> temp_func)
 ;;
