@@ -289,6 +289,16 @@ let _ctx_add_instr (ctx : context) (instr : Temp.t instr) : context =
   { ctx with rev_instrs }
 ;;
 
+(* first instruction in [instr] is added first *)
+let _ctx_add_instrs (ctx : context) (instrs : Temp.t instr list) : context =
+  let rev_instrs =
+    List.fold_left (* add [instrs] in order *)
+      (fun rev_instrs instr -> instr::rev_instrs)
+      ctx.rev_instrs instrs
+  in
+  { ctx with rev_instrs }
+;;
+
 let _ctx_get_instrs (ctx : context) : Temp.t instr list =
   List.rev ctx.rev_instrs
 ;;
@@ -363,9 +373,10 @@ and _emit_generic_call (ctx : context)
     (arg_es : Lir.expr list) (target : Temp.t call_target) (dst_temp : Temp.t)
   : context =
     let ctx, arg_temps, arg_bytes = _emit_prepare_x86_call_args ctx arg_es in
-    let ctx = _ctx_add_instr ctx (Call (target, arg_temps)) in
-    let ctx = _ctx_add_instr ctx (Binop (Add, Rsp, Imm_arg arg_bytes)) in
-    _ctx_add_instr ctx (Load (Reg_arg (Greg (_ctx_get_rax ctx)), Greg dst_temp))
+    _ctx_add_instrs ctx
+      [ Call (target, arg_temps);
+        Binop (Add, Rsp, Imm_arg arg_bytes);
+        Load (Reg_arg (Greg (_ctx_get_rax ctx)), Greg dst_temp) ]
 
 (*       ......
  * caller stack frame
@@ -457,15 +468,11 @@ and _emit_lir_op (ctx : context)
     _ctx_add_instr ctx (Binop (Mul, Greg dst_temp, Reg_arg (Greg rhs_temp)))
   | Div ->
     let rax_reg = Greg (_ctx_get_rax ctx) in
-    let clear_rdx_i = Load (Imm_arg 0, Greg (_ctx_get_rdx ctx)) in
-    let lhs_to_rax_i = Load (Reg_arg (Greg dst_temp), rax_reg) in
-    let idiv_i = IDiv (Greg rhs_temp) in
-    let quotient_to_dst_i = Load (Reg_arg rax_reg, Greg dst_temp) in
-    let ctx = _ctx_add_instr ctx clear_rdx_i in
-    let ctx = _ctx_add_instr ctx lhs_to_rax_i in
-    let ctx = _ctx_add_instr ctx idiv_i in
-    let ctx = _ctx_add_instr ctx quotient_to_dst_i in
-    ctx
+    _ctx_add_instrs ctx
+      [ Load (Imm_arg 0, Greg (_ctx_get_rdx ctx));
+        Load (Reg_arg (Greg dst_temp), rax_reg);
+        IDiv (Greg rhs_temp);
+        Load (Reg_arg rax_reg, Greg dst_temp); ]
 ;;
 
 let _emit_comparison
@@ -524,10 +531,9 @@ let _emit_lir_instr (ctx : context) (lir_instr : Lir.instr) : context =
     let ctx, dst_addr_temp = _ctx_gen_temp ctx in
     let ctx = _emit_lir_expr ctx dst_addr_e dst_addr_temp in
     let ctx, label_temp = _ctx_gen_temp ctx in
-    let load_label_i = Load (Lbl_arg(label), Greg label_temp) in
-    let store_label_i = Store (Greg label_temp, Greg dst_addr_temp, 0) in
-    let ctx = _ctx_add_instr ctx load_label_i in
-    _ctx_add_instr ctx store_label_i
+    _ctx_add_instrs ctx
+      [ Load (Lbl_arg(label), Greg label_temp);
+        Store (Greg label_temp, Greg dst_addr_temp, 0); ]
 
   | Jump (lir_cond, target_label) ->
     _emit_lir_jump ctx lir_cond target_label
