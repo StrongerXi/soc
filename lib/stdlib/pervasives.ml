@@ -15,6 +15,11 @@ let not b =
   if b then false else true
 ;;
 
+let int_of_string_opt s =
+  try Some (Externals.int_of_string s)
+  with Failure _ -> None
+;;
+
 let (|>) a f =
   f a
 ;;

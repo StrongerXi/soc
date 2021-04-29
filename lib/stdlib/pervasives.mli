@@ -23,6 +23,10 @@ type ('a, 'e) result =
 
 val not : bool -> bool
 
+(** [int_of_string_opt s] returns either an integer which [s] represents, or
+    [None] if [s] isn't a valid int *)
+val int_of_string_opt : string -> int option
+
 (** Pipelining *)
 val (|>) : 'a -> ('a -> 'b) -> 'b
 

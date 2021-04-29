@@ -7,6 +7,15 @@ let tests = OUnit2.(>:::) "pervasives_tests" [
         OUnit2.assert_equal false (not true);
       );
 
+    OUnit2.(>::) "test_int_of_string_opt" (fun _ ->
+        OUnit2.assert_equal None (int_of_string_opt "");
+        OUnit2.assert_equal None (int_of_string_opt "12o3");
+        OUnit2.assert_equal None (int_of_string_opt "o000");
+        OUnit2.assert_equal (Some 0) (int_of_string_opt "000");
+        OUnit2.assert_equal (Some ~-42) (int_of_string_opt "-42");
+        OUnit2.assert_equal (Some 7) (int_of_string_opt "7");
+      );
+
     (* sanity check on purity *)
     OUnit2.(>::) "test_pipeline" (fun _ ->
         let add1 x = x + 1 in

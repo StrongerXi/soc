@@ -426,7 +426,7 @@ and _parse_expr_or_infix (* possibily with type annotation *)
 and _parse_constant_or_var
     (s : _tok_stream) : Ast.expression =
   let parse_int_expr (str : string) (where : Span.t) : Ast.expression =
-    match Int.of_string_opt str with
+    match int_of_string_opt str with
     | None -> _error_invalid_int str where
     | Some n -> { Ast.expr_desc = Exp_const (Const_Int n);
                   expr_span = where; expr_typ = None }

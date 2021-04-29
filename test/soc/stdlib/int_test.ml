@@ -1,4 +1,3 @@
-open Pervasives
 
 let tests = OUnit2.(>:::) "int_test" [
     OUnit2.(>::) "test_max" (fun _ ->
@@ -39,15 +38,6 @@ let tests = OUnit2.(>:::) "int_test" [
         OUnit2.assert_equal "42" (Int.to_string 42);
         OUnit2.assert_equal "0" (Int.to_string 0);
         OUnit2.assert_equal "-13" (Int.to_string ~-13);
-      );
-
-    OUnit2.(>::) "test_of_string_opt" (fun _ ->
-        OUnit2.assert_equal None (Int.of_string_opt "");
-        OUnit2.assert_equal None (Int.of_string_opt "12o3");
-        OUnit2.assert_equal None (Int.of_string_opt "o000");
-        OUnit2.assert_equal (Some 0) (Int.of_string_opt "000");
-        OUnit2.assert_equal (Some ~-42) (Int.of_string_opt "-42");
-        OUnit2.assert_equal (Some 7) (Int.of_string_opt "7");
       );
   ]
 
