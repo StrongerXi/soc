@@ -75,3 +75,7 @@ val to_string : ('e -> string) -> 'e t -> string
 (** [get_compare_func t] returns the compare function for elements of [t],
     passed in during [t]'s construction. *)
 val get_compare_func : 'e t -> ('e -> 'e -> int)
+
+(** [equal t1 t2] is [true] if [t1] [t2] contains exactly the same elements.
+    ASSUME the comparison function are the same *)
+val equal : 'e t -> 'e t -> bool

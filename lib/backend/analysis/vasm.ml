@@ -70,13 +70,6 @@ let get_writes t : Temp.t Set.t =
 ;;
 
 
-(* TODO move to Set module *)
-let _set_equal (s1 : 'a Set.t) (s2 : 'a Set.t) : bool =
-  let s1_size = Set.size s1 in
-  (s1_size = Set.size s2) &&
-  (Set.size (Set.union s1 s2) = s1_size)
-;;
-
 let _jump_equal (j1 : jump) (j2 : jump) : bool =
   ((Label.to_string j1.target) = (Label.to_string j2.target)) &&
   (j1 = j2)
@@ -91,8 +84,8 @@ let _instr_desc_equal (d1 : instr_desc) (d2 : instr_desc) : bool =
 ;;
 
 let _instr_equal (i1 : instr) (i2 : instr) : bool =
-  (_set_equal i1.reads i2.reads) &&
-  (_set_equal i1.writes i2.writes) &&
+  (Set.equal i1.reads i2.reads) &&
+  (Set.equal i1.writes i2.writes) &&
   (_instr_desc_equal i1.desc i2.desc)
 ;;
 

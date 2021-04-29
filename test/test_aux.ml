@@ -35,13 +35,6 @@ let check_unordered_list (expects : 'a list) (actuals : 'a list) : unit =
     expects
 ;;
 
-(* TODO move to Set module *)
-let set_equal (s1 : 'a Set.t) (s2 : 'a Set.t) : bool =
-  let s1_size = Set.size s1 in
-  (s1_size = Set.size s2) &&
-  (Set.size (Set.union s1 s2) = s1_size)
-;;
-
 (* TODO move to list module *)
 let rec list_equal (cmp : 'a -> 'a -> bool) (l1 : 'a list) (l2 : 'a list)
   : bool =

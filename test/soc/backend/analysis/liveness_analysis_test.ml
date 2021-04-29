@@ -5,7 +5,7 @@ let _annotated_vasm_equal
   ((v2 : Vasm.t), (a2 : Liveness_analysis.annot))
   : bool =
   Vasm.equal v1 v2 &&
-  Test_aux.set_equal a1.live_out a2.live_out
+  Set.equal a1.live_out a2.live_out
 ;;
 
 
