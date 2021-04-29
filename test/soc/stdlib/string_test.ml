@@ -32,11 +32,6 @@ let tests = OUnit2.(>:::) "string_test" [
         OUnit2.assert_equal "ss" (String.join_with ["ss"] "aaa");
         OUnit2.assert_equal "a; bb; a" (String.join_with ["a"; "bb"; "a"] "; ");
       );
-
-    OUnit2.(>::) "test_concat" (fun _ ->
-        OUnit2.assert_equal "" (String.concat []);
-        OUnit2.assert_equal "a cc" (String.concat ["a"; " "; "cc"]);
-      );
   ]
 
 let _ =

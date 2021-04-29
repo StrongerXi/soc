@@ -78,7 +78,7 @@ let foldi f t acc =
 
 let to_string f g t =
   let pair_to_str (k, v) =
-    String.concat ["("; (f k); ", "; (g v); ")"]
+    "(" ^ (f k) ^ ", " ^ (g v) ^ ")"
   in
   let pairs = List.map pair_to_str (_unique_pairs t) in
   let inner = String.join_with pairs "; " in

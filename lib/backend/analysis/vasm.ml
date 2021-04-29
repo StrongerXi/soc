@@ -299,7 +299,7 @@ let _pp_jump (jump : jump) : string =
     | Conditional -> "conditional"
     | Unconditional -> "unconditional"
   in
-  String.concat [kind_str; " jump to "; Label.to_string jump.target]
+  kind_str ^ " jump to " ^ Label.to_string jump.target
 ;;
 
 let _pp_instr (instr : instr) : string =
@@ -310,9 +310,8 @@ let _pp_instr (instr : instr) : string =
     | Jump jump -> _pp_jump jump
   in
   let rw_str =
-    String.concat
-      [", reads = "; Set.to_string Temp.to_string instr.reads;
-       ", writes = "; Set.to_string Temp.to_string instr.writes;]
+    ", reads = " ^ Set.to_string Temp.to_string instr.reads ^
+    ", writes = " ^ Set.to_string Temp.to_string instr.writes
   in
   desc_str ^ rw_str
 ;;
