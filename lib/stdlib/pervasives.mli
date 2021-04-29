@@ -3,21 +3,15 @@
    Centralizing the "auto-loaded" functions here makes self-compilation easier.
    For now we'll just manually open it in each file, if needed. TODO *)
 
-
-(** NOTE
-    These types are built-in to the OCaml compiler.
-    I decided to declare them explicitly for now; to make them built-in, simply
-    add them into the initial environment and remove these definitions *)
-
-type 'a list = 
+type 'a list         = 'a Externals.list =
   | []
   | (::) of 'a * 'a list
 
-type 'a option =
+type 'a option       = 'a Externals.option =
   | None
   | Some of 'a
 
-type ('a, 'e) result =
+type ('a, 'e) result = ('a, 'e) Externals.result =
   | Ok of 'a
   | Error of 'e
 

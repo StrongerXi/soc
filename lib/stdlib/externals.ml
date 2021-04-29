@@ -16,6 +16,19 @@
     easily swap it out.
     *)
 
+type 'a list = 
+  | []
+  | (::) of 'a * 'a list
+
+type 'a option =
+  | None
+  | Some of 'a
+
+type ('a, 'e) result =
+  | Ok of 'a
+  | Error of 'e
+
+
 let read_entire_file (filename : string) : string =
   let ch = open_in filename in
   let s = really_input_string ch (in_channel_length ch) in
@@ -43,7 +56,10 @@ let char_to_string = Stdlib.Char.escaped
 let int_to_string = Stdlib.string_of_int
 ;;
 
-let int_of_string = Stdlib.int_of_string
+let int_of_string_opt s = 
+  match Stdlib.int_of_string_opt s with
+  | Some n -> Some n
+  | None -> None
 ;;
 
 let string_length = Stdlib.String.length
