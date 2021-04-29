@@ -12,8 +12,11 @@
       another one that uses the `external` keyword, and link against my runtime
       code. Single point of control:).
     
-    NOTE Don't use it outside the stdlib directory, so that one day we can
-    easily swap it out.
+    NOTE 
+    - Don't use this module outside the stdlib directory, so that one day we can
+      easily swap it out.
+    - This module should depend on no other modules in the compiler codebase.
+      Think of it as sitting on the outermost edge of the compiler.
     *)
 
 type 'a list = 
@@ -30,16 +33,16 @@ type ('a, 'e) result =
 
 
 let read_entire_file (filename : string) : string =
-  let ch = open_in filename in
-  let s = really_input_string ch (in_channel_length ch) in
-  close_in ch;
+  let ch = Stdlib.open_in filename in
+  let s = Stdlib.really_input_string ch (Stdlib.in_channel_length ch) in
+  Stdlib.close_in ch;
   s
 ;;
 
 let write_entire_file (filename : string) (content : string) : unit =
-  let oc = open_out filename in
-  output_string oc content;
-  close_out oc;
+  let oc = Stdlib.open_out filename in
+  Stdlib.output_string oc content;
+  Stdlib.close_out oc;
 ;;
 
 let print s =
@@ -71,7 +74,7 @@ let string_get = Stdlib.String.get
 let string_sub = Stdlib.String.sub
 ;;
 
-let string_append = (^)
+let string_append = Stdlib.(^)
 ;;
 
 let raise = Stdlib.raise
