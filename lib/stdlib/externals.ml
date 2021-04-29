@@ -43,10 +43,7 @@ let char_to_string = Stdlib.Char.escaped
 let int_to_string = Stdlib.string_of_int
 ;;
 
-let int_of_string_opt s =
-  match Stdlib.int_of_string_opt s with
-  | None -> Pervasives.None
-  | Some n -> Pervasives.Some n
+let int_of_string = Stdlib.int_of_string
 ;;
 
 let string_length = Stdlib.String.length

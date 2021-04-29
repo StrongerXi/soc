@@ -14,14 +14,12 @@ let _temp_pairs_to_map (pairs : (Temp.t * 'v) list) : (Temp.t, 'v) Map.t =
 
 let _err_unexpected_spill (spills : Temp.t Set.t) : 'a =
   let str = Set.to_string Temp.to_string spills in
-  let msg = String.append "Unexpected spill: " str in
-  OUnit2.assert_failure msg
+  OUnit2.assert_failure ("Unexpected spill: " ^ str)
 ;;
 
 let _err_unexpected_coloring (coloring : (Temp.t, int) Map.t) : 'a =
   let str = Map.to_string Temp.to_string Int.to_string coloring in
-  let msg = String.append "Unexpected coloring: " str in
-  OUnit2.assert_failure msg
+  OUnit2.assert_failure ("Unexpected coloring: " ^ str)
 ;;
 
 let _int_set (items : int list) : int Set.t =
@@ -42,9 +40,7 @@ let _check_spills
     let expect_str =
       String.join_with (List.map Temp.to_string expect_spills) ", " in
     let actual_str = Set.to_string Temp.to_string spills in
-    let error_msg =
-      String.concat ["expected: ["; expect_str; "]; actual: "; actual_str]
-    in
+    let error_msg = "expected: [" ^ expect_str ^ "] ^ actual: " ^ actual_str in
     OUnit2.assert_bool error_msg (same_length && is_subset);
   | Ok coloring -> _err_unexpected_coloring coloring
 ;;
@@ -67,15 +63,12 @@ let _check_coloring
     let pair_strs =
       List.map
         (fun (temp, color) ->
-           String.concat
-             ["("; Temp.to_string temp; ", "; Int.to_string color; ")"])
+           "(" ^ (Temp.to_string temp) ^ ", " ^ (Int.to_string color) ^ ")")
         expected_coloring
     in
     let expect_str = String.join_with pair_strs ", " in
     let actual_str = Map.to_string Temp.to_string Int.to_string coloring in
-    let error_msg =
-      String.concat ["expected: ["; expect_str; "]; actual: "; actual_str]
-    in
+    let error_msg = "expected: [" ^ expect_str ^ "] ^ actual: " ^ actual_str in
     OUnit2.assert_bool error_msg (same_length && is_subset);
 ;;
 

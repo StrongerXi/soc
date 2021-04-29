@@ -2,7 +2,7 @@ open Pervasives
 
 (* [filename] can assume CWD is where this file is *)
 let _get_full_path (filename : string) : string =
-  String.append "../../../../test/soc/frontend/interp/ast-interp-resources/" filename
+  "../../../../test/soc/frontend/interp/ast-interp-resources/" ^ filename
 ;;
 
 (* print output to stdout *)
@@ -30,9 +30,9 @@ let _run_with_stdout_redirected_to_file
  * redirect output to [filepath_no_suffix.actual],
  * check output against [filepath_no_suffix.expect] *)
 let _check_ast_interp (filepath_no_suffix : string) : unit =
-  let filepath = String.append filepath_no_suffix ".soml" in
-  let expect_path = String.append filepath_no_suffix ".expect" in
-  let actual_path = String.append filepath_no_suffix ".actual" in
+  let filepath = filepath_no_suffix ^ ".soml" in
+  let expect_path = filepath_no_suffix ^ ".expect" in
+  let actual_path = filepath_no_suffix ^ ".actual" in
 
   _run_with_stdout_redirected_to_file
     (fun () -> _interp_file filepath) actual_path;

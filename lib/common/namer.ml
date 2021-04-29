@@ -12,7 +12,7 @@ let init default_prefix =
 ;;
 
 let gen_new_name_with_prefix t prefix =
-  let name = String.concat [prefix; "_"; Int.to_string t.stamp] in
+  let name = prefix ^ "_" ^ (Int.to_string t.stamp) in
   let t = { t with stamp = t.stamp + 1 } in
   (t, name)
 ;;

@@ -68,7 +68,7 @@ let fold f acc t =
 ;;
 
 let union t1 t2 =
-  let rep = List.append t1.rep t2.rep in
+  let rep = t1.rep @ t2.rep in
   { t1 with rep }
 ;;
 
@@ -97,7 +97,7 @@ let to_list t =
 let to_string f t =
   let es = List.map f (_unique_elems t) in
   let inner = String.join_with es "; " in
-  String.append "{" (String.append inner "}")
+  "{" ^ inner ^ "}"
 ;;
 
 let get_compare_func t =

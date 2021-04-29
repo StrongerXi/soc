@@ -15,7 +15,7 @@ let to_string t = String.join_with [t.name; t.suffix] "_"
 ;;
 
 let _add_suffix t (extra : string) : t =
-  let suffix = String.append t.suffix extra in
+  let suffix = t.suffix ^ extra in
   { t with suffix }
 ;;
 
@@ -33,7 +33,7 @@ let is_native t =
 ;;
 
 let to_epilogue t =
-  let suffix = String.append t.suffix "_epilogue" in
+  let suffix = t.suffix ^ "_epilogue" in
   { t with suffix } (* disjoint from other [t] *)
 ;;
 

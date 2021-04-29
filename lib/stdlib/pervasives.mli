@@ -22,3 +22,20 @@ type ('a, 'e) result =
   | Error of 'e
 
 val not : bool -> bool
+
+(** [int_of_string_opt s] returns either an integer which [s] represents, or
+    [None] if [s] isn't a valid int *)
+val int_of_string_opt : string -> int option
+
+(** Pipelining *)
+val (|>) : 'a -> ('a -> 'b) -> 'b
+
+(** Application *)
+val (@@) : ('a -> 'b) -> 'a -> 'b
+
+(** [xs @ ys] is a list with elements of [xs] added to the front of [ys] in
+    order *)
+val (@)  : 'a list -> 'a list -> 'a list
+
+(** [s1 ^ s2] is a string with [s1] and [s2] appended together *)
+val (^) : string -> string -> string

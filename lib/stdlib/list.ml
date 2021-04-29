@@ -23,12 +23,8 @@ let rev xs =
   fold_left (fun reved x -> x::reved) [] xs
 ;;
 
-let append xs ys =
-  fold_right cons xs ys
-;;
-
 let concat xss =
-  fold_right append xss []
+  fold_right (@) xss []
 ;;
 
 let flatten = concat
@@ -156,5 +152,5 @@ let init size f =
 let to_string xs f =
   let elem_strs = map f xs in
   let elems_str = String.join_with elem_strs "; " in
-  String.concat ["["; elems_str; "]"]
+  "[" ^ elems_str ^ "]"
 ;;

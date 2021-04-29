@@ -11,7 +11,7 @@ let create row col =
 
 let to_string t =
   let row_str, col_str = Int.to_string t.row, Int.to_string t.col in
-  String.concat ["("; row_str; ", "; col_str; ")"]
+  "(" ^ row_str ^ ", " ^ col_str ^ ")"
 ;;
 
 let advance t =

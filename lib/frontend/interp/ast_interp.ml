@@ -311,8 +311,7 @@ and _partial_apply (original_ctx : context)
   if extra_args_needed <= 0
   then failwith "[Ast_interp._partial_apply] application already has enough args";
   let provided_arg_names =
-    List.init provided_args_num
-      (fun n -> String.append "provided_" (Int.to_string n))
+    List.init provided_args_num (fun n -> "provided_" ^ (Int.to_string n))
   in
   let ctx_with_provided_args =
     List.fold_left (* evalaute left to right, my choice *)
@@ -325,8 +324,7 @@ and _partial_apply (original_ctx : context)
   let ctx_with_everything =
     _context_insert ctx_with_provided_args func_name func_desc in
   let extra_arg_names = 
-    List.init extra_args_needed
-      (fun n -> String.append "extra_" (Int.to_string n))
+    List.init extra_args_needed (fun n -> "extra_" ^ (Int.to_string n))
   in
   let make_dummy_expr (expr_desc : Ast.expr_desc) : Ast.expression =
     { Ast.expr_desc (* NOTE I don't think the span info will be used, ba. *)
@@ -336,7 +334,7 @@ and _partial_apply (original_ctx : context)
   let func_ident_e = make_dummy_expr (Exp_ident func_name) in
   let arg_ident_es = List.map
       (fun arg_name -> make_dummy_expr (Exp_ident arg_name))
-      (List.append provided_arg_names extra_arg_names)
+      (provided_arg_names @ extra_arg_names)
   in
   let body_e = make_dummy_expr (Exp_apply (func_ident_e, arg_ident_es)) in
   Closure(extra_arg_names, body_e, ref ctx_with_everything)

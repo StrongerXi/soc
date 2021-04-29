@@ -6,11 +6,10 @@ type 'a ret = (Typer_ctx.t * Ast.typ * 'a)
 
 let _get_annotated_typ (otv : Ast.opt_typed_var) : Ast.typ =
   match otv.typ with
-  | None ->  
-    let msg = "[Typer._get_annotated_typ]" in
-    let msg = String.append msg " all variables should have type annotations" in
-    failwith msg
   | Some typ -> typ
+  | None ->  
+    failwith
+      "[Typer._get_annotated_typ] all variables should have type annotations"
 ;;
 
 

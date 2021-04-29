@@ -235,8 +235,8 @@ and _transl_binop_with_short_circuit
     (value : expr) (prefix : string)
   : (context * expr) =
   let ctx, short_circuit_label =
-    _ctx_gen_label ctx (String.append prefix "_short_circuit") in
-  let ctx, end_label = _ctx_gen_label ctx (String.append prefix "_end") in
+    _ctx_gen_label ctx (prefix ^ "_short_circuit") in
+  let ctx, end_label = _ctx_gen_label ctx (prefix ^ "_end") in
   let ctx, result_temp = _ctx_gen_temp ctx in
   let lhs_eq_value_e = Equal (lhs_e, value) in
   let ctx = _ctx_add_instr ctx (Jump (lhs_eq_value_e, short_circuit_label)) in

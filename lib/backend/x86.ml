@@ -951,18 +951,15 @@ let temp_func_to_func temp_func pr_assignment =
     List.map (fun pr -> Pop (Greg pr)) (List.rev callee_saved)
   in
   let prologue =
-    List.append
       [ 
         Push Rbp;
         Load (Reg_arg Rsp, Rbp);
         Binop (Sub, Rsp, Imm_arg aligned_rbp_offset);
-      ] 
-      spill_callee_saved
+      ] @ spill_callee_saved
   in
   let epilogue_label = Label.to_epilogue temp_func.entry in
   let epilogue =
-    List.append
-    ((Label epilogue_label)::restore_callee_saved)
+    ((Label epilogue_label)::restore_callee_saved) @
     [
       Load (Reg_arg Rbp, Rsp);
       Pop Rbp;
@@ -971,7 +968,7 @@ let temp_func_to_func temp_func pr_assignment =
   in
   (* stitch everything together *)
   let pr_instrs = List.map (_instr_temp_to_pr pr_assignment) temp_func.instrs in
-  let final_instrs = List.append prologue (List.append pr_instrs epilogue) in
+  let final_instrs = prologue @ pr_instrs @ epilogue in
   { entry  = temp_func.entry;
     instrs = final_instrs }
 ;;
@@ -1013,7 +1010,7 @@ let _reg_offset_to_str
     else " + ", offset
   in
   let offset_str = Int.to_string offset in
-  String.concat ["["; reg_str; op_str; offset_str ; "]"]
+  "[" ^ reg_str ^ op_str ^ offset_str  ^ "]"
 ;;
 
 let _arg_to_str (arg : 'a arg) (gr_to_str : 'a -> string) : string =
@@ -1045,63 +1042,63 @@ let _call_target_to_str (target : 'a call_target) (gr_to_str : 'a -> string)
 ;;
 
 let _instr_to_str (instr : 'a instr) (gr_to_str : 'a -> string) : string =
-  let add_tab s = String.append "\t" s in
+  let add_tab s = "\t" ^ s in
   match instr with
-  | Label label -> String.append (Label.to_string label) ":"
+  | Label label -> (Label.to_string label) ^ ":"
 
   | Load (arg, dst_reg) ->
     let arg_str = _arg_to_str arg gr_to_str in
     let dst_str = _reg_to_str dst_reg gr_to_str in
-    let instr_str = String.concat ["mov "; dst_str; ", "; arg_str;] in
+    let instr_str = "mov " ^ dst_str ^ ", " ^ arg_str in
     add_tab instr_str
 
   | Store (src_reg, dst_addr_reg, offset) ->
     let src_str = _reg_to_str src_reg gr_to_str in
     let dst_str = _reg_offset_to_str dst_addr_reg offset gr_to_str in
-    let instr_str = String.concat ["mov "; dst_str; ", "; src_str;] in
+    let instr_str = "mov " ^ dst_str ^ ", " ^ src_str in
     add_tab instr_str
 
   | Push reg ->
     let reg_str = _reg_to_str reg gr_to_str in
-    let instr_str = String.concat ["push"; " "; reg_str] in
+    let instr_str = "push" ^ " " ^ reg_str in
     add_tab instr_str
 
   | Pop reg ->
     let reg_str = _reg_to_str reg gr_to_str in
-    let instr_str = String.concat ["pop"; " "; reg_str] in
+    let instr_str = "pop" ^ " " ^ reg_str in
     add_tab instr_str
 
   | IDiv reg ->
     let reg_str = _reg_to_str reg gr_to_str in
-    let instr_str = String.concat ["idiv"; " "; reg_str] in
+    let instr_str = "idiv" ^ " " ^ reg_str in
     add_tab instr_str
 
   | Binop (binop, reg, arg) ->
     let arg_str = _arg_to_str arg gr_to_str in
     let reg_str = _reg_to_str reg gr_to_str in
     let binop_str = _binop_to_str binop in
-    let instr_str = String.concat [binop_str; " "; reg_str; ", "; arg_str;] in
+    let instr_str = binop_str ^ " " ^ reg_str ^ ", " ^ arg_str in
     add_tab instr_str
 
   | Cmp (arg, gr) ->
     let arg_str = _arg_to_str arg gr_to_str in
     let gr_str = gr_to_str gr in
-    let instr_str = String.concat ["cmp "; arg_str; ", "; gr_str;] in
+    let instr_str = "cmp " ^ arg_str ^ ", " ^ gr_str in
     add_tab instr_str
 
   | Jmp label ->
-    let instr_str = String.append "jmp " (Label.to_string label)in
+    let instr_str = "jmp " ^ (Label.to_string label)in
     add_tab instr_str
 
   | JmpC (cond, label) ->
     let suffix = _cond_to_suffix cond in
     let label_str = Label.to_string label in
-    let instr_str = String.concat ["j"; suffix; " "; label_str] in
+    let instr_str = "j" ^ suffix ^ " " ^ label_str in
     add_tab instr_str
 
   | Call (target, _) -> (* args are used for liveness analysis or debugging *)
     let target_str = _call_target_to_str target gr_to_str in
-    let instr_str = String.concat ["call"; " "; target_str] in
+    let instr_str = "call" ^ " " ^ target_str in
     add_tab instr_str
 
   | Ret -> add_tab "ret"
@@ -1172,15 +1169,14 @@ let _find_external_native_labels_in_prog (prog : func prog) : Label.t Set.t =
 let _get_prog_metadata (prog : func prog) : string =
   let external_native_label_decls = 
     List.map
-      (fun label -> String.append "extern " (Label.to_string label))
+      (fun label -> "extern " ^ (Label.to_string label))
       (Set.to_list (_find_external_native_labels_in_prog prog))
   in
   let global_native_label_decls =
-    [String.append "global " (Label.to_string prog.main.entry)]
+    ["global " ^ (Label.to_string prog.main.entry)]
   in
   let metadata_lines =
-    List.append 
-      ("section .text"::external_native_label_decls)
+      ("section .text"::external_native_label_decls) @
       global_native_label_decls
   in
   String.join_with metadata_lines "\n"
@@ -1189,7 +1185,7 @@ let _get_prog_metadata (prog : func prog) : string =
 (* "ur" stands for usable_register *)
 let func_prog_to_str prog =
   let metadata_str = _get_prog_metadata prog in
-  let all_funcs = List.append prog.funcs [prog.main] in
+  let all_funcs = prog.funcs @ [prog.main] in
   let func_strs = List.map _func_to_str all_funcs in
   let funcs_str = String.join_with func_strs "\n\n" in
   String.join_with [metadata_str; funcs_str] "\n\n"

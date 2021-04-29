@@ -2,7 +2,7 @@
   (names
    ; stdlib
    list_test option_test set_test map_test int_test char_test string_test
-   result_test filename_test
+   result_test filename_test pervasives_test
 
    ; frontend
    location_test span_test lexer_test parser_test ast_interp_test typer_test

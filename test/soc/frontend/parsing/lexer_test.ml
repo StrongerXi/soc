@@ -2,18 +2,18 @@ open Pervasives
 
 (** [filename] can assume CWD is where this file is *)
 let _get_full_path (filename : string) : string =
-  String.append "../../../../test/soc/frontend/parsing/lexer-resources/" filename
+  "../../../../test/soc/frontend/parsing/lexer-resources/" ^ filename
 ;;
 
 let _check_lexer_pp_ast (filepath_no_suffix : string) : unit =
-  let filepath = String.append filepath_no_suffix ".soml" in
+  let filepath = filepath_no_suffix ^ ".soml" in
   let result =
     match Driver.lex_file filepath with
     | Error msg -> msg
     | Ok ast -> String.join_with (List.map Pretty.pp_token ast) "\n"
   in
-  let expect_path = String.append filepath_no_suffix ".expect" in
-  let actual_path = String.append filepath_no_suffix ".actual" in
+  let expect_path = filepath_no_suffix ^ ".expect" in
+  let actual_path = filepath_no_suffix ^ ".actual" in
   Test_aux.check_and_output_str result expect_path actual_path;
 ;;
 
