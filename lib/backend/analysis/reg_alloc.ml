@@ -34,10 +34,10 @@ let _ctx_init
     (pre_coloring : (Temp.t, 'a) Map.t)
   : 'a context =
   { avalb_colors; 
-    temps_to_spill   = Set.empty Temp.compare;
+    temps_to_spill   = Temp.empty_set;
     coloring         = pre_coloring;
     temps_cant_spill = Map.get_key_set pre_coloring;
-    temps_in_use     = Set.empty Temp.compare;
+    temps_in_use     = Temp.empty_set;
   }
 ;;
 

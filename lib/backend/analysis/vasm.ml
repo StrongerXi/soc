@@ -34,7 +34,7 @@ let mk_label label =
 let _mk_instr (reads : Temp.t list) (writes : Temp.t list) (desc : instr_desc)
   : t =
   let _temps_to_set (temps : Temp.t list) : Temp.t Set.t =
-    List.fold_right Set.add temps (Set.empty Temp.compare)
+    List.fold_right Set.add temps Temp.empty_set
   in
   Instr { reads  = _temps_to_set reads;
           writes = _temps_to_set writes;
@@ -62,13 +62,13 @@ let mk_ret reads writes =
 
 let get_reads t : Temp.t Set.t =
   match t with
-  | Label _     -> Set.empty Temp.compare
+  | Label _     -> Temp.empty_set
   | Instr instr -> instr.reads
 ;;
 
 let get_writes t : Temp.t Set.t =
   match t with
-  | Label _     -> Set.empty Temp.compare
+  | Label _     -> Temp.empty_set
   | Instr instr -> instr.writes
 ;;
 

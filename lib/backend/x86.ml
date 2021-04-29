@@ -168,7 +168,7 @@ let _init_sp_temps (init_temp_man : Temp.manager) : (Temp.manager * sp_temps) =
                  ; caller_saved =
                      Set.fold
                        (fun map pr -> Map.add (get_temp pr_map pr) pr map)
-                       (Map.empty Temp.compare)
+                       (Temp.empty_map ())
                        _caller_saved_physical_regs
                  }
   in (temp_man, sp_temps)
@@ -624,7 +624,7 @@ let _add_temps_in_call_target (acc : Temp.t Set.t) (target : Temp.t call_target)
 
 let _get_reads_and_writes_temp_instr sp_temps (instr : Temp.t instr)
   : (Temp.t Set.t * Temp.t Set.t) =
-  let reads, writes = (Set.empty Temp.compare, Set.empty Temp.compare) in
+  let reads, writes = (Temp.empty_set, Temp.empty_set) in
   match instr with
   | Label _          -> (reads, writes)
   | Jmp _            -> (reads, writes)
@@ -818,7 +818,7 @@ let _restore_all_spilled (ctx : spill_context) (temps : Temp.t Set.t)
     let slot = _get_slot_or_err ctx temp in
     let ctx, dst_temp = _spill_ctx_gen_temp ctx in
     let ctx = _restore_from_slot ctx slot dst_temp in
-    if Temp.compare temp dst_temp = 0 then (ctx, old_to_new_temps)
+    if Temp.equal temp dst_temp then (ctx, old_to_new_temps)
     else (ctx, Map.add temp dst_temp old_to_new_temps)
   in
 
@@ -827,7 +827,7 @@ let _restore_all_spilled (ctx : spill_context) (temps : Temp.t Set.t)
        if Set.mem temp ctx.temps_to_spill
        then _restore_temp ctx temp old_to_new_temps
        else (ctx, old_to_new_temps))
-    (ctx, Map.empty Temp.compare)
+    (ctx, Temp.empty_map ())
     temps
 ;;
 
@@ -849,7 +849,7 @@ let _spill_ctx_init temp_func (temps_to_spill : Temp.t Set.t) : spill_context =
   let max_rbp_offset = _get_max_rbp_offset_instrs temp_func.instrs in
   let max_slot = Int.ceil_div max_rbp_offset Runtime.word_size in
   { next_slot    = max_slot + 1
-  ; slot_map     = Map.empty Temp.compare 
+  ; slot_map     = Temp.empty_map ()
   ; rev_instrs   = []
   ; temps_to_spill
   ; sp_temps     = temp_func.sp_temps

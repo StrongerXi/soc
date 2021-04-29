@@ -5,7 +5,7 @@ open Pervasives
  * of the helpers here are catered to contain [int] type *)
 
 let _empty_temp_map =
-  Map.empty Temp.compare
+  Temp.empty_map ()
 ;;
 
 let _temp_pairs_to_map (pairs : (Temp.t * 'v) list) : (Temp.t, 'v) Map.t =
@@ -86,7 +86,7 @@ let tests = OUnit2.(>:::) "reg_alloc_test" [
 
     OUnit2.(>::) "test_greedy_alloc_no_precolor" (fun _ ->
         let regs = _int_set [0; 1] in
-        let pre_colored = Map.empty Temp.compare in
+        let pre_colored = _empty_temp_map in
         let manager, t0 = Temp.gen Temp.init_manager in
         let manager, t1 = Temp.gen manager in
         let manager, t2 = Temp.gen manager in

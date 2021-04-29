@@ -1,7 +1,7 @@
 open Pervasives
 
 let temps_to_set temps =
-  List.fold_right Set.add temps (Set.empty Temp.compare)
+  List.fold_right Set.add temps Temp.empty_set
 ;;
 
 let mk_annotated_vasms live_in vasm_live_out_set_pairs =
