@@ -32,7 +32,7 @@ type rename_context =
 
 let _init_ctx t =
   { namer            = t
-  ; curr_scope       = Map.empty String.compare
+  ; curr_scope       = String.empty_map ()
   ; prev_scopes      = []
   }
 

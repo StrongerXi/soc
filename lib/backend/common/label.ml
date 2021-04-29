@@ -45,7 +45,7 @@ type manager =
 
 let init_manager =
   { next_stamp = 0
-  ; name_cache = Map.empty String.compare
+  ; name_cache = String.empty_map ()
   }
 ;;
 

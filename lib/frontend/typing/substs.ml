@@ -6,8 +6,8 @@ open Pervasives
  *    being root nodes (could itself be a tyvar, but can't appear in keys). *)
 type t = (string, Ast.typ) Map.t
 
-let empty = Map.empty String.compare
-
+let empty = String.empty_map ()
+;;
 
 let rec apply_to_typ_exclude t (desc : Ast.typ) ignored =
   match desc with

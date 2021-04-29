@@ -16,7 +16,7 @@ type manager =
 
 let init_manager =
   { next_t     = _init_t
-  ; name_cache = Map.empty String.compare
+  ; name_cache = String.empty_map ()
   }
 ;;
 

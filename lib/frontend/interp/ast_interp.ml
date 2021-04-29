@@ -347,7 +347,7 @@ let _interp_struct_item (ctx : context) (item : Ast.struct_item) : context =
 ;;
 
 let _interp_struct_impl items =
-  let init_ctx = Map.empty String.compare in
+  let init_ctx = String.empty_map () in
   let init_ctx = Map.add "println" (Native Builtin_println) init_ctx in
   let init_ctx = Map.add "=" (Native Builtin_equal) init_ctx in
   let init_ctx =
