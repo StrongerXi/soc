@@ -22,3 +22,12 @@ type ('a, 'e) result =
   | Error of 'e
 
 val not : bool -> bool
+
+(** Pipelining *)
+val (|>) : 'a -> ('a -> 'b) -> 'b
+
+(** Application *)
+val (@@) : ('a -> 'b) -> 'a -> 'b
+
+(** List append *)
+val (@)  : 'a list -> 'a list -> 'a list
