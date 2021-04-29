@@ -1,13 +1,13 @@
 
-type 'a list = 
+type 'a list         = 'a Externals.list =
   | []
   | (::) of 'a * 'a list
 
-type 'a option =
+type 'a option       = 'a Externals.option =
   | None
   | Some of 'a
 
-type ('a, 'e) result =
+type ('a, 'e) result = ('a, 'e) Externals.result =
   | Ok of 'a
   | Error of 'e
 
@@ -15,9 +15,8 @@ let not b =
   if b then false else true
 ;;
 
-let int_of_string_opt s =
-  try Some (Externals.int_of_string s)
-  with Failure _ -> None
+let int_of_string_opt =
+  Externals.int_of_string_opt
 ;;
 
 let (|>) a f =
@@ -36,4 +35,12 @@ let rec (@) xs ys =
 
 let (^) =
   Externals.string_append
+;;
+
+let raise =
+  Externals.raise
+;;
+
+let failwith msg =
+  raise (Failure msg)
 ;;
