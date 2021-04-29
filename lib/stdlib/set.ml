@@ -107,3 +107,9 @@ let to_string f t =
 let get_compare_func t =
   t.cmp
 ;;
+
+let equal t1 t2 =
+  let t1_size = size t1 in
+  (t1_size = size t2) &&
+  (size (union t1 t2) = t1_size)
+;;

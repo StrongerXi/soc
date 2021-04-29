@@ -100,7 +100,7 @@ type 'a instr =
       * The quotient is stoed to [RAX], remainder to [RDX] *)
   | Binop of binop * 'a reg * 'a arg
       (* Binop (op, reg, arg) --> reg := op gr arg *)
-  | Cmp of 'a arg * 'a
+  | Cmp of 'a arg * 'a reg
   | Jmp of Label.t
   | JmpC of cond * Label.t
       (* Jump to label if [cond] is satisfied. *)
@@ -241,9 +241,9 @@ let _map_grs_in_instr (f : 'a -> 'b) (instr : 'a instr) : ('b instr) =
     let reg = _map_grs_in_reg f reg in
     Binop (op, reg, arg)
 
-  | Cmp (arg, gr) ->
+  | Cmp (arg, reg) ->
     let arg = _map_grs_in_arg f arg in
-    Cmp (arg, f gr)
+    Cmp (arg, _map_grs_in_reg f reg)
 
   | Call (target, reg_arg_grs) ->
     let target = _map_grs_in_call_target f target in
@@ -272,12 +272,12 @@ let _init_ctx
   { func_label; sp_temps; temp_manager; label_manager; rev_instrs = [] }
 ;;
 
-let _ctx_get_rax (ctx : context) : Temp.t =
-  ctx.sp_temps.rax
+let _ctx_get_rax_reg (ctx : context) : Temp.t reg =
+  Greg ctx.sp_temps.rax
 ;;
 
-let _ctx_get_rdx (ctx : context) : Temp.t =
-  ctx.sp_temps.rdx
+let _ctx_get_rdx_reg (ctx : context) : Temp.t reg =
+  Greg ctx.sp_temps.rdx
 ;;
 
 let _ctx_get_ordered_arg_regs (ctx : context) : Temp.t list =
@@ -289,13 +289,23 @@ let _ctx_add_instr (ctx : context) (instr : Temp.t instr) : context =
   { ctx with rev_instrs }
 ;;
 
+(* first instruction in [instr] is added first *)
+let _ctx_add_instrs (ctx : context) (instrs : Temp.t instr list) : context =
+  let rev_instrs =
+    List.fold_left (* add [instrs] in order *)
+      (fun rev_instrs instr -> instr::rev_instrs)
+      ctx.rev_instrs instrs
+  in
+  { ctx with rev_instrs }
+;;
+
 let _ctx_get_instrs (ctx : context) : Temp.t instr list =
   List.rev ctx.rev_instrs
 ;;
 
-let _ctx_gen_temp (ctx : context) : (context * Temp.t)  =
+let _ctx_gen_temp_reg (ctx : context) : (context * Temp.t reg)  =
   let temp_manager, temp = Temp.gen ctx.temp_manager in
-  ({ ctx with temp_manager }, temp)
+  ({ ctx with temp_manager }, Greg temp)
 ;;
 
 let _ctx_gen_label (ctx : context) (name : string) : (context * Label.t) =
@@ -335,37 +345,38 @@ let _emit_load_args_into_temps (ctx : context) (ordered_args : Temp.t list)
   go ctx ordered_args ordered_arg_regs
 ;;
 
-let rec _emit_lir_expr (ctx : context) (e : Lir.expr) (dst_temp : Temp.t)
+let rec _emit_lir_expr (ctx : context) (e : Lir.expr) (dst_reg: Temp.t reg)
   : context =
   match e with
   | Imm n -> 
-    let instr = Load (Imm_arg n, Greg dst_temp) in
+    let instr = Load (Imm_arg n, dst_reg) in
     _ctx_add_instr ctx instr
 
   | Tmp temp -> (* XXX generate to [arg] would save 1 instr *)
-    let instr = Load (Reg_arg (Greg temp), Greg dst_temp) in
+    let instr = Load (Reg_arg (Greg temp), dst_reg) in
     _ctx_add_instr ctx instr
 
   | Op (op, lhs_e, rhs_e) ->
-    _emit_lir_op ctx op lhs_e rhs_e dst_temp
+    _emit_lir_op ctx op lhs_e rhs_e dst_reg
 
   | Call (label_temp, arg_es) ->
-    _emit_generic_call ctx arg_es (Reg label_temp) dst_temp
+    _emit_generic_call ctx arg_es (Reg label_temp) dst_reg
 
   | NativeCall (func_label, arg_es) ->
-    _emit_generic_call ctx arg_es (Lbl func_label) dst_temp
+    _emit_generic_call ctx arg_es (Lbl func_label) dst_reg
 
   | Mem_alloc nbytes ->
-    _emit_generic_call ctx [Imm nbytes] (Lbl Runtime.mem_alloc_label) dst_temp
+    _emit_generic_call ctx [Imm nbytes] (Lbl Runtime.mem_alloc_label) dst_reg
 
 (* abstract over the call target *)
 and _emit_generic_call (ctx : context)
-    (arg_es : Lir.expr list) (target : Temp.t call_target) (dst_temp : Temp.t)
+    (arg_es : Lir.expr list) (target : Temp.t call_target) (dst_reg : Temp.t reg)
   : context =
     let ctx, arg_temps, arg_bytes = _emit_prepare_x86_call_args ctx arg_es in
-    let ctx = _ctx_add_instr ctx (Call (target, arg_temps)) in
-    let ctx = _ctx_add_instr ctx (Binop (Add, Rsp, Imm_arg arg_bytes)) in
-    _ctx_add_instr ctx (Load (Reg_arg (Greg (_ctx_get_rax ctx)), Greg dst_temp))
+    _ctx_add_instrs ctx
+      [ Call (target, arg_temps);
+        Binop (Add, Rsp, Imm_arg arg_bytes);
+        Load (Reg_arg (_ctx_get_rax_reg ctx), dst_reg) ]
 
 (*       ......
  * caller stack frame
@@ -392,9 +403,9 @@ and _emit_prepare_x86_call_args (init_ctx : context)
     let ctx =
       List.fold_right
         (fun arg_e ctx ->
-           let ctx, arg_v_temp = _ctx_gen_temp ctx in
-           let ctx = _emit_lir_expr ctx arg_e arg_v_temp in
-           _ctx_add_instr ctx (Push (Greg arg_v_temp)))
+           let ctx, arg_v_reg = _ctx_gen_temp_reg ctx in
+           let ctx = _emit_lir_expr ctx arg_e arg_v_reg in
+           _ctx_add_instr ctx (Push arg_v_reg))
         arg_es ctx
     in
     let extra_arg_offset = (List.length arg_es) * Runtime.word_size in
@@ -409,11 +420,11 @@ and _emit_prepare_x86_call_args (init_ctx : context)
   (* NOTE Hopefully coalescing or other optimization could eliminate some
    * redundant moves here. Also can consider evaluating arg-expr with most
    * nested calls first, to avoid arg-temps living across calls *)
-  let move_temps_ret_dsts ctx (src_to_dst_pairs : (Temp.t * Temp.t) list)
+  let move_temps_ret_dsts ctx (src_to_dst_pairs : (Temp.t reg * Temp.t) list)
     : (context * Temp.t list) =
     List.fold_left
-      (fun (ctx, dsts) (src_temp, dst_temp) ->
-         let instr = Load (Reg_arg (Greg src_temp), Greg dst_temp) in
+      (fun (ctx, dsts) (src_reg, dst_temp) ->
+         let instr = Load (Reg_arg src_reg, Greg dst_temp) in
          let ctx = _ctx_add_instr ctx instr in
          (ctx, dst_temp::dsts))
     (ctx, []) src_to_dst_pairs
@@ -421,21 +432,21 @@ and _emit_prepare_x86_call_args (init_ctx : context)
 
   let rec go ctx arg_es
       (ordered_arg_regs : Temp.t list)
-      (arg_temp_pairs : (Temp.t * Temp.t) list) =
+      (arg_v_temp_pairs : (Temp.t reg * Temp.t) list) =
     match arg_es, ordered_arg_regs  with
     | [], _ ->
-      let ctx, arg_temps  = move_temps_ret_dsts ctx arg_temp_pairs in
+      let ctx, arg_temps  = move_temps_ret_dsts ctx arg_v_temp_pairs in
       (ctx, arg_temps, 0) (* 0 is always aligned *)
 
     | _, [] -> 
       let ctx, arg_bytes = _emit_push_onto_stack ctx arg_es in
-      let ctx, arg_temps = move_temps_ret_dsts ctx arg_temp_pairs in
+      let ctx, arg_temps = move_temps_ret_dsts ctx arg_v_temp_pairs in
       (ctx, arg_temps, arg_bytes)
 
     | arg_e::rest_arg_es, arg_temp::rest_arg_temps ->
-      let ctx, temp = _ctx_gen_temp ctx in
-      let ctx = _emit_lir_expr ctx arg_e temp in
-      let arg_temp_pairs = (temp, arg_temp)::arg_temp_pairs in
+      let ctx, arv_v_reg = _ctx_gen_temp_reg ctx in
+      let ctx = _emit_lir_expr ctx arg_e arv_v_reg in
+      let arg_temp_pairs = (arv_v_reg, arg_temp)::arg_v_temp_pairs in
       go ctx rest_arg_es rest_arg_temps arg_temp_pairs
   in
 
@@ -443,39 +454,35 @@ and _emit_prepare_x86_call_args (init_ctx : context)
   go init_ctx init_arg_es ordered_arg_regs  []
 
 and _emit_lir_op (ctx : context)
-    (op : Lir.op) (lhs_e : Lir.expr) (rhs_e : Lir.expr) (dst_temp : Temp.t)
+    (op : Lir.op) (lhs_e : Lir.expr) (rhs_e : Lir.expr) (dst_reg : Temp.t reg)
   : context =
-  let ctx, rhs_temp = _ctx_gen_temp ctx in
-  let ctx = _emit_lir_expr ctx lhs_e dst_temp in
-  let ctx = _emit_lir_expr ctx rhs_e rhs_temp in
+  let ctx, rhs_reg = _ctx_gen_temp_reg ctx in
+  let ctx = _emit_lir_expr ctx lhs_e dst_reg in
+  let ctx = _emit_lir_expr ctx rhs_e rhs_reg in
   match op with
   | Add ->
-    _ctx_add_instr ctx (Binop (Add, Greg dst_temp, Reg_arg (Greg rhs_temp)))
+    _ctx_add_instr ctx (Binop (Add, dst_reg, Reg_arg rhs_reg))
   | Sub ->
-    _ctx_add_instr ctx (Binop (Sub, Greg dst_temp, Reg_arg (Greg rhs_temp)))
+    _ctx_add_instr ctx (Binop (Sub, dst_reg, Reg_arg rhs_reg))
   | Mul -> 
-    _ctx_add_instr ctx (Binop (Mul, Greg dst_temp, Reg_arg (Greg rhs_temp)))
+    _ctx_add_instr ctx (Binop (Mul, dst_reg, Reg_arg rhs_reg))
   | Div ->
-    let rax_reg = Greg (_ctx_get_rax ctx) in
-    let clear_rdx_i = Load (Imm_arg 0, Greg (_ctx_get_rdx ctx)) in
-    let lhs_to_rax_i = Load (Reg_arg (Greg dst_temp), rax_reg) in
-    let idiv_i = IDiv (Greg rhs_temp) in
-    let quotient_to_dst_i = Load (Reg_arg rax_reg, Greg dst_temp) in
-    let ctx = _ctx_add_instr ctx clear_rdx_i in
-    let ctx = _ctx_add_instr ctx lhs_to_rax_i in
-    let ctx = _ctx_add_instr ctx idiv_i in
-    let ctx = _ctx_add_instr ctx quotient_to_dst_i in
-    ctx
+    let rax_reg = _ctx_get_rax_reg ctx in
+    _ctx_add_instrs ctx
+      [ Load (Imm_arg 0, _ctx_get_rdx_reg ctx);
+        Load (Reg_arg dst_reg, rax_reg);
+        IDiv rhs_reg;
+        Load (Reg_arg rax_reg, dst_reg); ]
 ;;
 
 let _emit_comparison
     (ctx : context) (lhs_e : Lir.expr) (rhs_e : Lir.expr)
     : context =
-  let ctx, lhs_temp = _ctx_gen_temp ctx in
-  let ctx, rhs_temp = _ctx_gen_temp ctx in
-  let ctx = _emit_lir_expr ctx lhs_e lhs_temp in
-  let ctx = _emit_lir_expr ctx rhs_e rhs_temp in
-  let instr = Cmp (Reg_arg (Greg lhs_temp), rhs_temp) in
+  let ctx, lhs_reg = _ctx_gen_temp_reg ctx in
+  let ctx, rhs_reg = _ctx_gen_temp_reg ctx in
+  let ctx = _emit_lir_expr ctx lhs_e lhs_reg in
+  let ctx = _emit_lir_expr ctx rhs_e rhs_reg in
+  let instr = Cmp (Reg_arg lhs_reg, rhs_reg) in
   _ctx_add_instr ctx instr
 ;;
 
@@ -505,35 +512,34 @@ let _emit_lir_instr (ctx : context) (lir_instr : Lir.instr) : context =
     _ctx_add_instr ctx (Label label)
 
   | Load (e, dst_temp) ->
-    _emit_lir_expr ctx e dst_temp
+    _emit_lir_expr ctx e (Greg dst_temp)
 
   | LoadMem (src_addr_e, dst_temp) ->
-    let ctx = _emit_lir_expr ctx src_addr_e dst_temp in
+    let ctx = _emit_lir_expr ctx src_addr_e (Greg dst_temp) in
     let instr = Load (Mem_arg(Greg dst_temp, 0), Greg dst_temp) in
     _ctx_add_instr ctx instr
 
   | Store (e, dst_addr_e) ->
-    let ctx, e_temp = _ctx_gen_temp ctx in
-    let ctx, dst_addr_temp = _ctx_gen_temp ctx in
-    let ctx = _emit_lir_expr ctx e e_temp in
-    let ctx = _emit_lir_expr ctx dst_addr_e dst_addr_temp in
-    let instr = Store (Greg e_temp, Greg dst_addr_temp, 0) in
+    let ctx, e_reg = _ctx_gen_temp_reg ctx in
+    let ctx, dst_addr_reg = _ctx_gen_temp_reg ctx in
+    let ctx = _emit_lir_expr ctx e e_reg in
+    let ctx = _emit_lir_expr ctx dst_addr_e dst_addr_reg in
+    let instr = Store (e_reg, dst_addr_reg, 0) in
     _ctx_add_instr ctx instr
 
   | Store_label (label, dst_addr_e) ->
-    let ctx, dst_addr_temp = _ctx_gen_temp ctx in
-    let ctx = _emit_lir_expr ctx dst_addr_e dst_addr_temp in
-    let ctx, label_temp = _ctx_gen_temp ctx in
-    let load_label_i = Load (Lbl_arg(label), Greg label_temp) in
-    let store_label_i = Store (Greg label_temp, Greg dst_addr_temp, 0) in
-    let ctx = _ctx_add_instr ctx load_label_i in
-    _ctx_add_instr ctx store_label_i
+    let ctx, dst_addr_reg = _ctx_gen_temp_reg ctx in
+    let ctx = _emit_lir_expr ctx dst_addr_e dst_addr_reg in
+    let ctx, label_reg = _ctx_gen_temp_reg ctx in
+    _ctx_add_instrs ctx
+      [ Load (Lbl_arg(label), label_reg);
+        Store (label_reg, dst_addr_reg, 0); ]
 
   | Jump (lir_cond, target_label) ->
     _emit_lir_jump ctx lir_cond target_label
 
   | Ret e ->
-    let ctx = _emit_lir_expr ctx e (_ctx_get_rax ctx) in
+    let ctx = _emit_lir_expr ctx e (_ctx_get_rax_reg ctx) in
     let epilogue_label = _ctx_get_epilogue_label ctx in
     _ctx_add_instr ctx (Jmp epilogue_label)
 ;;
@@ -638,7 +644,7 @@ let _get_reads_and_writes_temp_instr sp_temps (instr : Temp.t instr)
     (reads, writes)
 
   | IDiv reg  ->
-    let reads = _add_temps_in_temp_reg writes reg in
+    let reads = _add_temps_in_temp_reg reads reg in
     let reads = Set.add_list [sp_temps.rax; sp_temps.rdx] reads in
     let writes = Set.add_list [sp_temps.rax; sp_temps.rdx] writes in
     (reads, writes)
@@ -660,8 +666,8 @@ let _get_reads_and_writes_temp_instr sp_temps (instr : Temp.t instr)
     let writes = _add_temps_in_temp_reg writes reg in
     (reads, writes)
 
-  | Cmp (arg, temp) ->
-    let reads = Set.add temp reads in
+  | Cmp (arg, reg) ->
+    let reads = _add_temps_in_temp_reg reads reg in 
     let reads = _add_temps_in_temp_arg reads arg in
     (reads, writes)
 
@@ -815,8 +821,8 @@ let _restore_all_spilled (ctx : spill_context) (temps : Temp.t Set.t)
     let slot = _get_slot_or_err ctx temp in
     let ctx, dst_temp = _spill_ctx_gen_temp ctx in
     let ctx = _restore_from_slot ctx slot dst_temp in
-    if Temp.equal temp dst_temp then (ctx, old_to_new_temps)
-    else (ctx, Map.add temp dst_temp old_to_new_temps)
+    let old_to_new_temps = Map.add temp dst_temp old_to_new_temps in
+    (ctx, old_to_new_temps)
   in
 
   Set.fold
@@ -1077,10 +1083,10 @@ let _instr_to_str (instr : 'a instr) (gr_to_str : 'a -> string) : string =
     let instr_str = binop_str ^ " " ^ reg_str ^ ", " ^ arg_str in
     add_tab instr_str
 
-  | Cmp (arg, gr) ->
+  | Cmp (arg, reg) ->
     let arg_str = _arg_to_str arg gr_to_str in
-    let gr_str = gr_to_str gr in
-    let instr_str = "cmp " ^ arg_str ^ ", " ^ gr_str in
+    let reg_str = _reg_to_str reg gr_to_str in
+    let instr_str = "cmp " ^ arg_str ^ ", " ^ reg_str in
     add_tab instr_str
 
   | Jmp label ->

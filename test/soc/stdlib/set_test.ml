@@ -178,6 +178,32 @@ let tests = OUnit2.(>:::) "set_tests" [
         OUnit2.assert_equal true ((sgt_func 1 1) = 0);
         OUnit2.assert_equal true ((sgt_func 0 2) > 0);
       );
+
+    OUnit2.(>::) "test_equal" (fun _ ->
+        let s2  = from_list [33; 11] int_cmp in
+        let s2' = from_list [11; 1] int_cmp in
+        let s4  = from_list [33; 11; 1; 42] int_cmp in
+
+        (* reflexivity *)
+        OUnit2.assert_equal true (Set.equal s2 s2);
+        OUnit2.assert_equal true (Set.equal s2' s2');
+        OUnit2.assert_equal true (Set.equal s4 s4);
+
+        (* not just reference equality *)
+        OUnit2.assert_equal true 
+          (Set.equal s2 (from_list [33; 11] int_cmp));
+        OUnit2.assert_equal true 
+          (Set.equal s2' (from_list [11; 1] int_cmp));
+        OUnit2.assert_equal true
+          (Set.equal s4 (from_list [33; 11; 1; 42] int_cmp));
+
+        OUnit2.assert_equal false (Set.equal s2 s2');
+        OUnit2.assert_equal false (Set.equal s2 s4);
+        OUnit2.assert_equal false (Set.equal s2' s2);
+        OUnit2.assert_equal false (Set.equal s2' s4);
+        OUnit2.assert_equal false (Set.equal s4 s2);
+        OUnit2.assert_equal false (Set.equal s4 s2');
+      );
   ]
 
 let _ =

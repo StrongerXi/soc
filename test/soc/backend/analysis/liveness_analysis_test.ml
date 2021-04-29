@@ -5,7 +5,7 @@ let _annotated_vasm_equal
   ((v2 : Vasm.t), (a2 : Liveness_analysis.annot))
   : bool =
   Vasm.equal v1 v2 &&
-  Test_aux.set_equal a1.live_out a2.live_out
+  Set.equal a1.live_out a2.live_out
 ;;
 
 
@@ -53,7 +53,7 @@ let tests = OUnit2.(>:::) "Liveness_analysis_test" [
         let annotated_vasms = Liveness_analysis.analyze_vasm vasms in
         OUnit2.assert_equal
           ~printer:Pretty.pp_vasm_liveness_annot
-          ~cmp:(Test_aux.list_equal _annotated_vasm_equal)
+          ~cmp:(List.equal _annotated_vasm_equal)
           expected annotated_vasms
       );
 
@@ -123,7 +123,7 @@ let tests = OUnit2.(>:::) "Liveness_analysis_test" [
         let annotated_vasms = Liveness_analysis.analyze_vasm vasms in
         OUnit2.assert_equal
           ~printer:Pretty.pp_vasm_liveness_annot
-          ~cmp:(Test_aux.list_equal _annotated_vasm_equal)
+          ~cmp:(List.equal _annotated_vasm_equal)
           expected annotated_vasms
       );
   ]

@@ -72,15 +72,6 @@ let _check_coloring
     OUnit2.assert_bool error_msg (same_length && is_subset);
 ;;
 
-let _check_coloring_size
-    (expect_coloring_size : int)
-    (result : ((Temp.t, int) Map.t, Temp.t Set.t) result) : unit =
-  match result with
-  | Error spills -> _err_unexpected_spill spills
-  | Ok coloring  ->
-    OUnit2.assert_equal expect_coloring_size (Map.size coloring);
-;;
-
 
 let tests = OUnit2.(>:::) "reg_alloc_test" [
 

@@ -36,10 +36,10 @@ let tests = OUnit2.(>:::) "map_tests" [
 
     OUnit2.(>::) "test_add_pairs" (fun _ ->
         let s2 = Map.add_pairs [(1, 'b'); (42, 'c')] emp_int in
-        OUnit2.assert_equal 0 (Map.size (Map.add_pairs [] emp_int));
-        OUnit2.assert_equal 2 (Map.size s2);
-        OUnit2.assert_equal (Some 'b') (Map.get 1 s2);
-        OUnit2.assert_equal (Some 'c') (Map.get 42 s2);
+        Test_aux.check_map [(1, 'b'); (42, 'c')] s2;
+        Test_aux.check_map 
+          [(1, 'b'); (3, 'a'); (42, 'd')] 
+          (Map.add_pairs [(3, 'a'); (42, 'd')] s2);
       );
 
     OUnit2.(>::) "test_get" (fun _ ->
@@ -53,22 +53,18 @@ let tests = OUnit2.(>:::) "map_tests" [
 
     OUnit2.(>::) "test_map" (fun _ ->
         let dup n = (n, n) in
-        let s2 = from_list [(42, 'a'); (1, 'b')] int_cmp in
-        let s2 = Map.map dup s2 in
-        OUnit2.assert_equal 0 (Map.size (Map.map dup emp_int));
-        OUnit2.assert_equal 2 (Map.size s2);
-        OUnit2.assert_equal (Some ('a', 'a')) (Map.get 42 s2);
-        OUnit2.assert_equal (Some ('b', 'b')) (Map.get 1 s2);
+        let pairs = [(42, 'a'); (1, 'b')] in
+        Test_aux.check_map 
+          (List.map (fun (k, v) -> (k, dup v)) pairs)
+          (Map.map dup (from_list pairs int_cmp))
       );
 
     OUnit2.(>::) "test_mapi" (fun _ ->
         let tup k v = (k, v) in
-        let s2 = from_list [(42, 'a'); (1, 'b')] int_cmp in
-        let s2 = Map.mapi tup s2 in
-        OUnit2.assert_equal 0 (Map.size (Map.map tup emp_int));
-        OUnit2.assert_equal 2 (Map.size s2);
-        OUnit2.assert_equal (Some (42, 'a')) (Map.get 42 s2);
-        OUnit2.assert_equal (Some (1, 'b')) (Map.get 1 s2);
+        let pairs = [(42, 'a'); (1, 'b')] in
+        Test_aux.check_map 
+          (List.map (fun (k, v) -> (k, tup k v)) pairs)
+          (Map.mapi tup (from_list pairs int_cmp))
       );
 
     OUnit2.(>::) "test_fold" (fun _ ->

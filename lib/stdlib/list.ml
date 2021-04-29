@@ -154,3 +154,11 @@ let to_string xs f =
   let elems_str = Stdlib_util.str_join_with elem_strs "; " in
   "[" ^ elems_str ^ "]"
 ;;
+
+let rec equal eq xs ys =
+  match xs, ys with
+  | [], [] -> true
+  | [], _  -> false
+  | _, []  -> false
+  | x::xs, y::ys -> (eq x y) && (equal eq xs ys)
+;;
