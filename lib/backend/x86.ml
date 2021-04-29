@@ -951,18 +951,15 @@ let temp_func_to_func temp_func pr_assignment =
     List.map (fun pr -> Pop (Greg pr)) (List.rev callee_saved)
   in
   let prologue =
-    List.append
       [ 
         Push Rbp;
         Load (Reg_arg Rsp, Rbp);
         Binop (Sub, Rsp, Imm_arg aligned_rbp_offset);
-      ] 
-      spill_callee_saved
+      ] @ spill_callee_saved
   in
   let epilogue_label = Label.to_epilogue temp_func.entry in
   let epilogue =
-    List.append
-    ((Label epilogue_label)::restore_callee_saved)
+    ((Label epilogue_label)::restore_callee_saved) @
     [
       Load (Reg_arg Rbp, Rsp);
       Pop Rbp;
@@ -971,7 +968,7 @@ let temp_func_to_func temp_func pr_assignment =
   in
   (* stitch everything together *)
   let pr_instrs = List.map (_instr_temp_to_pr pr_assignment) temp_func.instrs in
-  let final_instrs = List.append prologue (List.append pr_instrs epilogue) in
+  let final_instrs = prologue @ pr_instrs @ epilogue in
   { entry  = temp_func.entry;
     instrs = final_instrs }
 ;;
@@ -1179,8 +1176,7 @@ let _get_prog_metadata (prog : func prog) : string =
     [String.append "global " (Label.to_string prog.main.entry)]
   in
   let metadata_lines =
-    List.append 
-      ("section .text"::external_native_label_decls)
+      ("section .text"::external_native_label_decls) @
       global_native_label_decls
   in
   String.join_with metadata_lines "\n"
@@ -1189,7 +1185,7 @@ let _get_prog_metadata (prog : func prog) : string =
 (* "ur" stands for usable_register *)
 let func_prog_to_str prog =
   let metadata_str = _get_prog_metadata prog in
-  let all_funcs = List.append prog.funcs [prog.main] in
+  let all_funcs = prog.funcs @ [prog.main] in
   let func_strs = List.map _func_to_str all_funcs in
   let funcs_str = String.join_with func_strs "\n\n" in
   String.join_with [metadata_str; funcs_str] "\n\n"

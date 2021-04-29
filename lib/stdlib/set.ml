@@ -68,7 +68,7 @@ let fold f acc t =
 ;;
 
 let union t1 t2 =
-  let rep = List.append t1.rep t2.rep in
+  let rep = t1.rep @ t2.rep in
   { t1 with rep }
 ;;
 

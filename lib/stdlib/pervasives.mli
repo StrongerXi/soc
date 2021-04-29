@@ -29,5 +29,6 @@ val (|>) : 'a -> ('a -> 'b) -> 'b
 (** Application *)
 val (@@) : ('a -> 'b) -> 'a -> 'b
 
-(** List append *)
+(** [xs @ ys] is a list with elements of [xs] added to the front of [ys] in
+    order *)
 val (@)  : 'a list -> 'a list -> 'a list

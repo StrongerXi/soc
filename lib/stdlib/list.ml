@@ -23,12 +23,8 @@ let rev xs =
   fold_left (fun reved x -> x::reved) [] xs
 ;;
 
-let append xs ys =
-  fold_right cons xs ys
-;;
-
 let concat xss =
-  fold_right append xss []
+  fold_right (@) xss []
 ;;
 
 let flatten = concat

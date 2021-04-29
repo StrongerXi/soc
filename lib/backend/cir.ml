@@ -272,7 +272,7 @@ and _partial_apply (ctx : context)
     _gen_new_var_names ctx "extra_arg" extra_args_needed
   in
   let provided_arg_names = List.map (fun (var, _) -> var) provided_arg_bds in
-  let all_arg_names = List.append provided_arg_names extra_arg_names in
+  let all_arg_names = provided_arg_names @ extra_arg_names in
   let cls_body = Capply (Cident func_bind_name,
                          List.map (fun name -> Cident name) all_arg_names) in
   let free_var_names = func_bind_name::provided_arg_names in
@@ -385,7 +385,7 @@ let from_ast_struct structure =
    * _nicely_ without introducing external syntax. *)
   let ctx, primop_bds = _add_primops_closures ctx in
   let ctx, native_bds = _add_natives_closures ctx in
-  let builtin_bds = List.append primop_bds native_bds in
+  let builtin_bds = primop_bds @ native_bds in
   { closures = _get_all_closures ctx
   ; expr = Clet (builtin_bds, final_ce)
   }

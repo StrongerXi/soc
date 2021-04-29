@@ -336,7 +336,7 @@ and _partial_apply (original_ctx : context)
   let func_ident_e = make_dummy_expr (Exp_ident func_name) in
   let arg_ident_es = List.map
       (fun arg_name -> make_dummy_expr (Exp_ident arg_name))
-      (List.append provided_arg_names extra_arg_names)
+      (provided_arg_names @ extra_arg_names)
   in
   let body_e = make_dummy_expr (Exp_apply (func_ident_e, arg_ident_es)) in
   Closure(extra_arg_names, body_e, ref ctx_with_everything)

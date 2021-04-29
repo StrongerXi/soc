@@ -18,14 +18,6 @@ let tests = OUnit2.(>:::) "list_tests" [
         OUnit2.assert_equal [[2; 3]; []; [1]] (List.rev [[1]; []; [2; 3]]);
       );
 
-
-    OUnit2.(>::) "test_append" (fun _ ->
-        OUnit2.assert_equal [] (List.append [] []);
-        OUnit2.assert_equal [1] (List.append [] [1]);
-        OUnit2.assert_equal [1] (List.append [1] []);
-        OUnit2.assert_equal [1; 2; 3; 4] (List.append [1; 2] [3; 4]);
-      );
-    
     OUnit2.(>::) "test_concat" (fun _ ->
         OUnit2.assert_equal [] (List.concat []);
         OUnit2.assert_equal [1; 3; 5] (List.concat [[1]; []; [3; 5]])

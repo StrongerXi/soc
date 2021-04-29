@@ -9,9 +9,6 @@ val length : 'a list -> int
 (** [rev xs] returns a reversed version of [xs] *)
 val rev : 'a list -> 'a list
 
-(** [append xs ys] returns a list with elements of [xs] added to [ys] in order *)
-val append : 'a list -> 'a list -> 'a list
-
 (** [flatten xs] returns a list with the inner lists appended in order *)
 val concat : 'a list list -> 'a list
 
