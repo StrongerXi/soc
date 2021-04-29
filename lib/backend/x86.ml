@@ -1159,9 +1159,10 @@ let _add_external_native_labels_in_func
 ;;
 
 let _find_external_native_labels_in_prog (prog : func prog) : Label.t Set.t =
-  let labels = Set.empty Label.compare in
   let labels =
-    List.fold_left _add_external_native_labels_in_func labels prog.funcs
+    List.fold_left
+      _add_external_native_labels_in_func
+      Label.empty_set prog.funcs
   in
   _add_external_native_labels_in_func labels prog.main
 ;;

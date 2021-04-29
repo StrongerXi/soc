@@ -37,4 +37,5 @@ val is_native : t -> bool
 (** [to_string t] returns a string representation of [t] *)
 val to_string : t -> string
 
-val compare : t -> t -> int
+(** An empty set of [t], with _some_ ordering. *)
+val empty_set : t Set.t
