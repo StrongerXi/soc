@@ -33,11 +33,8 @@ let mk_label label =
 
 let _mk_instr (reads : Temp.t list) (writes : Temp.t list) (desc : instr_desc)
   : t =
-  let _temps_to_set (temps : Temp.t list) : Temp.t Set.t =
-    List.fold_right Set.add temps Temp.empty_set
-  in
-  Instr { reads  = _temps_to_set reads;
-          writes = _temps_to_set writes;
+  Instr { reads  = Set.add_list reads Temp.empty_set;
+          writes = Set.add_list writes Temp.empty_set;
           desc }
 ;;
 

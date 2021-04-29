@@ -38,7 +38,7 @@ let _compare_physical_reg r1 r2 =
 ;;
 
 let _physical_reg_list_to_set (prs : physical_reg list) : physical_reg Set.t =
-  List.fold_right Set.add prs (Set.empty _compare_physical_reg)
+  Set.add_list prs (Set.empty _compare_physical_reg)
 ;;
 
 let _ordered_argument_physical_regs =
@@ -154,8 +154,9 @@ let _init_sp_temps (init_temp_man : Temp.manager) : (Temp.manager * sp_temps) =
     | Some temp -> temp
   in
 
-  let sp_prs = Rax::Rdx::_ordered_argument_physical_regs in
-  let sp_prs = List.fold_right Set.add sp_prs (Set.empty _compare_physical_reg)
+  let sp_prs = Set.add_list
+      (Rax::Rdx::_ordered_argument_physical_regs)
+      (Set.empty _compare_physical_reg)
   in
   let sp_prs = Set.union sp_prs _caller_saved_physical_regs in
   let temp_man, pr_map = alloc_temp_for_prs init_temp_man sp_prs in
@@ -640,10 +641,8 @@ let _get_reads_and_writes_temp_instr sp_temps (instr : Temp.t instr)
 
   | IDiv reg  ->
     let reads = _add_temps_in_temp_reg writes reg in
-    let reads = Set.add sp_temps.rax reads in
-    let reads = Set.add sp_temps.rdx reads in
-    let writes = Set.add sp_temps.rax writes in
-    let writes = Set.add sp_temps.rdx writes in
+    let reads = Set.add_list [sp_temps.rax; sp_temps.rdx] reads in
+    let writes = Set.add_list [sp_temps.rax; sp_temps.rdx] writes in
     (reads, writes)
 
   | Load (arg, dst_reg) ->
@@ -674,7 +673,7 @@ let _get_reads_and_writes_temp_instr sp_temps (instr : Temp.t instr)
    *    Basically we leave it to the register allocator to ensure that
    *    caller-saved registers are properly assigned or spilled *)
   | Call (target, reg_arg_temps) ->
-    let reads = List.fold_right Set.add reg_arg_temps reads in
+    let reads = Set.add_list reg_arg_temps reads in
     let reads = _add_temps_in_call_target reads target in
     let writes = Set.add sp_temps.rax writes in
     let writes = Set.union (Map.get_key_set sp_temps.caller_saved) writes in

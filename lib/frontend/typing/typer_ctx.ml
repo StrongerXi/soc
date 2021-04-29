@@ -193,7 +193,7 @@ let _generalize_typ (typ : Ast.typ) (fvs_in_var_env : string Set.t)
 
 let generalize t names =
   (* ignore the names themselves in context, since their tyvars are not free *)
-  let names_to_ignore = List.fold_right Set.add names String.empty_set in
+  let names_to_ignore = Set.add_list names String.empty_set in
   let fvs_in_var_env =
     List.fold_left
       (fun s var_env -> _add_fvs_in_var_env s var_env names_to_ignore)

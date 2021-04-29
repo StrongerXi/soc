@@ -23,7 +23,7 @@ let _err_unexpected_coloring (coloring : (Temp.t, int) Map.t) : 'a =
 ;;
 
 let _int_set (items : int list) : int Set.t =
-  List.fold_right Set.add items (Set.empty Int.compare)
+  Set.add_list items (Set.empty Int.compare)
 ;;
 
 let _check_spills
