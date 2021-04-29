@@ -1,8 +1,4 @@
-open Pervasives
 
-(** [check_and_output_str str ref_path output_path] checks whether [str] matches
-    the content of the file at [ref_path], and (over)writes [str] to
-    [output_path] *)
 let check_and_output_str str ref_path output_path =
   let output = Stdlib.open_out output_path in
   Stdlib.output_string output str;
@@ -11,10 +7,7 @@ let check_and_output_str str ref_path output_path =
   OUnit2.assert_equal ref_str str;
 ;;
 
-(** [check_set expects actuals] makes sure
-    - [expects] and [actuals] contain the same # of elements
-    - All elements from [expects] are in [actuals] *)
-let check_set (expects : 'a list) (actuals : 'a Set.t) : unit =
+let check_set expects actuals =
   OUnit2.assert_equal (List.length expects) (Set.size actuals);
   List.iter
     (fun elem -> 
@@ -22,12 +15,7 @@ let check_set (expects : 'a list) (actuals : 'a Set.t) : unit =
     expects
 ;;
 
-(** [check_set expects actuals] makes sure
-    - [expects] and [actuals] contain the same # of elements
-    - All elements from [expects] are in [actuals] 
-    NOTE intentionally separated from [check_set] because I want to use the
-    right [mem] function for testing. *)
-let check_unordered_list (expects : 'a list) (actuals : 'a list) : unit =
+let check_unordered_list expects actuals =
   OUnit2.assert_equal (List.length expects) (List.length actuals);
   List.iter
     (fun elem -> 
