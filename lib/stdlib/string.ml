@@ -25,3 +25,11 @@ let compare s1 s2 =
 let join_with =
   Stdlib_util.str_join_with
 ;;
+
+let empty_set =
+  Set.empty compare
+;;
+
+let empty_map () =
+  Map.empty compare
+;;
