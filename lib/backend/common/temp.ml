@@ -49,3 +49,7 @@ let empty_set =
 let empty_map () =
   Map.empty Int.compare
 ;;
+
+let compare t1 t2 =
+  Int.compare t1 t2
+;;

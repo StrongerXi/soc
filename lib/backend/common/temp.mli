@@ -31,3 +31,6 @@ val empty_set : t Set.t
 (** [empty_map ()] is an empty map of [t], with _some_ ordering. 
     It's made a function to support parameterized key type. *)
 val empty_map : unit -> (t, 'v) Map.t
+
+(** [compare t1 t2] establishes a total order for [t] *)
+val compare : t -> t -> int
