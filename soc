@@ -20,7 +20,7 @@ SOML_LIB=${SCRIPT_DIR}/runtime/build/libsoml.a
 CLANG_FLAGS="-Wl,-no_pie"
 
 ${SCRIPT_DIR}/_build/default/bin/soc.exe $@
-nasm -f macho64 -o $SOML_OBJ $SOML_ASSEM
+as -o $SOML_OBJ $SOML_ASSEM
 clang $CLANG_FLAGS -o $SOML_EXE $SOML_OBJ $SOML_LIB
 
 rm $SOML_OBJ

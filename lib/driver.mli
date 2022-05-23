@@ -14,3 +14,4 @@ val lir_file  : string -> (Lir.prog, string) result
 
 (** Wire up instruction selection and register allocation *)
 val lir_to_x86 : Lir.prog -> X86.func X86.prog
+val lir_to_arm64 : Lir.prog -> Arm64.func Arm64.prog

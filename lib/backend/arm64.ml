@@ -1,38 +1,65 @@
 open Pervasives
 
+(* Reference:
+ * https://docs.microsoft.com/en-us/cpp/build/arm64-windows-abi-conventions?view=msvc-170
+ *)
 type physical_reg =
-  | Rax
-  | Rbx
-  | Rsi
-  | Rdi
-  | Rdx
-  | Rcx
-  | R8
-  | R9
-  | R10
-  | R11
-  | R12
-  | R13
-  | R14
-  | R15
+  | X0
+  | X1
+  | X2
+  | X3
+  | X4
+  | X5
+  | X6
+  | X7
+  | X8
+  | X9
+  | X10
+  | X11
+  | X12
+  | X13
+  | X14
+  | X15
+  | X19
+  | X20
+  | X21
+  | X22
+  | X23
+  | X24
+  | X25
+  | X26
+  | X27
+  | X28
 
 let _compare_physical_reg r1 r2 =
   let _physical_reg_to_int (pr : physical_reg) : int =
     match pr with
-    | Rax -> 0
-    | Rbx -> 1
-    | Rsi -> 2
-    | Rdi -> 3
-    | Rdx -> 4
-    | Rcx -> 5
-    | R8  -> 6
-    | R9  -> 7
-    | R10 -> 8
-    | R11 -> 9
-    | R12 -> 10
-    | R13 -> 11
-    | R14 -> 12
-    | R15 -> 13
+    | X0 -> 0
+    | X1 -> 1
+    | X2 -> 2
+    | X3 -> 3
+    | X4 -> 4
+    | X5 -> 5
+    | X6 -> 6
+    | X7 -> 7
+    | X8 -> 8
+    | X9 -> 9
+    | X10 -> 10
+    | X11 -> 11
+    | X12 -> 12
+    | X13 -> 13
+    | X14 -> 14
+    | X15 -> 15
+    | X19 -> 16
+    | X20 -> 17
+    | X21 -> 18
+    | X22 -> 19
+    | X23 -> 20
+    | X24 -> 21
+    | X25 -> 22
+    | X26 -> 23
+    | X27 -> 24
+    | X28 -> 25
   in
   Int.compare (_physical_reg_to_int r1) (_physical_reg_to_int r2)
 ;;
@@ -42,15 +69,32 @@ let _physical_reg_list_to_set (prs : physical_reg list) : physical_reg Set.t =
 ;;
 
 let _ordered_argument_physical_regs =
-  [Rdi; Rsi; Rdx; Rcx; R8; R9]
+  [X0; X1; X2; X3; X4; X5; X6; X7]
 ;;
 
 let _caller_saved_physical_regs =
-  _physical_reg_list_to_set [Rdi; Rsi; Rdx; Rcx; R8; R9; Rax; R10; R11]
+  _physical_reg_list_to_set
+    [X0; X1; X2; X3; X4; X5; X6; X7; X8; X9; X10; X11; X12; X13; X14; X15]
+;;
+
+(* Can be used as scratch at prologue/epilogue *)
+let _caller_saved_non_arg_regs =
+  let ordered_arg_reg_set =
+    Set.add_list
+      _ordered_argument_physical_regs
+      (Set.empty _compare_physical_reg)
+  in
+  Set.diff
+    _caller_saved_physical_regs
+    ordered_arg_reg_set
 ;;
 
 let _callee_saved_physical_regs =
-  _physical_reg_list_to_set [Rbx; R12; R13; R14; R15]
+  _physical_reg_list_to_set
+    [X19; X20; X21; X22; X23; X24; X25; X26; X27; X28]
+;;
+
+let _res_reg = X0
 ;;
 
 let assignable_regs =
@@ -59,15 +103,23 @@ let assignable_regs =
 
 
 type 'a reg =
-  | Rsp        (* not sure how allowing this in reg-alloc would affect things *)
-  | Rbp        (* we need rbp for spilling *)
+  | Sp         (* stack pointer *)
+  | X29        (* frame pointer *)
+  | X30        (* return address *)
   | Greg of 'a (* general purpose registers *)
 
-type 'a arg =
-  | Lbl_arg of Label.t      (* label, e.g., use function label as data *)
-  | Imm_arg of int          (* immediate, i.e., constants*)
-  | Reg_arg of 'a reg       (* load from [reg] *)
-  | Mem_arg of 'a reg * int (* load from address [reg + offset] *)
+let _compare_temp_regs (r1 : Temp.t reg) (r2 : Temp.t reg) =
+  let _temp_reg_to_int (reg : Temp.t reg) : int =
+    match reg with
+    | Sp -> 0
+    | X29 -> 1
+    | X30 -> 2
+    | Greg _ -> 3
+  in
+  match (r1, r2) with
+  | Greg t1, Greg t2 -> Temp.compare t1 t2
+  | _ -> Int.compare (_temp_reg_to_int r1) (_temp_reg_to_int r2)
+;;
 
 type cond =
   | Eq
@@ -77,30 +129,34 @@ type binop =
   | Add
   | Sub
   | Mul
+  | SDiv
 
 type 'a call_target =
   | Reg of 'a
   | Lbl of Label.t
 
-(* NOTE 
- * 0. I'm not being truthful to the X86 ISA here. I really took a subset of it
- *    for simplicity, and since we don't need the other fancy instrs for now.
+(* NOTE
+ * 0. I'm taking a subset of the ARM64 ISA since we don't need the other fancy
+ *    instrs for now.
  * 1. Many instructions don't support 2 memory accesses, I made that explicit.
  *)
-type 'a instr = 
+type 'a instr =
   | Label of Label.t
-  | Load of 'a arg * 'a reg
-      (* Load (arg, reg) --> reg := arg *)
-  | Store of 'a reg * 'a reg * int
-      (* Store (sreg, dreg, offset) --> *[dreg + offset] := sreg *)
-  | Push of 'a reg
-  | Pop of 'a reg
-  | IDiv of 'a reg
-      (* [IDiv r] does signed division for [RDX:RAX] over [r].
-      * The quotient is stoed to [RAX], remainder to [RDX] *)
-  | Binop of binop * 'a reg * 'a arg
-      (* Binop (op, reg, arg) --> reg := op gr arg *)
-  | Cmp of 'a arg * 'a reg
+  | LoadImm of 'a reg * int
+      (* LoadImm (dreg, n) --> dreg := n *)
+  | LoadLabelPage of 'a reg * Label.t
+      (* LoadLabelPage (dreg, label) --> dreg := label@PAGE *)
+  | AddLabelPageOffset of 'a reg * Label.t
+      (* AddLabelPageOffset (dreg, label) --> dreg += label@PAGEOFF *)
+  | Mov of 'a reg * 'a reg
+      (* Mov (dreg, sreg) --> dreg := sreg *)
+  | Load of 'a reg * 'a reg * 'a reg
+      (* Load (dreg, breg, oreg) --> reg := *(breg + oreg) *)
+  | Store of 'a reg * 'a reg * 'a reg
+      (* Store (sreg, breg, oreg) --> *[breg + oreg] := sreg *)
+  | Binop of binop * 'a reg * 'a reg * 'a reg
+      (* Binop (op, dreg, reg1, reg2) --> dreg = op reg1 reg2 *)
+  | Cmp of 'a reg * 'a reg
   | Jmp of Label.t
   | JmpC of cond * Label.t
       (* Jump to label if [cond] is satisfied. *)
@@ -116,17 +172,15 @@ type func =
   ; instrs : physical_reg instr list (* doesn't start with [entry] label *)
   }
 
-type 'a prog = 
+type 'a prog =
   { funcs : 'a list
   ; main : 'a
   }
 
 (* special purpose temps that will be pre-colored to specific registers *)
 type sp_temps =
-  { rax              : Temp.t
-  ; rdx              : Temp.t
-  (* TODO consider using a pair list here *)
-  ; ordered_arg_regs : (Temp.t * physical_reg) list 
+  { res              : Temp.t
+  ; ordered_arg_regs : (Temp.t * physical_reg) list
       (* For each argument passed in register.
        * NOTE Original Lir func might not have this many args, but calls to
        * other func might need more args. Excessive temps are simply ignored. *)
@@ -150,18 +204,17 @@ let _init_sp_temps (init_temp_man : Temp.manager) : (Temp.manager * sp_temps) =
   let get_temp (pr_map : (physical_reg, Temp.t) Map.t) (pr : physical_reg)
     : Temp.t =
     match Map.get pr pr_map with
-    | None -> failwith "[X86._init_sp_temps] unbound physical register"
+    | None -> failwith "[ARM64._init_sp_temps] unbound physical register"
     | Some temp -> temp
   in
 
   let sp_prs = Set.add_list
-      (Rax::Rdx::_ordered_argument_physical_regs)
+      (_res_reg::_ordered_argument_physical_regs)
       (Set.empty _compare_physical_reg)
   in
   let sp_prs = Set.union sp_prs _caller_saved_physical_regs in
   let temp_man, pr_map = alloc_temp_for_prs init_temp_man sp_prs in
-  let sp_temps = { rax = get_temp pr_map Rax
-                 ; rdx = get_temp pr_map Rdx
+  let sp_temps = { res = get_temp pr_map _res_reg
                  ; ordered_arg_regs =
                      List.map
                        (fun pr -> (get_temp pr_map pr, pr))
@@ -177,8 +230,7 @@ let _init_sp_temps (init_temp_man : Temp.manager) : (Temp.manager * sp_temps) =
 let _get_sp_temps_coloring sp_temps : (Temp.t, physical_reg) Map.t =
   let pre_color = sp_temps.caller_saved in
   let temp_reg_pairs =
-    (sp_temps.rax, Rax)::
-    (sp_temps.rdx, Rdx)::
+    (sp_temps.res, _res_reg)::
     (sp_temps.ordered_arg_regs)
   in
   Map.add_pairs temp_reg_pairs pre_color
@@ -186,7 +238,7 @@ let _get_sp_temps_coloring sp_temps : (Temp.t, physical_reg) Map.t =
 
 
 (* With some annotations to help reg-alloc. *)
-type temp_func = 
+type temp_func =
   { entry    : Label.t
   ; instrs   : Temp.t instr list  (* doesn't start with [entry] label *)
   ; sp_temps : sp_temps
@@ -196,17 +248,10 @@ type temp_func =
 
 let _map_grs_in_reg (f : 'a -> 'b) (reg : 'a reg) : 'b reg =
   match reg with
-  | Rsp -> Rsp
-  | Rbp -> Rbp
+  | Sp -> Sp
+  | X29 -> X29
+  | X30 -> X30
   | Greg gr -> Greg (f gr)
-;;
-
-let _map_grs_in_arg (f : 'a -> 'b) (arg : 'a arg) : 'b arg =
-  match arg with
-  | Lbl_arg label    -> Lbl_arg label
-  | Imm_arg n        -> Imm_arg n
-  | Reg_arg reg      -> Reg_arg (_map_grs_in_reg f reg)
-  | Mem_arg (reg, n) -> Mem_arg (_map_grs_in_reg f reg, n)
 ;;
 
 let _map_grs_in_call_target (f : 'a -> 'b) (target : 'a call_target)
@@ -219,31 +264,51 @@ let _map_grs_in_call_target (f : 'a -> 'b) (target : 'a call_target)
 let _map_grs_in_instr (f : 'a -> 'b) (instr : 'a instr) : ('b instr) =
   match instr with
   | Label label        -> Label label
+
+  | LoadLabelPage (dst_reg, label) ->
+    LoadLabelPage (_map_grs_in_reg f dst_reg, label)
+
+  | AddLabelPageOffset (dst_reg, label) ->
+    AddLabelPageOffset (_map_grs_in_reg f dst_reg, label)
+
   | Jmp label          -> Jmp label
   | JmpC (cond, label) -> JmpC (cond, label)
 
-  | Push reg -> Push (_map_grs_in_reg f reg)
-  | Pop reg  -> Pop (_map_grs_in_reg f reg)
-  | IDiv reg -> IDiv (_map_grs_in_reg f reg)
+  | LoadImm (dst_reg, n) -> LoadImm (_map_grs_in_reg f dst_reg, n)
 
-  | Load (arg, dst_reg) ->
-    let arg = _map_grs_in_arg f arg in
-    let dst_reg = _map_grs_in_reg f dst_reg in
-    Load (arg, dst_reg)
+  | Mov (dst_reg, src_reg) ->
+    Mov (
+      _map_grs_in_reg f dst_reg,
+      _map_grs_in_reg f src_reg
+    )
 
-  | Store (src_reg, dst_addr_reg, offset) ->
-    let src_reg = _map_grs_in_reg f src_reg in
-    let dst_addr_reg = _map_grs_in_reg f dst_addr_reg in
-    Store (src_reg, dst_addr_reg, offset)
+  | Load (dst_reg, base_reg, offset_reg) ->
+    Load (
+      _map_grs_in_reg f dst_reg,
+      _map_grs_in_reg f base_reg,
+      _map_grs_in_reg f offset_reg
+    )
 
-  | Binop (op, reg, arg) ->
-    let arg = _map_grs_in_arg f arg in
-    let reg = _map_grs_in_reg f reg in
-    Binop (op, reg, arg)
+  | Store (src_reg, base_reg, offset_reg) ->
+    Store (
+      _map_grs_in_reg f src_reg,
+      _map_grs_in_reg f base_reg,
+      _map_grs_in_reg f offset_reg
+    )
 
-  | Cmp (arg, reg) ->
-    let arg = _map_grs_in_arg f arg in
-    Cmp (arg, _map_grs_in_reg f reg)
+  | Binop (op, dst_reg, reg1, reg2) ->
+    Binop (
+      op,
+      _map_grs_in_reg f dst_reg,
+      _map_grs_in_reg f reg1,
+      _map_grs_in_reg f reg2
+    )
+
+  | Cmp (reg1, reg2) ->
+    Cmp (
+      _map_grs_in_reg f reg1,
+      _map_grs_in_reg f reg2
+    )
 
   | Call (target, reg_arg_grs) ->
     let target = _map_grs_in_call_target f target in
@@ -273,11 +338,7 @@ let _init_ctx
 ;;
 
 let _ctx_get_rax_reg (ctx : context) : Temp.t reg =
-  Greg ctx.sp_temps.rax
-;;
-
-let _ctx_get_rdx_reg (ctx : context) : Temp.t reg =
-  Greg ctx.sp_temps.rdx
+  Greg ctx.sp_temps.res
 ;;
 
 let _ctx_get_ordered_arg_regs (ctx : context) : Temp.t list =
@@ -318,18 +379,21 @@ let _ctx_get_epilogue_label (ctx : context) : Label.t =
 ;;
 
 (* Load all args into temps (from regs or stack).
- * This ensures that no reg-passed arg will be modified.
- * Must synch with [_emit_prepare_x86_call_args] *)
+ * This ensures arg temps are live at entry.
+ * Must synch with [_emit_prepare_call_args] *)
 let _emit_load_args_into_temps (ctx : context) (ordered_args : Temp.t list)
   : context =
   let load_extra_args ctx extra_arg_temps : context =
     List.fold_left
-      (fun (ctx, offset_bytes) arg_temp ->
-         let mem_arg = Mem_arg (Rbp, offset_bytes) in
-         let instr = Load (mem_arg, Greg arg_temp) in
-         let ctx = _ctx_add_instr ctx instr in
-         (ctx, offset_bytes + Runtime.word_size))
-      (ctx, 2 * Runtime.word_size) extra_arg_temps
+      (fun (ctx, offset_idx) arg_temp ->
+         let ctx, offset_reg = _ctx_gen_temp_reg ctx in
+         let ctx = _ctx_add_instrs ctx [
+             LoadImm (offset_reg, offset_idx * Runtime.word_size);
+             Load (Greg arg_temp, X29, offset_reg);
+           ]
+         in
+         (ctx, offset_idx + 1))
+      (ctx, 2) extra_arg_temps
     |> (fun (ctx, _) -> ctx)
   in
   let rec go ctx (arg_temps : Temp.t list) (arg_regs : Temp.t list) : context =
@@ -337,7 +401,7 @@ let _emit_load_args_into_temps (ctx : context) (ordered_args : Temp.t list)
     | [], _ -> ctx
     | _, [] -> load_extra_args ctx arg_temps
     | arg_temp::rest_arg_temps, arg_reg::rest_arg_prs ->
-      let instr = Load (Reg_arg (Greg arg_reg), Greg arg_temp) in
+      let instr = Mov (Greg arg_temp, Greg arg_reg) in
       let ctx = _ctx_add_instr ctx instr in
       go ctx rest_arg_temps rest_arg_prs
   in
@@ -348,12 +412,12 @@ let _emit_load_args_into_temps (ctx : context) (ordered_args : Temp.t list)
 let rec _emit_lir_expr (ctx : context) (e : Lir.expr) (dst_reg: Temp.t reg)
   : context =
   match e with
-  | Imm n -> 
-    let instr = Load (Imm_arg n, dst_reg) in
+  | Imm n ->
+    let instr = LoadImm (dst_reg, n) in
     _ctx_add_instr ctx instr
 
-  | Tmp temp -> (* XXX generate to [arg] would save 1 instr *)
-    let instr = Load (Reg_arg (Greg temp), dst_reg) in
+  | Tmp temp ->
+    let instr = Mov (dst_reg, (Greg temp)) in
     _ctx_add_instr ctx instr
 
   | Op (op, lhs_e, rhs_e) ->
@@ -372,11 +436,14 @@ let rec _emit_lir_expr (ctx : context) (e : Lir.expr) (dst_reg: Temp.t reg)
 and _emit_generic_call (ctx : context)
     (arg_es : Lir.expr list) (target : Temp.t call_target) (dst_reg : Temp.t reg)
   : context =
-    let ctx, arg_temps, arg_bytes = _emit_prepare_x86_call_args ctx arg_es in
-    _ctx_add_instrs ctx
-      [ Call (target, arg_temps);
-        Binop (Add, Rsp, Imm_arg arg_bytes);
-        Load (Reg_arg (_ctx_get_rax_reg ctx), dst_reg) ]
+    let ctx, arg_temps, arg_bytes = _emit_prepare_call_args ctx arg_es in
+    let ctx, arg_bytes_temp = _ctx_gen_temp_reg ctx in
+    _ctx_add_instrs ctx [
+      Call (target, arg_temps);
+      LoadImm (arg_bytes_temp, arg_bytes);
+      Binop (Add, Sp, Sp, arg_bytes_temp);
+      Mov (dst_reg, _ctx_get_rax_reg ctx);
+    ]
 
 (*       ......
  * caller stack frame
@@ -385,35 +452,52 @@ and _emit_generic_call (ctx : context)
  * ------------------ <- RBP + 2 * word_size
  * | return address |
  * ------------------ <- RBP + 1 * word_size
- * |    saved rbp   | 
- * ------------------ <- RBP + 0 * word_size 
+ * |    saved fp   |
+ * ------------------ <- RBP + 0 * word_size
  * callee stack frame
- *      ......        
+ *      ......
  * NOTE stack alignment will be enforced.
- * Return 
+ * Return
  * - Temps which holds the register arguments in order.
  *   Args spilled onto stack are ignored, since they don't need to be in any
  *   register during the call instruction -- they are saved on stack.
  * - How many bytes the aligned extra args took up on stack. *)
-and _emit_prepare_x86_call_args (init_ctx : context)
+and _emit_prepare_call_args (init_ctx : context)
     (init_arg_es : Lir.expr list)
   : (context * Temp.t list * int) =
   (* last argument is pushed first, so 1st arg is closest to frame base *)
   let _emit_push_onto_stack ctx arg_es =
-    let ctx =
-      List.fold_right (* TODO fold_left instead? *)
-        (fun arg_e ctx ->
+    let ctx, arg_bytes_temp = _ctx_gen_temp_reg ctx in
+    let arg_bytes = Runtime.word_size * (List.length arg_es) in
+    let ctx = _ctx_add_instrs ctx [
+        LoadImm (arg_bytes_temp, arg_bytes);
+        Binop (Sub, Sp, Sp, arg_bytes_temp);
+      ]
+    in
+    let ctx, _ =
+      List.fold_left
+        (fun (ctx, idx) arg_e ->
            let ctx, arg_v_reg = _ctx_gen_temp_reg ctx in
            let ctx = _emit_lir_expr ctx arg_e arg_v_reg in
-           _ctx_add_instr ctx (Push arg_v_reg))
-        arg_es ctx
+           let offset = Runtime.word_size * idx in
+         let ctx, offset_reg = _ctx_gen_temp_reg ctx in
+         let ctx = _ctx_add_instrs ctx [
+             LoadImm (offset_reg, offset);
+             Store (arg_v_reg, Sp, offset_reg);
+           ]
+         in (ctx, idx + 1))
+        (ctx, 0) arg_es
     in
     let extra_arg_offset = (List.length arg_es) * Runtime.word_size in
     let align_offset =
       Int.offset_to_align extra_arg_offset Runtime.stack_alignment
     in (* sometimes redundant, but KISS for now *)
-    let align_rsp_i = Binop (Sub, Rsp, Imm_arg align_offset) in
-    let ctx = _ctx_add_instr ctx align_rsp_i in
+    let ctx, offset_temp = _ctx_gen_temp_reg ctx in
+    let ctx = _ctx_add_instrs ctx [
+        LoadImm (offset_temp, align_offset);
+        Binop (Sub, Sp, Sp, offset_temp);
+      ]
+    in
     (ctx, extra_arg_offset + align_offset)
   in
 
@@ -424,7 +508,7 @@ and _emit_prepare_x86_call_args (init_ctx : context)
     : (context * Temp.t list) =
     List.fold_left
       (fun (ctx, dsts) (src_reg, dst_temp) ->
-         let instr = Load (Reg_arg src_reg, Greg dst_temp) in
+         let instr = Mov (Greg dst_temp, src_reg) in
          let ctx = _ctx_add_instr ctx instr in
          (ctx, dst_temp::dsts))
     (ctx, []) src_to_dst_pairs
@@ -438,7 +522,7 @@ and _emit_prepare_x86_call_args (init_ctx : context)
       let ctx, arg_temps  = move_temps_ret_dsts ctx arg_v_temp_pairs in
       (ctx, arg_temps, 0) (* 0 is always aligned *)
 
-    | _, [] -> 
+    | _, [] ->
       let ctx, arg_bytes = _emit_push_onto_stack ctx arg_es in
       let ctx, arg_temps = move_temps_ret_dsts ctx arg_v_temp_pairs in
       (ctx, arg_temps, arg_bytes)
@@ -461,18 +545,13 @@ and _emit_lir_op (ctx : context)
   let ctx = _emit_lir_expr ctx rhs_e rhs_reg in
   match op with
   | Add ->
-    _ctx_add_instr ctx (Binop (Add, dst_reg, Reg_arg rhs_reg))
+    _ctx_add_instr ctx (Binop (Add, dst_reg, dst_reg, rhs_reg))
   | Sub ->
-    _ctx_add_instr ctx (Binop (Sub, dst_reg, Reg_arg rhs_reg))
-  | Mul -> 
-    _ctx_add_instr ctx (Binop (Mul, dst_reg, Reg_arg rhs_reg))
+    _ctx_add_instr ctx (Binop (Sub, dst_reg, dst_reg, rhs_reg))
+  | Mul ->
+    _ctx_add_instr ctx (Binop (Mul, dst_reg, dst_reg, rhs_reg))
   | Div ->
-    let rax_reg = _ctx_get_rax_reg ctx in
-    _ctx_add_instrs ctx
-      [ Load (Imm_arg 0, _ctx_get_rdx_reg ctx);
-        Load (Reg_arg dst_reg, rax_reg);
-        IDiv rhs_reg;
-        Load (Reg_arg rax_reg, dst_reg); ]
+    _ctx_add_instr ctx (Binop (SDiv, dst_reg, dst_reg, rhs_reg))
 ;;
 
 let _emit_comparison
@@ -482,7 +561,7 @@ let _emit_comparison
   let ctx, rhs_reg = _ctx_gen_temp_reg ctx in
   let ctx = _emit_lir_expr ctx lhs_e lhs_reg in
   let ctx = _emit_lir_expr ctx rhs_e rhs_reg in
-  let instr = Cmp (Reg_arg lhs_reg, rhs_reg) in
+  let instr = Cmp (lhs_reg, rhs_reg) in
   _ctx_add_instr ctx instr
 ;;
 
@@ -490,7 +569,7 @@ let _emit_lir_jump
     (ctx : context) (lir_cond : Lir.cond) (target_label : Label.t)
   : context =
   match lir_cond with
-  | True -> 
+  | True ->
     _ctx_add_instr ctx (Jmp target_label)
 
   | Less (lhs_e, rhs_e) ->
@@ -516,24 +595,33 @@ let _emit_lir_instr (ctx : context) (lir_instr : Lir.instr) : context =
 
   | LoadMem (src_addr_e, dst_temp) ->
     let ctx = _emit_lir_expr ctx src_addr_e (Greg dst_temp) in
-    let instr = Load (Mem_arg(Greg dst_temp, 0), Greg dst_temp) in
-    _ctx_add_instr ctx instr
+    let ctx, offset_reg = _ctx_gen_temp_reg ctx in
+    _ctx_add_instrs ctx [
+      LoadImm (offset_reg, 0);
+      Load (Greg dst_temp, Greg dst_temp, offset_reg)
+    ]
 
   | Store (e, dst_addr_e) ->
     let ctx, e_reg = _ctx_gen_temp_reg ctx in
-    let ctx, dst_addr_reg = _ctx_gen_temp_reg ctx in
+    let ctx, base_reg = _ctx_gen_temp_reg ctx in
     let ctx = _emit_lir_expr ctx e e_reg in
-    let ctx = _emit_lir_expr ctx dst_addr_e dst_addr_reg in
-    let instr = Store (e_reg, dst_addr_reg, 0) in
-    _ctx_add_instr ctx instr
+    let ctx = _emit_lir_expr ctx dst_addr_e base_reg in
+    let ctx, offset_reg = _ctx_gen_temp_reg ctx in
+    _ctx_add_instrs ctx [
+      LoadImm (offset_reg, 0);
+      Store (e_reg, base_reg, offset_reg);
+    ]
 
   | Store_label (label, dst_addr_e) ->
-    let ctx, dst_addr_reg = _ctx_gen_temp_reg ctx in
-    let ctx = _emit_lir_expr ctx dst_addr_e dst_addr_reg in
+    let ctx, base_reg = _ctx_gen_temp_reg ctx in
+    let ctx = _emit_lir_expr ctx dst_addr_e base_reg in
     let ctx, label_reg = _ctx_gen_temp_reg ctx in
+    let ctx, offset_reg = _ctx_gen_temp_reg ctx in
     _ctx_add_instrs ctx
-      [ Load (Lbl_arg(label), label_reg);
-        Store (label_reg, dst_addr_reg, 0); ]
+      [ LoadLabelPage (label_reg, label);
+        AddLabelPageOffset (label_reg, label);
+        LoadImm (offset_reg, 0);
+        Store (label_reg, base_reg, offset_reg); ]
 
   | Jump (lir_cond, target_label) ->
     _emit_lir_jump ctx lir_cond target_label
@@ -584,9 +672,9 @@ let _from_lir_main_func
     (label_manager : Label.manager)
     (body_instrs : Lir.instr list)
   : temp_func =
-  (* NOTE assume the entry function 
+  (* NOTE assume the entry function
    * - is invoked by runtime with the designated label
-   * - has no args 
+   * - has no args
    * MUST synch with C runtime *)
   let main_entry = Runtime.entry_label in
   _from_lir_func_impl label_manager temp_manager main_entry [] body_instrs
@@ -604,20 +692,239 @@ let from_lir_prog (lir_prog : Lir.prog) =
 ;;
 
 
+let physical_reg_to_str (r : physical_reg) : string =
+  match r with
+  | X0 -> "X0"
+  | X1 -> "X1"
+  | X2 -> "X2"
+  | X3 -> "X3"
+  | X4 -> "X4"
+  | X5 -> "X5"
+  | X6 -> "X6"
+  | X7 -> "X7"
+  | X8 -> "X8"
+  | X9 -> "X9"
+  | X10 -> "X10"
+  | X11 -> "X11"
+  | X12 -> "X12"
+  | X13 -> "X13"
+  | X14 -> "X14"
+  | X15 -> "X15"
+  | X19 -> "X19"
+  | X20 -> "X20"
+  | X21 -> "X21"
+  | X22 -> "X22"
+  | X23 -> "X23"
+  | X24 -> "X24"
+  | X25 -> "X25"
+  | X26 -> "X26"
+  | X27 -> "X27"
+  | X28 -> "X28"
+;;
+
+let _reg_to_str (reg : 'a reg) (gr_to_str : 'a -> string) : string =
+  match reg with
+  | Sp -> "SP"
+  | X29 -> "X29"
+  | X30 -> "X30"
+  | Greg gr -> gr_to_str gr
+;;
+
+
+let _cond_to_suffix (cond : cond) : string =
+  match cond with
+  | Eq -> ".eq"
+  | Lt -> ".lt"
+;;
+
+let _binop_to_str (binop : binop) : string =
+  match binop with
+  | Add -> "add"
+  | Sub -> "sub"
+  | Mul -> "mul"
+  | SDiv -> "sdiv"
+;;
+
+let _call_target_to_str (target : 'a call_target) (gr_to_str : 'a -> string)
+  : string =
+  match target with
+  | Reg gr -> gr_to_str gr
+  | Lbl label -> Label.to_string label
+;;
+
+let _imm_to_str (offset : int) : string =
+  "#" ^ (Int.to_string offset)
+;;
+
+let _reg_offset_to_str
+    (base_reg : 'a reg) (offset_reg : 'a reg) (gr_to_str : 'a -> string)
+  : string =
+  let base_str = _reg_to_str base_reg gr_to_str in
+  let offset_str = _reg_to_str offset_reg gr_to_str in
+  "[" ^ base_str ^ ", " ^ offset_str ^ "]"
+;;
+
+let _instr_to_str (instr : 'a instr) (gr_to_str : 'a -> string) : string =
+  let add_tab s = "\t" ^ s in
+  match instr with
+  | Label label -> (Label.to_string label) ^ ":"
+
+  | LoadLabelPage (dst_reg, label) ->
+    let dst_str = _reg_to_str dst_reg gr_to_str in
+    let label_page_str = (Label.to_string label) ^ "@PAGE" in
+    let instr_str = "adrp " ^ dst_str ^ ", " ^ label_page_str in
+    add_tab instr_str
+
+  | AddLabelPageOffset (dst_reg, label) ->
+    let dst_str = _reg_to_str dst_reg gr_to_str in
+    let label_page_str = (Label.to_string label) ^ "@PAGEOFF" in
+    let instr_str = "add " ^ dst_str ^ ", " ^ dst_str ^ ", " ^ label_page_str in
+    add_tab instr_str
+
+  | LoadImm (dst_reg, n) -> (* use ldr pseudo instr *)
+    let dst_str = _reg_to_str dst_reg gr_to_str in
+    let imm_str = "=" ^ (Int.to_string n) in
+    let instr_str = "ldr " ^ dst_str ^ "," ^ imm_str in
+    add_tab instr_str
+
+  | Mov (dst_reg, src_reg) ->
+    let dst_str = _reg_to_str dst_reg gr_to_str in
+    let src_str = _reg_to_str src_reg gr_to_str in
+    let instr_str = "mov " ^ dst_str ^ ", " ^ src_str in
+    add_tab instr_str
+
+  | Load (dst_reg, base_reg, offset_reg) ->
+    let dst_str = _reg_to_str dst_reg gr_to_str in
+    let reg_offset_str = _reg_offset_to_str base_reg offset_reg gr_to_str in
+    let instr_str = "ldr " ^ dst_str ^ ", " ^ reg_offset_str in
+    add_tab instr_str
+
+  | Store (src_reg, base_reg, offset_reg) ->
+    let src_str = _reg_to_str src_reg gr_to_str in
+    let reg_offset_str = _reg_offset_to_str base_reg offset_reg gr_to_str in
+    let instr_str = "str " ^ src_str ^ ", " ^ reg_offset_str in
+    add_tab instr_str
+
+  | Binop (binop, dst_reg, reg1, reg2) ->
+    let dst_str =  _reg_to_str dst_reg gr_to_str in
+    let reg1_str =  _reg_to_str reg1 gr_to_str in
+    let reg2_str =  _reg_to_str reg2 gr_to_str in
+    let binop_str = _binop_to_str binop in
+    let instr_str = binop_str ^ " " ^ dst_str ^ ", " ^ reg1_str ^ ", " ^ reg2_str in
+    add_tab instr_str
+
+  | Cmp (reg1, reg2) ->
+    let reg1_str =  _reg_to_str reg1 gr_to_str in
+    let reg2_str =  _reg_to_str reg2 gr_to_str in
+    let instr_str = "cmp " ^ reg1_str ^ ", " ^ reg2_str in
+    add_tab instr_str
+
+  | Jmp label ->
+    let instr_str = "b " ^ (Label.to_string label)in
+    add_tab instr_str
+
+  | JmpC (cond, label) ->
+    let suffix = _cond_to_suffix cond in
+    let label_str = Label.to_string label in
+    let instr_str = "b" ^ suffix ^ " " ^ label_str in
+    add_tab instr_str
+
+  | Call (target, _) -> (* args are used for liveness analysis or debugging *)
+    let instr_str = match target with
+      | Reg gr -> "blr" ^ " " ^ (gr_to_str gr)
+      | Lbl label -> "bl" ^ " " ^ (Label.to_string label)
+    in
+    add_tab instr_str
+
+  | Ret -> add_tab "ret"
+;;
+
+let _instrs_to_str (instrs : 'a instr list) (gr_to_str : 'a -> string)
+  : string =
+  let instr_strs = List.map (fun instr -> _instr_to_str instr gr_to_str) instrs in
+  String.join_with instr_strs "\n"
+;;
+
+let _func_to_str (func : func) : string =
+  let all_instrs = (Label func.entry)::func.instrs in
+  let instrs_str = _instrs_to_str all_instrs physical_reg_to_str in
+  let alignment_str = ".p2align 2" in
+  String.join_with [alignment_str; instrs_str] "\n"
+;;
+
+
+let _add_label_if_native (labels : Label.t Set.t) (label : Label.t)
+  : Label.t Set.t =
+  if Label.is_native label
+  then Set.add label labels
+  else labels
+;;
+
+let _add_native_labels_in_call_target
+    (labels : Label.t Set.t) (target : 'a call_target)
+  : Label.t Set.t =
+  match target with
+  | Reg _ -> labels
+  | Lbl label -> _add_label_if_native labels label
+;;
+
+let _add_external_native_labels_in_instr
+    (labels : Label.t Set.t) (instr : 'a instr)
+  : Label.t Set.t =
+  match instr with
+  | Label _ | Load _ | LoadImm _ | Mov _ | Binop _ | Cmp _ | Store _ | Ret
+    -> labels
+  | JmpC (_, label) -> _add_label_if_native labels label
+  | Jmp label -> _add_label_if_native labels label
+  | LoadLabelPage (_, label) -> _add_label_if_native labels label
+  | AddLabelPageOffset (_, label) -> _add_label_if_native labels label
+  | Call (target, _)  -> _add_native_labels_in_call_target labels target
+;;
+
+let _add_external_native_labels_in_func
+    (labels : Label.t Set.t) (func : func) : Label.t Set.t =
+  List.fold_left _add_external_native_labels_in_instr labels func.instrs
+;;
+
+let _find_external_native_labels_in_prog (prog : func prog) : Label.t Set.t =
+  let labels =
+    List.fold_left
+      _add_external_native_labels_in_func
+      Label.empty_set prog.funcs
+  in
+  _add_external_native_labels_in_func labels prog.main
+;;
+
+let _get_prog_metadata (prog : func prog) : string =
+  let global_native_label_decls =
+    [".globl " ^ (Label.to_string prog.main.entry)]
+  in
+  let metadata_lines =
+      ".text"::global_native_label_decls
+  in
+  String.join_with metadata_lines "\n"
+;;
+
+(* "ur" stands for usable_register *)
+let func_prog_to_str prog =
+  let metadata_str = _get_prog_metadata prog in
+  let all_funcs = prog.funcs @ [prog.main] in
+  let func_strs = List.map _func_to_str all_funcs in
+  let funcs_str = String.join_with func_strs "\n\n" in
+  String.join_with [metadata_str; funcs_str] "\n\n"
+;;
+
+let temp_func_to_str temp_func =
+  let all_instrs = (Label temp_func.entry)::temp_func.instrs in
+  _instrs_to_str all_instrs Temp.to_string
+;;
+
+(* Ignore Sp/X29/X30 since they are managed explicitly *)
 let _add_temps_in_temp_reg (acc : Temp.t Set.t) (reg : Temp.t reg)
   : Temp.t Set.t =
   match reg with
-  | Rsp | Rbp -> acc
+  | Sp | X29 | X30 -> acc
   | Greg temp -> Set.add temp acc
-;;
-
-let _add_temps_in_temp_arg  (acc : Temp.t Set.t) (arg : Temp.t arg)
-  : Temp.t Set.t =
-  match arg with
-  | Lbl_arg _        -> acc
-  | Imm_arg _        -> acc
-  | Reg_arg reg      -> _add_temps_in_temp_reg acc reg
-  | Mem_arg (reg, _) -> _add_temps_in_temp_reg acc reg
 ;;
 
 let _add_temps_in_call_target (acc : Temp.t Set.t) (target : Temp.t call_target)
@@ -635,40 +942,46 @@ let _get_reads_and_writes_temp_instr sp_temps (instr : Temp.t instr)
   | Jmp _            -> (reads, writes)
   | JmpC (_, _)      -> (reads, writes)
 
-  | Push reg -> 
-    let reads = _add_temps_in_temp_reg reads reg in
+  | Load (dst_reg, base_reg, offset_reg) ->
+    let reads = _add_temps_in_temp_reg reads base_reg in
+    let reads = _add_temps_in_temp_reg reads offset_reg in
+    let writes = _add_temps_in_temp_reg writes dst_reg in
     (reads, writes)
 
-  | Pop reg  ->
-    let writes = _add_temps_in_temp_reg writes reg in
+  | LoadLabelPage (dst_reg, _) ->
+    let writes = _add_temps_in_temp_reg writes dst_reg in
     (reads, writes)
 
-  | IDiv reg  ->
-    let reads = _add_temps_in_temp_reg reads reg in
-    let reads = Set.add_list [sp_temps.rax; sp_temps.rdx] reads in
-    let writes = Set.add_list [sp_temps.rax; sp_temps.rdx] writes in
+  | AddLabelPageOffset (dst_reg, _) ->
+    let reads = _add_temps_in_temp_reg reads dst_reg in
+    let writes = _add_temps_in_temp_reg writes dst_reg in
     (reads, writes)
 
-  | Load (arg, dst_reg) ->
-    let reads = _add_temps_in_temp_arg reads arg in
+  | LoadImm (dst_reg, _) ->
+    let writes = _add_temps_in_temp_reg writes dst_reg in
+    (reads, writes)
+
+  | Mov (dst_reg, src_reg) ->
+    let reads = _add_temps_in_temp_reg reads src_reg in
     let writes = _add_temps_in_temp_reg writes dst_reg in
     (reads, writes)
 
     (* storing to memory, so no reg is written *)
-  | Store (src_reg, dst_addr_reg, _) ->
+  | Store (src_reg, base_reg, offset_reg) ->
     let reads = _add_temps_in_temp_reg reads src_reg in
-    let reads = _add_temps_in_temp_reg reads dst_addr_reg in
+    let reads = _add_temps_in_temp_reg reads base_reg in
+    let reads = _add_temps_in_temp_reg reads offset_reg in
     (reads, writes)
 
-  | Binop (_, reg, arg) ->
-    let reads = _add_temps_in_temp_reg reads reg in
-    let reads = _add_temps_in_temp_arg reads arg in
-    let writes = _add_temps_in_temp_reg writes reg in
+  | Binop (_, dst_reg, reg1, reg2) ->
+    let reads = _add_temps_in_temp_reg reads reg1 in
+    let reads = _add_temps_in_temp_reg reads reg2 in
+    let writes = _add_temps_in_temp_reg writes dst_reg in
     (reads, writes)
 
-  | Cmp (arg, reg) ->
-    let reads = _add_temps_in_temp_reg reads reg in 
-    let reads = _add_temps_in_temp_arg reads arg in
+  | Cmp (reg1, reg2) ->
+    let reads = _add_temps_in_temp_reg reads reg1 in
+    let reads = _add_temps_in_temp_reg reads reg2 in
     (reads, writes)
 
   (* Q: What about caller-saved registers?
@@ -679,12 +992,12 @@ let _get_reads_and_writes_temp_instr sp_temps (instr : Temp.t instr)
   | Call (target, reg_arg_temps) ->
     let reads = Set.add_list reg_arg_temps reads in
     let reads = _add_temps_in_call_target reads target in
-    let writes = Set.add sp_temps.rax writes in
+    let writes = Set.add sp_temps.res writes in
     let writes = Set.union (Map.get_key_set sp_temps.caller_saved) writes in
     (reads, writes)
 
   | Ret ->
-    let reads = Set.add sp_temps.rax reads in
+    let reads = Set.add sp_temps.res reads in
     (reads, writes)
 ;;
 
@@ -694,8 +1007,9 @@ let _temp_instr_to_vasm (sp_temps : sp_temps) (instr : Temp.t instr) : Vasm.t =
   match instr with
   | Label label -> Vasm.mk_label label
 
-  | Load _ | Store _ | Push _ | Pop _ | Binop _ | Cmp _ | IDiv _ | Call _ ->
-    Vasm.mk_instr reads writes
+  | Load _ | Store _ | Binop _ | Cmp _ | Call _ | LoadLabelPage _ | LoadImm _
+  | AddLabelPageOffset _ | Mov _
+    -> Vasm.mk_instr reads writes
 
   | Jmp target -> Vasm.mk_dir_jump reads writes target
   | JmpC (_, target) -> Vasm.mk_cond_jump reads writes target
@@ -716,44 +1030,40 @@ let get_pre_coloring (temp_func : temp_func) =
 ;;
 
 
-(* NOTE 
+(* NOTE
  * - ignore push/pop since that changes rsp dynamically.
  * - look for negative offset only since stack grows downward,
  *   BUT RETURN POSITIVE offset for convenience. *)
-let _get_max_rbp_offset_instrs (instrs : 'a instr list) : int =
+let _get_max_fp_offset_instrs (instrs : Temp.t instr list) : int =
 
-  let _get_offset (offset : int) : int =
+  let _update_ctx (ctx : (Temp.t reg, int) Map.t) (instr : 'a instr)
+    : (Temp.t reg, int) Map.t =
+    match instr with
+    | LoadImm (dst_reg, n) -> Map.add dst_reg n ctx
+    | Label _ | Load _ | Store _ | LoadLabelPage _ | AddLabelPageOffset _
+    | Mov _ | Binop _ | Cmp _ | Jmp _ | JmpC _ | Call _ | Ret -> ctx
+  in
+
+  let _get_offset (ctx : (Temp.t reg, int) Map.t) (reg : 'a reg) : int =
+    let offset = match Map.get reg ctx with
+      | None -> failwith "[ARM64._get_max_fp_offset_instrs] Unknown reg"
+      | Some(offset) -> offset
+    in
     Int.max 0 (-offset)
   in
 
-  let _get_rbp_offset_arg (arg : 'a arg) : int =
-    match arg with
-    | Mem_arg (Rbp, offset) -> _get_offset offset
-                        (* ignore positive offset since stack grows downward *)
-    | Lbl_arg _             -> 0
-    | Imm_arg _             -> 0
-    | Reg_arg _             -> 0
-    | Mem_arg (_, _)        -> 0
-  in
-  
-  let _get_rbp_offset_instr (instr : 'a instr) : int =
+  let _get_offset_from_instr (ctx : ('a reg, int) Map.t) (instr : 'a instr)
+    : int =
     match instr with
-    | Label _ -> 0
-    | Load (arg, _) -> _get_rbp_offset_arg arg
-    | Store (_, Rbp, offset) -> _get_offset offset
-    | Store (_, _, _) -> 0
-    | Push _ -> 0
-    | Pop _ -> 0
-    | IDiv _ -> 0
-    | Binop (_, _, arg) -> _get_rbp_offset_arg arg
-    | Cmp (arg, _) -> _get_rbp_offset_arg arg
-    | Jmp _ -> 0
-    | JmpC _ -> 0
-    | Call _ -> 0
-    | Ret ->  0
+    | Load (_, X29, offset) -> _get_offset ctx offset
+    | Store (_, X29, offset) -> _get_offset ctx offset
+    | Label _ | Load _ | Store _ | LoadLabelPage _ | AddLabelPageOffset _
+    | LoadImm _ | Mov _ | Binop _ | Cmp _ | Jmp _ | JmpC _ | Call _ | Ret -> 0
   in
 
-  let offsets = List.map _get_rbp_offset_instr instrs in
+  let ctx = Map.empty _compare_temp_regs in
+  let ctx = List.fold_left _update_ctx ctx instrs in
+  let offsets = List.map (_get_offset_from_instr ctx) instrs in
   List.fold_left Int.max 0 offsets
 ;;
 
@@ -789,21 +1099,35 @@ let _spill_ctx_add_instr (ctx : spill_context) (instr : Temp.t instr)
   { ctx with rev_instrs = instr::ctx.rev_instrs }
 ;;
 
-let _spill_slot_to_rbp_offset (slot : int) : int =
+let _spill_ctx_add_instrs (ctx : spill_context) (instrs : Temp.t instr list)
+  : spill_context =
+  List.fold_left _spill_ctx_add_instr ctx instrs
+;;
+
+let _spill_slot_to_fp_offset (slot : int) : int =
   -slot * Runtime.word_size
 ;;
 
 let _spill_to_slot (ctx : spill_context) (src_temp : Temp.t) (slot : int)
   : spill_context =
-  let rbp_offset = _spill_slot_to_rbp_offset slot in
-  _spill_ctx_add_instr ctx (Store (Greg src_temp, Rbp, rbp_offset))
+  let fp_offset = _spill_slot_to_fp_offset slot in
+  let ctx, offset_temp = _spill_ctx_gen_temp ctx in
+  let offset_reg = Greg offset_temp in
+  _spill_ctx_add_instrs ctx [
+    LoadImm (offset_reg, fp_offset);
+    Store (Greg src_temp, X29, offset_reg);
+  ]
 ;;
 
 let _restore_from_slot (ctx : spill_context) (slot : int) (dst_temp : Temp.t)
   : spill_context =
-  let rbp_offset = _spill_slot_to_rbp_offset slot in
-  let mem_arg = Mem_arg (Rbp, rbp_offset) in
-  _spill_ctx_add_instr ctx (Load (mem_arg, Greg dst_temp))
+  let fp_offset = _spill_slot_to_fp_offset slot in
+  let ctx, offset_temp = _spill_ctx_gen_temp ctx in
+  let offset_reg = Greg offset_temp in
+  _spill_ctx_add_instrs ctx [
+    LoadImm (offset_reg, fp_offset);
+    (Load (Greg dst_temp, X29, offset_reg));
+  ]
 ;;
 
 
@@ -813,7 +1137,7 @@ let _restore_all_spilled (ctx : spill_context) (temps : Temp.t Set.t)
   let _get_slot_or_err ctx temp : int =
     match Map.get temp ctx.slot_map with
     | Some slot -> slot
-    | None -> failwith "[X86._restore_all_spilled] spill must precede restore"
+    | None -> failwith "[ARM64._restore_all_spilled] spill must precede restore"
   in
 
   let _restore_temp ctx temp (old_to_new_temps : (Temp.t, Temp.t) Map.t)
@@ -840,7 +1164,7 @@ let _get_or_gen_slots_for_temps_to_spill
   Set.fold
     (fun (ctx, temp_slot_pairs) temp ->
        if Set.mem temp ctx.temps_to_spill
-       then 
+       then
          let ctx, slot = _spill_ctx_get_or_alloc_slot ctx temp in
          (ctx, (temp, slot)::temp_slot_pairs)
        else (ctx, temp_slot_pairs))
@@ -849,8 +1173,8 @@ let _get_or_gen_slots_for_temps_to_spill
 
 (* Calculate available stack slot. *)
 let _spill_ctx_init temp_func (temps_to_spill : Temp.t Set.t) : spill_context =
-  let max_rbp_offset = _get_max_rbp_offset_instrs temp_func.instrs in
-  let max_slot = Int.ceil_div max_rbp_offset Runtime.word_size in
+  let max_fp_offset = _get_max_fp_offset_instrs temp_func.instrs in
+  let max_slot = Int.ceil_div max_fp_offset Runtime.word_size in
   { next_slot    = max_slot + 1
   ; slot_map     = Temp.empty_map ()
   ; rev_instrs   = []
@@ -879,7 +1203,7 @@ let _spill_instr (ctx : spill_context) (instr : Temp.t instr) : spill_context =
    * - always spill after write or spill only after first write, and map all
    *   other uses of spilled temp into a new temp (restore into new temp too) *)
   let ctx = _spill_ctx_add_instr ctx instr in
-  (* X86's read and write regs may overlap, i.e., we can't map only read temps
+  (* ARM64's read and write may overlap, i.e., we can't map only read temps
    * to new temps (e.g., ADD T1 T2 -> ADD T3 T4). As a result, we might need to
    * spill new temps, but we keep track of the old ones because they are used
    * later in the program, (or we need to udpate spill set and keep another
@@ -897,7 +1221,7 @@ let spill_temps temp_func temps_to_spill =
   let ctx = _spill_ctx_init temp_func temps_to_spill in
   let ctx =
     List.fold_left _spill_instr ctx temp_func.instrs in
-  { temp_func with instrs       = List.rev ctx.rev_instrs 
+  { temp_func with instrs       = List.rev ctx.rev_instrs
                  ; temp_manager = ctx.temp_manager
   }
 ;;
@@ -919,7 +1243,7 @@ let _instr_temp_to_pr
   : physical_reg instr =
   let temp_to_pr (temp : Temp.t) : physical_reg =
     match Map.get temp pr_assignment with
-    | None -> failwith "[X86._temp_to_pr] no physical register for temp"
+    | None -> failwith "[ARM64._temp_to_pr] no physical register for temp"
     | Some pr -> pr
   in
   _map_grs_in_instr temp_to_pr instr
@@ -930,10 +1254,10 @@ let _instr_temp_to_pr
  * ------------------ <- rsp % 16 = 0
  * | return address |
  * ------------------ <- RBP + 1 * word_size = old_rsp
- * |    saved rbp   | 
+ * |    saved fp   |
  * ------------------ <- RBP + 0 * word_size, rsp % 16 = 0
  *  func stack frame
- *      ......        
+ *      ......
  *
  * NOTE
  * RSP must be aligned to 16 bytes on a 'call' instruction.
@@ -942,31 +1266,58 @@ let _instr_temp_to_pr
 let temp_func_to_func temp_func pr_assignment =
   (* calculate offset *)
   let callee_saved = Set.to_list (_get_callee_saved_prs pr_assignment) in
-  let max_rbp_offset = _get_max_rbp_offset_instrs temp_func.instrs in
+  let max_fp_offset = _get_max_fp_offset_instrs temp_func.instrs in
   let callee_saved_size = Runtime.word_size * List.length callee_saved in
-  let frame_size = max_rbp_offset + callee_saved_size in
-  let aligned_rbp_offset = 
-    max_rbp_offset + (Int.offset_to_align frame_size Runtime.stack_alignment)
+  let frame_size = max_fp_offset + callee_saved_size in
+  let aligned_fp_offset =
+    max_fp_offset + (Int.offset_to_align frame_size Runtime.stack_alignment)
   in
   (* generate prologue and epilogue *)
-  let spill_callee_saved = List.map (fun pr -> Push (Greg pr)) callee_saved in
-  let restore_callee_saved =
-    List.map (fun pr -> Pop (Greg pr)) (List.rev callee_saved)
+  let scratch_reg = match Set.get_one _caller_saved_non_arg_regs with
+    | None -> failwith "[Arm64.temp_func_to_func] No scratch reg available"
+    | Some reg -> Greg reg
+  in
+  let spill_callee_saved = List.flatten (
+      List.mapi
+        (fun idx pr -> [
+             LoadImm (scratch_reg, Runtime.word_size * idx);
+             Store (Greg pr, Sp, scratch_reg);])
+        callee_saved
+    )
+  in
+  let restore_callee_saved = List.flatten (
+      List.mapi
+        (fun idx pr -> [
+             LoadImm (scratch_reg, Runtime.word_size * idx);
+             Load (Greg pr, Sp, scratch_reg);])
+        callee_saved
+    )
   in
   let prologue =
-      [ 
-        Push Rbp;
-        Load (Reg_arg Rsp, Rbp);
-        (* TODO should subtract callee_saved_size here since they are pushed *)
-        Binop (Sub, Rsp, Imm_arg aligned_rbp_offset);
+      [
+        LoadImm (scratch_reg, Runtime.word_size * 2);
+        Binop (Sub, Sp, Sp, scratch_reg);
+        LoadImm (scratch_reg, Runtime.word_size * 1);
+        Store (X30, Sp, scratch_reg);
+        LoadImm (scratch_reg, Runtime.word_size * 0);
+        Store (X29, Sp, scratch_reg);
+
+        Mov (X29, Sp);
+        LoadImm (scratch_reg, aligned_fp_offset);
+        Binop (Sub, Sp, Sp, scratch_reg);
       ] @ spill_callee_saved
   in
   let epilogue_label = Label.to_epilogue temp_func.entry in
   let epilogue =
     ((Label epilogue_label)::restore_callee_saved) @
     [
-      Load (Reg_arg Rbp, Rsp);
-      Pop Rbp;
+      Mov (Sp, X29);
+      LoadImm (scratch_reg, Runtime.word_size * 0);
+      Load (X29, Sp, scratch_reg);
+      LoadImm (scratch_reg, Runtime.word_size * 1);
+      Load (X30, Sp, scratch_reg);
+      LoadImm (scratch_reg, Runtime.word_size * 2);
+      Binop (Add, Sp, Sp, scratch_reg);
       Ret;
     ]
   in
@@ -975,228 +1326,4 @@ let temp_func_to_func temp_func pr_assignment =
   let final_instrs = prologue @ pr_instrs @ epilogue in
   { entry  = temp_func.entry;
     instrs = final_instrs }
-;;
-
-
-let physical_reg_to_str (r : physical_reg) : string =
-  match r with
-  | Rax -> "RAX"
-  | Rbx -> "RBX"
-  | Rsi -> "RSI"
-  | Rdi -> "RDI"
-  | Rdx -> "RDX"
-  | Rcx -> "RCX"
-  | R8  -> "R8"
-  | R9  -> "R9"
-  | R10 -> "R10"
-  | R11 -> "R11"
-  | R12 -> "R12"
-  | R13 -> "R13"
-  | R14 -> "R14"
-  | R15 -> "R15"
-;;
-
-let _reg_to_str (reg : 'a reg) (gr_to_str : 'a -> string) : string =
-  match reg with
-  | Rsp -> "RSP"
-  | Rbp -> "RBP"
-  | Greg gr -> gr_to_str gr
-;;
-
-
-let _reg_offset_to_str
-    (reg : 'a reg) (offset : int) (gr_to_str : 'a -> string)
-  : string =
-  let reg_str = _reg_to_str reg gr_to_str in
-  let op_str, offset =
-    if offset < 0
-    then " - ", -offset
-    else " + ", offset
-  in
-  let offset_str = Int.to_string offset in
-  "[" ^ reg_str ^ op_str ^ offset_str  ^ "]"
-;;
-
-let _arg_to_str (arg : 'a arg) (gr_to_str : 'a -> string) : string =
-  match arg with
-  | Lbl_arg label        -> Label.to_string label
-  | Imm_arg n            -> Int.to_string n
-  | Reg_arg reg           -> _reg_to_str reg gr_to_str
-  | Mem_arg (reg, offset) -> _reg_offset_to_str reg offset gr_to_str
-;;
-
-let _cond_to_suffix (cond : cond) : string =
-  match cond with
-  | Eq -> "e"
-  | Lt -> "l"
-;;
-
-let _binop_to_str (binop : binop) : string =
-  match binop with
-  | Add -> "add"
-  | Sub -> "sub"
-  | Mul -> "imul" (* 'i' for signed integer multiplication *)
-;;
-
-let _call_target_to_str (target : 'a call_target) (gr_to_str : 'a -> string)
-  : string =
-  match target with
-  | Reg gr -> gr_to_str gr
-  | Lbl label -> Label.to_string label
-;;
-
-let _instr_to_str (instr : 'a instr) (gr_to_str : 'a -> string) : string =
-  let add_tab s = "\t" ^ s in
-  match instr with
-  | Label label -> (Label.to_string label) ^ ":"
-
-  | Load (arg, dst_reg) ->
-    let arg_str = _arg_to_str arg gr_to_str in
-    let dst_str = _reg_to_str dst_reg gr_to_str in
-    let instr_str = "mov " ^ dst_str ^ ", " ^ arg_str in
-    add_tab instr_str
-
-  | Store (src_reg, dst_addr_reg, offset) ->
-    let src_str = _reg_to_str src_reg gr_to_str in
-    let dst_str = _reg_offset_to_str dst_addr_reg offset gr_to_str in
-    let instr_str = "mov " ^ dst_str ^ ", " ^ src_str in
-    add_tab instr_str
-
-  | Push reg ->
-    let reg_str = _reg_to_str reg gr_to_str in
-    let instr_str = "push" ^ " " ^ reg_str in
-    add_tab instr_str
-
-  | Pop reg ->
-    let reg_str = _reg_to_str reg gr_to_str in
-    let instr_str = "pop" ^ " " ^ reg_str in
-    add_tab instr_str
-
-  | IDiv reg ->
-    let reg_str = _reg_to_str reg gr_to_str in
-    let instr_str = "idiv" ^ " " ^ reg_str in
-    add_tab instr_str
-
-  | Binop (binop, reg, arg) ->
-    let arg_str = _arg_to_str arg gr_to_str in
-    let reg_str = _reg_to_str reg gr_to_str in
-    let binop_str = _binop_to_str binop in
-    let instr_str = binop_str ^ " " ^ reg_str ^ ", " ^ arg_str in
-    add_tab instr_str
-
-  | Cmp (arg, reg) ->
-    let arg_str = _arg_to_str arg gr_to_str in
-    let reg_str = _reg_to_str reg gr_to_str in
-    let instr_str = "cmp " ^ arg_str ^ ", " ^ reg_str in
-    add_tab instr_str
-
-  | Jmp label ->
-    let instr_str = "jmp " ^ (Label.to_string label)in
-    add_tab instr_str
-
-  | JmpC (cond, label) ->
-    let suffix = _cond_to_suffix cond in
-    let label_str = Label.to_string label in
-    let instr_str = "j" ^ suffix ^ " " ^ label_str in
-    add_tab instr_str
-
-  | Call (target, _) -> (* args are used for liveness analysis or debugging *)
-    let target_str = _call_target_to_str target gr_to_str in
-    let instr_str = "call" ^ " " ^ target_str in
-    add_tab instr_str
-
-  | Ret -> add_tab "ret"
-;;
-
-let _instrs_to_str (instrs : 'a instr list) (gr_to_str : 'a -> string)
-  : string =
-  let instr_strs = List.map (fun instr -> _instr_to_str instr gr_to_str) instrs in
-  String.join_with instr_strs "\n"
-;;
-
-let _func_to_str (func : func) : string =
-  let all_instrs = (Label func.entry)::func.instrs in
-  _instrs_to_str all_instrs physical_reg_to_str
-;;
-
-
-let _add_label_if_native (labels : Label.t Set.t) (label : Label.t)
-  : Label.t Set.t =
-  if Label.is_native label 
-  then Set.add label labels
-  else labels
-;;
-
-let _add_native_labels_in_arg (labels : Label.t Set.t) (arg : 'a arg)
-  : Label.t Set.t =
-  match arg with
-  | Imm_arg _ | Reg_arg _ | Mem_arg _ -> labels
-  | Lbl_arg label ->
-    _add_label_if_native labels label
-;;
-
-let _add_native_labels_in_call_target 
-    (labels : Label.t Set.t) (target : 'a call_target)
-  : Label.t Set.t =
-  match target with
-  | Reg _ -> labels
-  | Lbl label -> _add_label_if_native labels label
-;;
-
-let _add_external_native_labels_in_instr
-    (labels : Label.t Set.t) (instr : 'a instr)
-  : Label.t Set.t =
-  match instr with
-  | Label _           -> labels
-  | Load (arg, _)     -> _add_native_labels_in_arg labels arg
-  | Binop (_, _, arg) -> _add_native_labels_in_arg labels arg
-  | Cmp (arg, _)      -> _add_native_labels_in_arg labels arg
-  | Call (target, _)  -> _add_native_labels_in_call_target labels target
-
-  | Store _ | Push _ | Pop _ | Jmp _ | JmpC _ | Ret | IDiv _ -> 
-    labels
-;;
-
-let _add_external_native_labels_in_func
-    (labels : Label.t Set.t) (func : func) : Label.t Set.t =
-  List.fold_left _add_external_native_labels_in_instr labels func.instrs
-;;
-
-let _find_external_native_labels_in_prog (prog : func prog) : Label.t Set.t =
-  let labels =
-    List.fold_left
-      _add_external_native_labels_in_func
-      Label.empty_set prog.funcs
-  in
-  _add_external_native_labels_in_func labels prog.main
-;;
-
-let _get_prog_metadata (prog : func prog) : string =
-  let external_native_label_decls = 
-    List.map
-      (fun label -> "extern " ^ (Label.to_string label))
-      (Set.to_list (_find_external_native_labels_in_prog prog))
-  in
-  let global_native_label_decls =
-    ["global " ^ (Label.to_string prog.main.entry)]
-  in
-  let metadata_lines =
-      ("section .text"::external_native_label_decls) @
-      global_native_label_decls
-  in
-  String.join_with metadata_lines "\n"
-;;
-
-(* "ur" stands for usable_register *)
-let func_prog_to_str prog =
-  let metadata_str = _get_prog_metadata prog in
-  let all_funcs = prog.funcs @ [prog.main] in
-  let func_strs = List.map _func_to_str all_funcs in
-  let funcs_str = String.join_with func_strs "\n\n" in
-  String.join_with [metadata_str; funcs_str] "\n\n"
-;;
-
-let temp_func_to_str temp_func =
-  let all_instrs = (Label temp_func.entry)::temp_func.instrs in
-  _instrs_to_str all_instrs Temp.to_string
 ;;

@@ -60,3 +60,24 @@ let lir_to_x86 lir_prog =
   }
 ;;
 
+
+let rec _arm64_temp_func_to_func (temp_func : Arm64.temp_func) : Arm64.func =
+  let vasms = Arm64.temp_func_to_vasms temp_func in
+  let annotated_vasms = Liveness_analysis.analyze_vasm vasms in
+  let pre_color = Arm64.get_pre_coloring temp_func in
+  match Reg_alloc.greedy_alloc
+          annotated_vasms 
+          Arm64.assignable_regs
+          pre_color with
+  | Ok temp_to_reg -> Arm64.temp_func_to_func temp_func temp_to_reg 
+  | Error temps_to_spill ->
+    let updated_temp_func = Arm64.spill_temps temp_func temps_to_spill in
+    _arm64_temp_func_to_func updated_temp_func
+;;
+
+let lir_to_arm64 lir_prog = 
+  let arm64_temp_prog = Arm64.from_lir_prog lir_prog in
+  { Arm64.funcs = List.map _arm64_temp_func_to_func arm64_temp_prog.funcs
+  ; main      = _arm64_temp_func_to_func arm64_temp_prog.main
+  }
+;;
